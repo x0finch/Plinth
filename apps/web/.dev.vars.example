@@ -1,0 +1,11 @@
+# 复制为 .dev.vars（本地）；线上用 wrangler secret put 设置同名密钥
+# 登录会话签名密钥：openssl rand -base64 32
+BETTER_AUTH_SECRET=
+# 模型密钥加密主密钥（32 字节 base64）：openssl rand -base64 32
+KEY_ENCRYPTION_SECRET=
+# Google 登录（可选，不填则不显示 Google 按钮）
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+# 验证码邮件（Resend）。本地不填时验证码打印在终端
+RESEND_API_KEY=
+MAIL_FROM=Plinth <noreply@example.com>

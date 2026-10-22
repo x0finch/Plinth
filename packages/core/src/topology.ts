@@ -196,13 +196,18 @@ export function moveWall(p: Project, wallId: Id, v: Point) {
   const ext = w.thickness;
   for (const s of p.spaces) {
     if (s.level !== w.level) continue;
+    let moved = false;
     for (const poly of s.shape) for (const ring of [poly.outer, ...(poly.holes ?? [])]) {
       for (let i = 0; i < ring.length; i++) {
         const pr = project(oldWall, ring[i]);
-        if (pr.dist <= TOL && pr.at >= -ext && pr.at <= wallLength(oldWall) + ext) ring[i] = round(add(ring[i], v));
+        if (pr.dist <= TOL && pr.at >= -ext && pr.at <= wallLength(oldWall) + ext) {
+          ring[i] = round(add(ring[i], v));
+          moved = true;
+        }
       }
     }
-    s.shape = union(s.shape);
+    // 只整理动过的空间，避免把整层都记成“改动”
+    if (moved) s.shape = union(s.shape);
   }
 }
 
