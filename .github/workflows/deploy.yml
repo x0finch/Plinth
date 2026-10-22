@@ -18,17 +18,18 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: npx tsc --noEmit -p apps/web
       - run: npm test
       - run: npm run check:theme -w @plinth/web
+      # 构建会生成路由表 routeTree.gen.ts（不入库），网页的类型检查要在它之后
       - run: npm run build -w @plinth/web
+      - run: npx tsc --noEmit -p apps/web
 
   deploy:
     needs: check
@@ -39,8 +40,8 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -57,14 +58,13 @@ jobs:
         env:
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           KEY_ENCRYPTION_SECRET: ${{ secrets.KEY_ENCRYPTION_SECRET }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           MAIL_FROM: ${{ vars.MAIL_FROM }}
           APP_URL: ${{ vars.APP_URL }}
         run: |
           node -e '
-            const names = ["BETTER_AUTH_SECRET", "KEY_ENCRYPTION_SECRET", "RESEND_API_KEY", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "MAIL_FROM", "APP_URL"];
+            const names = ["BETTER_AUTH_SECRET", "KEY_ENCRYPTION_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "MAIL_FROM", "APP_URL"];
             const out = Object.fromEntries(names.filter(n => process.env[n]).map(n => [n, process.env[n]]));
             for (const n of ["BETTER_AUTH_SECRET", "KEY_ENCRYPTION_SECRET"]) if (!out[n]) { console.error(`缺少 ${n}`); process.exit(1); }
             require("fs").writeFileSync(process.env.RUNNER_TEMP + "/secrets.json", JSON.stringify(out));

@@ -56,14 +56,22 @@ D1 数据库 `plinth` 已建好（ID 写在 `apps/web/wrangler.jsonc`），Token
 | `CLOUDFLARE_ACCOUNT_ID` | 必填。Cloudflare 后台 Workers & Pages 页右侧的 Account ID |
 | `BETTER_AUTH_SECRET` | 必填。登录会话签名，32 位以上随机串 |
 | `KEY_ENCRYPTION_SECRET` | 必填。加密用户的大模型密钥，24 位以上随机串。**设好后不要改**，改了已保存的模型密钥就解不开 |
-| `RESEND_API_KEY` | 可选。发邮件（resend.com） |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 可选。回调地址：`<网址>/api/auth/callback/google` |
 
 **Variables**
 
 | 名称 | 说明 |
 |---|---|
-| `MAIL_FROM` | 可选。发件人，如 `Plinth <noreply@你的域名>`，域名要先在 Resend 验证 |
+| `MAIL_FROM` | 邮箱验证码登录需要。发件人，如 `Plinth <noreply@你的域名>`；不填则线上只能访客试用和 Google 登录 |
 | `APP_URL` | 可选。绑定自己的域名时填，如 `https://plinth.example.com`；不填时按访问的网址推断 |
+
+### 邮箱验证码登录（Cloudflare Email Service）
+
+验证码邮件用 Cloudflare 自己的 Email Service（`wrangler.jsonc` 里的 `send_email` 绑定）发送，需要：
+1. Workers 付费版（每月 5 美元，含每月 3000 封邮件）。免费版只能发给账号里验证过的地址，发不了给用户
+2. 一个用 Cloudflare DNS 的域名：Cloudflare 后台 → Compute → Email Service → Email Sending → Onboard Domain
+3. GitHub Variables 里设 `MAIL_FROM`，发件地址用这个域名
+
+不设 `MAIL_FROM` 时线上只能访客试用和 Google 登录；本地开发不设，验证码打印在终端。
 
 配好后推送到 `main`，或在 Actions 页手动运行 `deploy`。第一次部署后网址是 `https://plinth.<你的子域>.workers.dev`。

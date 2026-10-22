@@ -3,6 +3,7 @@
 // Runtime types generated with workerd@1.20261019.1 2026-10-01 nodejs_compat
 interface __BaseEnv_Env {
 	DB: D1Database;
+	EMAIL: SendEmail;
 	RL_AUTH: RateLimit;
 	RL_CHAT: RateLimit;
 	RL_API: RateLimit;
@@ -11,7 +12,6 @@ interface __BaseEnv_Env {
 	KEY_ENCRYPTION_SECRET: string;
 	GOOGLE_CLIENT_ID: string;
 	GOOGLE_CLIENT_SECRET: string;
-	RESEND_API_KEY: string;
 	MAIL_FROM: string;
 }
 declare namespace Cloudflare {
@@ -25,7 +25,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "APP_URL" | "BETTER_AUTH_SECRET" | "KEY_ENCRYPTION_SECRET" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "RESEND_API_KEY" | "MAIL_FROM">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "APP_URL" | "BETTER_AUTH_SECRET" | "KEY_ENCRYPTION_SECRET" | "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "MAIL_FROM">> {}
 }
 declare module "*.txt" {
 	const value: string;
