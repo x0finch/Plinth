@@ -1,6 +1,6 @@
 /**
- * 只在浏览器里运行的视图能力：切换视图、定位高亮、截图。
- * 视图状态也是数据：相机、楼层、选中、高亮都能读写。服务端只用它们的定义生成工具说明。
+ * 只在浏览器里运行的视图能力：切换视图、定位、截图。
+ * 视图状态也是数据：相机、楼层、选中、改动标记都能读写。服务端只用它们的定义生成工具说明。
  */
 import { defineRead, type CapabilityContext } from '@plinth/core';
 import { z } from 'zod';
@@ -30,7 +30,7 @@ const host = (ctx: CapabilityContext) => {
 
 export const viewGet = defineRead({
   name: 'view_get', title: '读取视图', kind: 'view', permission: 'read', runtime: 'browser',
-  description: '读取当前视图：平面还是三维、当前楼层、选中和高亮的对象、相机、图层开关。用户说“这面墙”“这里”时，先读选中的对象。',
+  description: '读取当前视图：平面还是三维、当前楼层、选中的对象、刚改动的对象、相机、图层开关。用户说“这面墙”“这里”时，先读选中的对象。',
   input: z.object({}),
   run: (_, ctx) => {
     const s = host(ctx).get();
@@ -56,8 +56,8 @@ export const viewSet = defineRead({
 });
 
 export const viewFocus = defineRead({
-  name: 'view_focus', title: '定位高亮', kind: 'view', permission: 'read', runtime: 'browser',
-  description: '把镜头转到这些对象并高亮（自动切到它们所在楼层）。改完之后用它把改动处指给业主看。',
+  name: 'view_focus', title: '指给你看', kind: 'view', permission: 'read', runtime: 'browser',
+  description: '把镜头转到这些对象，让它们在图上跳一下（自动切到它们所在楼层）。改完之后用它把改动处指给业主看。',
   input: z.object({ ids: z.array(z.string()).min(1).describe('对象 ID'), highlight: z.boolean().default(true) }),
   run: (i, ctx) => host(ctx).focus(i.ids, i.highlight),
 });

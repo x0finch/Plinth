@@ -39,7 +39,7 @@ export interface TxResult<R = unknown> {
   ok: boolean;
   result?: R;
   error?: { code: string; message: string; issues?: Issue[] };
-  /** 被改动的对象 ID，供界面高亮、镜头定位 */
+  /** 被改动的对象 ID，供界面标出改动、镜头定位 */
   changed: Id[];
   /** 操作新引入的警告 */
   warnings: Issue[];

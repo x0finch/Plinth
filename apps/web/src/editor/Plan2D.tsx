@@ -1,4 +1,4 @@
-/** 平面图：SVG，单位毫米。点选对象、缩放平移、高亮改动、对比改前。 */
+/** 平面图：SVG，单位毫米。点选对象、缩放平移、选中和改动时跳一下、对比改前。 */
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
 import { wallBody, wallLength, type Point } from '@plinth/core';

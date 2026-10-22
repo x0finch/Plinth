@@ -111,9 +111,13 @@ const built = await owner.evaluate(() => window.artifact.project());
 check('从零起步', built.spaces.length === 5 && built.brief.household?.length === 2, `搭出 ${built.spaces.length} 个房间、${built.walls.length} 面墙，记下需求“${built.brief.household?.join('、')}”`);
 const rules = await owner.evaluate(() => window.artifact.call('check_rules', {}));
 check('规则检查', rules.result.issues.every(i => i.severity !== 'error'), `无错误（警告 ${rules.result.issues.length} 条）`);
-await caption(owner, '⑥ 切到三维白模看看');
+await caption(owner, '⑥ 切到三维白模；点一面墙，选中的东西会往上跳一下，不变色');
 await owner.getByLabel('三维', { exact: true }).click();
+await pause(3000);
+const someWall = await owner.evaluate(() => window.artifact.project().walls[0].id);
+await owner.evaluate(id => window.artifact.call('view_focus', { ids: [id], highlight: false }), someWall);
 await pause(3500);
+await owner.keyboard.press('Escape');
 await owner.getByLabel('平面', { exact: true }).click();
 await pause(800);
 
@@ -135,7 +139,7 @@ await owner.getByRole('option', { name: /演示用脚本模型/ }).click();
 await owner.keyboard.press('Escape');
 await pause(1200);
 
-await caption(owner, '⑧ 在图上点选“老人房一”，属性面板显示面积、四周的墙和相邻房间');
+await caption(owner, '⑧ 在图上点选“老人房一”：它会跳一下；属性面板显示面积、四周的墙和相邻房间');
 await tapRoom(owner, '老人房一');
 await owner.getByRole('tab', { name: '属性' }).click();
 await pause(2500);
@@ -143,13 +147,13 @@ check('点选', (await owner.getByText('四周').count()) > 0 && (await owner.ge
 
 // ---------- 6. 对话改方案 ----------
 await owner.getByRole('tab', { name: '对话' }).click();
-await caption(owner, '⑨ 选中老人房一后说“扩到 12.5 平”，agent 移墙、自检、把改动指给你看');
+await caption(owner, '⑨ 说“扩到 12.5 平”：agent 移墙、自检，改到的东西从中心往外依次跳一下');
 await say('老人房一扩到 12.5 平');
 await owner.getByText(/^好了。老人房一现在/).waitFor({ timeout: 40000 });
 await pause(2000);
 const a1 = await owner.evaluate(() => window.artifact.call('get_object', { ref: '一层·老人房一' }));
 check('agent 调面积', Math.abs(a1.result.netArea - 12.5) < 0.15, `老人房一 12.0 → ${a1.result.netArea} m²`);
-await caption(owner, '⑩ 改动卡片：各房间面积变化；点“对比改前”看原来的墙在哪');
+await caption(owner, '⑩ 改动卡片：各房间面积变化；点“对比改前”，原来的墙用虚线画出');
 await owner.getByRole('button', { name: '对比改前' }).click();
 await pause(3000);
 await caption(owner, '⑪ 不满意可以一键撤销，再重做');
@@ -160,6 +164,16 @@ await owner.getByLabel('重做').click();
 await pause(1500);
 const redone = await owner.evaluate(() => window.artifact.call('get_object', { ref: '一层·老人房一' }));
 check('撤销 / 重做', undone.result.netArea === 12 && Math.abs(redone.result.netArea - 12.5) < 0.15, `撤销后 ${undone.result.netArea}，重做后 ${redone.result.netArea} m²`);
+
+// ---------- 网页深色，画布不变 ----------
+await caption(owner, '⑪+ 网页跟随系统切到深色，画布始终是亮色');
+await owner.emulateMedia({ colorScheme: 'dark' });
+await pause(3000);
+const canvasBg = await owner.frameLocator('iframe[title="画布"]').locator('svg').evaluate(el => getComputedStyle(el).backgroundColor);
+const pageBg = await owner.evaluate(() => getComputedStyle(document.body).backgroundColor);
+check('画布主题独立', canvasBg !== pageBg, `网页背景 ${pageBg}，画布背景 ${canvasBg}`);
+await owner.emulateMedia({ colorScheme: 'light' });
+await pause(1000);
 
 // ---------- 7. 需要确认的操作 ----------
 await caption(owner, '⑫ 不可逆的操作（删楼层）agent 会先问；点“不要”就不执行');

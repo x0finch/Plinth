@@ -153,7 +153,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
       },
 
       select(ids) {
-        // 点空白处：同时清掉改动高亮
+        // 点空白处：同时清掉改动标记
         set(s => ({ view: { ...s.view, selection: ids, highlight: ids.length ? s.view.highlight : [] } }));
       },
 

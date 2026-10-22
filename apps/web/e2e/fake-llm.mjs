@@ -46,7 +46,7 @@ function next(body) {
     const out = String(last.content);
     if (/扩到|调到/.test(text)) {
       const m = out.match(/"area":([\d.]+)/);
-      return { text: `好了。老人房一现在约 ${m ? Number(m[1]).toFixed(1) : '12.5'} m²，我把它和老人房二之间的隔墙往西挪了；老人房二相应小了一点。改动处已经在图上高亮。` };
+      return { text: `好了。老人房一现在约 ${m ? Number(m[1]).toFixed(1) : '12.5'} m²，我把它和老人房二之间的隔墙往西挪了；老人房二相应小了一点。改动的墙在图上跳了一下。` };
     }
     if (/一家四口/.test(text)) return { text: '好了。按你的需求排了一层起始方案：北边客厅、厨房和卫生间，南边主卧和次卧，卧室都朝南开窗。规则检查没有发现问题。要不要再加二层？' };
     if (/删掉三层|删除三层/.test(text)) return { text: /declined|denied|cancel|拒绝|not approved/i.test(out) ? '好的，三层保留不动。' : '三层已删除。' };
@@ -60,7 +60,7 @@ createServer(async (req, res) => {
   for await (const c of req) raw += c;
   const body = raw ? JSON.parse(raw) : {};
   requests.push({ url: req.url, body });
-  console.log(`[fake-llm] ${req.method} ${req.url} messages=${body.messages?.length} tools=${body.tools?.length} last=${JSON.stringify(body.messages?.at(-1)).slice(0, 160)}`);
+  console.log(`[fake-llm] ${req.method} ${req.url} messages=${body.messages?.length} tools=${body.tools?.length} last=${(JSON.stringify(body.messages?.at(-1)) ?? "").slice(0, 160)}`);
   if (!req.url.endsWith('/chat/completions')) {
     res.writeHead(404).end();
     return;
