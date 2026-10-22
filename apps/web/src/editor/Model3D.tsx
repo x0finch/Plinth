@@ -7,6 +7,7 @@ import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
 import { projectBoxes, type Box, type Project, type Space } from '@plinth/core';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
+import { useCanvasDocument } from '@/canvas/CanvasFrame';
 import { useThemeColors } from '@/lib/theme';
 import { useEditor } from './store';
 
@@ -18,7 +19,7 @@ const useColors = () =>
   useThemeColors({
     bg: '--muted', wall: '--card', slab: '--secondary', ground: '--accent', furn: '--chart-3',
     glass: '--muted-foreground', edge: '--muted-foreground', hl: '--chart-2', sky: '--background',
-  });
+  }, useCanvasDocument());
 
 /** 选中或刚改过的对象保持原色，只描边并带一点主题强调色，白模不会整片变色 */
 const HL_MIX = 0.15;

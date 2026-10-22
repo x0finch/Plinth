@@ -1,0 +1,17 @@
+/* 画布 iframe 的样式：只有亮色，和网页的深浅色无关 */
+@import 'tailwindcss';
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "../theme/light.css";
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  color-scheme: light;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  -webkit-tap-highlight-color: transparent;
+}

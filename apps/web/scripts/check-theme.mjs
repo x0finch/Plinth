@@ -19,7 +19,7 @@ const walk = d => readdirSync(d).forEach(f => {
 walk(root);
 let n = 0;
 for (const f of files) {
-  if (f.endsWith('styles.css')) continue; // 主题定义本身
+  if (f.endsWith('styles.css') || f.includes('/theme/')) continue; // 主题定义本身
   readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
     for (const [re, why] of bad) if (re.test(line) && !line.includes('theme-ok')) {
       console.log(`${f.replace(root, 'src')}:${i + 1}  ${why}：${line.trim().slice(0, 100)}`);

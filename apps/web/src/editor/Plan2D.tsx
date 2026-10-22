@@ -15,7 +15,7 @@ export async function svgToPng(svg: SVGSVGElement, width = 2000) {
   clone.setAttribute('width', String(width));
   clone.setAttribute('height', String(height));
   // 把用到的 CSS 变量落成具体颜色，离开页面也能显示
-  const cs = getComputedStyle(svg);
+  const cs = svg.ownerDocument.defaultView!.getComputedStyle(svg);
   const vars = ['--background', '--card', '--muted', '--secondary', '--accent', '--foreground', '--muted-foreground', '--chart-1', '--chart-2', '--font-sans', '--font-mono'];
   clone.setAttribute('style', vars.map(v => `${v}:${cs.getPropertyValue(v)}`).join(';'));
   const data = new XMLSerializer().serializeToString(clone);

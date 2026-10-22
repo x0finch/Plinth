@@ -21,6 +21,7 @@ import { registry } from '@/agent/registry';
 import { PlanPreview } from '@/components/site/PlanPreview';
 import { api, can, ROLE_ZH } from '@/lib/api';
 import { ChatPanel } from './ChatPanel';
+import { CanvasFrame } from '@/canvas/CanvasFrame';
 import { Model3D } from './Model3D';
 import { AreasPanel, CommentsPanel, PropsPanel, VersionsPanel } from './Panels';
 import { Plan2D, svgToPng } from './Plan2D';
@@ -248,7 +249,9 @@ function Workspace() {
       <div className="flex min-h-0 flex-1">
         <main className="relative min-w-0 flex-1" aria-label="画布">
           <Conflict />
-          {view.mode === '2d' ? <Plan2D svgRef={svgRef} /> : <Model3D />}
+          <CanvasFrame className="absolute inset-0 size-full border-0">
+            {view.mode === '2d' ? <Plan2D svgRef={svgRef} /> : <Model3D />}
+          </CanvasFrame>
           {/* 手机：楼层切换浮在画布上 */}
           <div className="absolute top-2 left-2 md:hidden">
             <ToggleGroup value={[view.level]} onValueChange={v => v[0] && setView({ level: v[0] as string })} variant="outline" size="sm" className="bg-background">

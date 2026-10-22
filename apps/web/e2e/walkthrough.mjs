@@ -50,7 +50,7 @@ const say = async (text) => {
 };
 /** 点选平面图上的房间：点房间名 */
 async function tapRoom(page, name) {
-  const label = page.locator('svg text', { hasText: new RegExp(`^${name}$`) }).first();
+  const label = page.frameLocator('iframe[title="画布"]').locator('svg text', { hasText: new RegExp(`^${name}$`) }).first();
   const box = await label.boundingBox();
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
