@@ -3,11 +3,13 @@
  * 显示当前楼层及以下；点选对象与平面图同步。单位：数据是毫米，场景是米。
  */
 import { Bounds, Edges, OrbitControls, useBounds } from '@react-three/drei';
-import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
+import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { projectBoxes, type Box, type Project, type Space } from '@plinth/core';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useCanvasDocument } from '@/canvas/CanvasFrame';
+import { hops } from '@/canvas/hop';
+import { useReducedMotion } from '@/canvas/HopDriver';
 import { useThemeColors } from '@/lib/theme';
 import { useEditor } from './store';
 
@@ -18,32 +20,49 @@ const unitBox = new THREE.BoxGeometry(1, 1, 1);
 const useColors = () =>
   useThemeColors({
     bg: '--muted', wall: '--card', slab: '--secondary', ground: '--accent', furn: '--chart-3',
-    glass: '--muted-foreground', edge: '--muted-foreground', hl: '--chart-2', sky: '--background',
+    glass: '--muted-foreground', edge: '--muted-foreground', sel: '--foreground', sky: '--background',
   }, useCanvasDocument());
 
-/** 选中或刚改过的对象保持原色，只描边并带一点主题强调色，白模不会整片变色 */
-const HL_MIX = 0.15;
-const tint = (color: string, hl?: string) => (hl ? `#${new THREE.Color(color).lerp(new THREE.Color(hl), HL_MIX).getHexString()}` : color);
+/**
+ * 选中、改动不变色，而是往上跳一下再落回原位（见 canvas/hop.ts）。
+ * restY 记下原位，截图前先放回原位。
+ */
+function useHop<T extends THREE.Object3D>(id: string) {
+  const ref = useRef<T>(null);
+  useFrame(() => {
+    const o = ref.current;
+    if (o) o.position.y = o.userData.restY + hops.lift(id, performance.now()) * M;
+  });
+  return ref;
+}
 
-function BoxMesh({ b, base, color, edge, hl, opacity = 1, onPick }: { b: Box; base: number; color: string; edge: string; hl?: string; opacity?: number; onPick: (e: ThreeEvent<MouseEvent>) => void }) {
+/** 减少动态效果时，选中的对象用前景色细描边 */
+type Outline = { edge: string; sel?: string };
+const edgeProps = ({ edge, sel }: Outline) => ({ color: sel ?? edge, lineWidth: sel ? 2 : 1 });
+
+function BoxMesh({ b, base, color, opacity = 1, onPick, ...o }: Outline & { b: Box; base: number; color: string; opacity?: number; onPick: (e: ThreeEvent<MouseEvent>) => void }) {
+  const y = (base + b.z + b.height / 2) * M;
+  const ref = useHop<THREE.Mesh>(b.id);
   return (
     <mesh
+      ref={ref}
       geometry={unitBox}
-      position={[b.center[0] * M, (base + b.z + b.height / 2) * M, b.center[1] * M]}
+      position={[b.center[0] * M, y, b.center[1] * M]}
       rotation={[0, -b.angle, 0]}
       scale={[b.length * M, b.height * M, b.thickness * M]}
       castShadow={opacity === 1}
       receiveShadow
       onClick={onPick}
-      userData={{ id: b.id }}
+      userData={{ id: b.id, restY: y }}
     >
-      <meshStandardMaterial color={tint(color, hl)} roughness={0.9} transparent={opacity < 1} opacity={opacity} />
-      {opacity === 1 && <Edges color={hl ?? edge} threshold={20} lineWidth={hl ? 2 : 1} />}
+      <meshStandardMaterial color={color} roughness={0.9} transparent={opacity < 1} opacity={opacity} />
+      {opacity === 1 && <Edges threshold={20} {...edgeProps(o)} />}
     </mesh>
   );
 }
 
-function Slab({ s, y, thickness, color, edge, hl, onPick }: { s: Space; y: number; thickness: number; color: string; edge: string; hl?: string; onPick: (e: ThreeEvent<MouseEvent>) => void }) {
+function Slab({ s, y, thickness, color, onPick, ...o }: Outline & { s: Space; y: number; thickness: number; color: string; onPick: (e: ThreeEvent<MouseEvent>) => void }) {
+  const ref = useHop<THREE.Mesh>(s.id);
   const geo = useMemo(() => {
     const shapes = s.shape.map(p => {
       const sh = new THREE.Shape(p.outer.map(([x, z]) => new THREE.Vector2(x * M, -z * M)));
@@ -55,9 +74,22 @@ function Slab({ s, y, thickness, color, edge, hl, onPick }: { s: Space; y: numbe
     return g;
   }, [s.shape, thickness]);
   return (
-    <mesh geometry={geo} position={[0, (y - thickness) * M, 0]} receiveShadow onClick={onPick} userData={{ id: s.id }}>
-      <meshStandardMaterial color={tint(color, hl)} roughness={1} />
-      <Edges color={hl ?? edge} threshold={20} lineWidth={hl ? 2 : 1} />
+    <mesh ref={ref} geometry={geo} position={[0, (y - thickness) * M, 0]} receiveShadow onClick={onPick} userData={{ id: s.id, restY: (y - thickness) * M }}>
+      <meshStandardMaterial color={color} roughness={1} />
+      <Edges threshold={20} {...edgeProps(o)} />
+    </mesh>
+  );
+}
+
+function Furniture({ f, base, color, sel, onPick }: { f: Project['furniture'][number]; base: number; color: string; sel?: string; onPick: (e: ThreeEvent<MouseEvent>) => void }) {
+  const y = (base + (f.elevation ?? 0) + f.size.h / 2) * M;
+  const ref = useHop<THREE.Mesh>(f.id);
+  return (
+    <mesh ref={ref} geometry={unitBox} castShadow onClick={onPick} userData={{ id: f.id, restY: y }}
+      position={[f.position[0] * M, y, f.position[1] * M]}
+      rotation={[0, (-f.rotation * Math.PI) / 180, 0]} scale={[f.size.w * M, f.size.h * M, f.size.d * M]}>
+      <meshStandardMaterial color={color} roughness={0.95} />
+      {sel && <Edges color={sel} threshold={20} lineWidth={2} />}
     </mesh>
   );
 }
@@ -77,6 +109,10 @@ function Capture() {
   const setCapture = useEditor(s => s.setCapture);
   useEffect(() => {
     setCapture(async () => {
+      // 只拍静止帧：跳动中的对象先放回原位
+      scene.traverse(o => {
+        if (typeof o.userData.restY === 'number') o.position.y = o.userData.restY;
+      });
       gl.render(scene, camera);
       const c = gl.domElement;
       return { dataUrl: c.toDataURL('image/png'), width: c.width, height: c.height };
@@ -96,9 +132,9 @@ export function Model3D() {
   const shown = project.levels.filter(l => !current || l.elevation <= current.elevation);
   const elev = new Map(project.levels.map(l => [l.id, l.elevation]));
   const boxes = useMemo(() => projectBoxes(project), [project]);
-  const on = new Set([...view.selection, ...view.highlight]);
+  const reduced = useReducedMotion();
   const ownerOf = (id: string) => project.walls.find(w => w.openings.some(o => o.id === id))?.id;
-  const hlWalls = new Set([...on].map(id => ownerOf(id) ?? id));
+  const sel = new Set(reduced ? view.selection.map(id => ownerOf(id) ?? id) : []);
 
   const pick = (id: string) => (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
@@ -134,19 +170,14 @@ export function Model3D() {
             <group key={l.id}>
               {project.spaces.filter(s => s.level === l.id && s.kind !== 'void' && !s.slabOpening).map(s => (
                 <Slab key={s.id} s={s} y={s.kind === 'outdoor' && l.elevation === 0 ? project.site.groundLevel + 20 : l.elevation} thickness={s.kind === 'outdoor' ? 20 : 120}
-                  color={c.slab} hl={on.has(s.id) ? c.hl : undefined} edge={c.edge} onPick={pick(s.id)} />
+                  color={c.slab} edge={c.edge} sel={sel.has(s.id) ? c.sel : undefined} onPick={pick(s.id)} />
               ))}
               {boxes.filter(b => b.level === l.id).map((b, i) => (
                 <BoxMesh key={`${b.id}-${i}`} b={b} base={elev.get(l.id) ?? 0} edge={c.edge} onPick={pick(b.id)}
-                  color={b.kind === 'glass' ? c.glass : c.wall} hl={hlWalls.has(b.id) ? c.hl : undefined} opacity={b.kind === 'glass' ? 0.2 : 1} />
+                  color={b.kind === 'glass' ? c.glass : c.wall} sel={sel.has(b.id) ? c.sel : undefined} opacity={b.kind === 'glass' ? 0.2 : 1} />
               ))}
               {view.layers.furniture && project.furniture.filter(f => f.level === l.id).map(f => (
-                <mesh key={f.id} geometry={unitBox} castShadow onClick={pick(f.id)} userData={{ id: f.id }}
-                  position={[f.position[0] * M, ((elev.get(l.id) ?? 0) + (f.elevation ?? 0) + f.size.h / 2) * M, f.position[1] * M]}
-                  rotation={[0, (-f.rotation * Math.PI) / 180, 0]} scale={[f.size.w * M, f.size.h * M, f.size.d * M]}>
-                  <meshStandardMaterial color={tint(c.furn, on.has(f.id) ? c.hl : undefined)} roughness={0.95} />
-                  {on.has(f.id) && <Edges color={c.hl} threshold={20} lineWidth={2} />}
-                </mesh>
+                <Furniture key={f.id} f={f} base={elev.get(l.id) ?? 0} color={c.furn} sel={sel.has(f.id) ? c.sel : undefined} onPick={pick(f.id)} />
               ))}
             </group>
           ))}

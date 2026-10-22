@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
 import { wallBody, wallLength, type Point } from '@plinth/core';
+import { hopCurve, hops, PROFILE } from '@/canvas/hop';
+import { useReducedMotion } from '@/canvas/HopDriver';
 import { levelShapes, polyPath } from './plan-geometry';
 import { useEditor } from './store';
 
@@ -36,6 +38,30 @@ const SPACE_FILL: Record<string, string> = {
   indoor: 'var(--card)', 'semi-outdoor': 'var(--muted)', outdoor: 'var(--secondary)', 'roof-terrace': 'var(--accent)', void: 'url(#hatch)',
 };
 
+/** 平面图从上往下看，“往上跳”画成朝你抬起：轻微放大加投影。墙的命中区平时透明，跳的时候填上墙色 */
+const WALL_TOKEN: Record<string, string> = { bearing: '--foreground', partition: '--muted-foreground' };
+const LIFT = { transformBox: 'fill-box', transformOrigin: 'center' } as const;
+
+function useHop2D(svgRef: React.RefObject<SVGSVGElement | null>, wallKind: (id: string) => string | undefined) {
+  useEffect(() => hops.subscribe(h => {
+    const svg = svgRef.current;
+    const el = svg?.querySelector<SVGElement>(`[data-id="${CSS.escape(h.id)}"]`);
+    if (!svg || !el) return;
+    const cs = svg.ownerDocument.defaultView!.getComputedStyle(svg.ownerDocument.documentElement);
+    const shade = `color-mix(in oklch, ${cs.getPropertyValue('--foreground')} 28%, transparent)`;
+    const kind = wallKind(h.id);
+    const fill = kind ? { fill: cs.getPropertyValue(WALL_TOKEN[kind] ?? '--muted-foreground'), fillOpacity: 1 } : {};
+    const p = PROFILE[h.weight];
+    const frames = Array.from({ length: 13 }, (_, i) => {
+      const y = hopCurve(i / 12) * h.gain;
+      return { offset: i / 12, transform: `scale(${1 + (p.scale - 1) * y})`, filter: `drop-shadow(0 ${y * 160}px ${y * 220}px ${shade})`, ...fill };
+    });
+    frames[0].offset = 0;
+    frames[12].offset = 1;
+    el.animate(frames, { duration: p.ms, delay: Math.max(0, h.at - performance.now()), easing: 'linear' });
+  }), [svgRef, wallKind]);
+}
+
 export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | null> }) {
   const project = useEditor(s => s.project);
   const view = useEditor(s => s.view);
@@ -58,8 +84,13 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
   const font = Math.max(220, Math.min(420, (x1 - x0) / 45));
 
   const sel = new Set(view.selection);
-  const hl = new Set(view.highlight);
-  const isOn = (id: string) => sel.has(id) || hl.has(id);
+  // 选中不变色，靠跳动；减少动态效果时才用前景色细描边
+  const reduced = useReducedMotion();
+  const isOn = (id: string) => reduced && sel.has(id);
+  const localRef = useRef<SVGSVGElement>(null);
+  const ref = svgRef ?? localRef;
+  const wallKind = useCallback((id: string) => project.walls.find(w => w.id === id)?.kind, [project]);
+  useHop2D(ref, wallKind);
 
   const pick = useCallback(
     (id: string) => (e: React.MouseEvent) => {
@@ -80,7 +111,7 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
     <TransformWrapper ref={zoomRef} minScale={0.5} maxScale={20} doubleClick={{ disabled: true }} wheel={{ step: 0.15 }}>
       <TransformComponent wrapperClass="!w-full !h-full" contentClass="!w-full !h-full">
         <svg
-          ref={svgRef}
+          ref={ref}
           viewBox={vb}
           className="h-full w-full select-none"
           style={{ background: 'var(--background)' }}
@@ -102,14 +133,14 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
 
           {/* 空间 */}
           {shapes.spaces.map(({ s, d }) => (
-            <path key={s.id} d={d} fill={SPACE_FILL[s.kind]} stroke={isOn(s.id) ? 'var(--chart-2)' : 'none'} strokeWidth={isOn(s.id) ? 3 : 0}
-              vectorEffect="non-scaling-stroke" onClick={pick(s.id)} className="cursor-pointer" data-id={s.id} />
+            <path key={s.id} d={d} fill={SPACE_FILL[s.kind]} stroke={isOn(s.id) ? 'var(--foreground)' : 'none'} strokeWidth={isOn(s.id) ? 1.5 : 0}
+              vectorEffect="non-scaling-stroke" onClick={pick(s.id)} className="cursor-pointer" data-id={s.id} style={LIFT} />
           ))}
 
           {/* 家具 */}
           {view.layers.furniture && shapes.furniture.map(({ f, d }) => (
-            <path key={f.id} d={d} fill="var(--background)" fillOpacity={0.6} stroke={isOn(f.id) ? 'var(--chart-2)' : 'var(--muted-foreground)'}
-              strokeWidth={isOn(f.id) ? 2.5 : 1} vectorEffect="non-scaling-stroke" onClick={pick(f.id)} className="cursor-pointer" data-id={f.id} />
+            <path key={f.id} d={d} fill="var(--background)" fillOpacity={0.6} stroke={isOn(f.id) ? 'var(--foreground)' : 'var(--muted-foreground)'}
+              strokeWidth={isOn(f.id) ? 2 : 1} vectorEffect="non-scaling-stroke" onClick={pick(f.id)} className="cursor-pointer" data-id={f.id} style={LIFT} />
           ))}
 
           {/* 墙体 */}
@@ -119,18 +150,19 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
           {shapes.railings.map(({ w, d }) => (
             <path key={w.id} d={d} fill="none" stroke="var(--foreground)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" pointerEvents="none" />
           ))}
-          {/* 墙的命中区域与高亮 */}
+          {/* 墙的命中区域；跳动时填上墙色 */}
           {shapes.walls.map(({ w, d }) => (
-            <path key={w.id} d={d} fill={isOn(w.id) ? 'var(--chart-2)' : 'transparent'} fillOpacity={isOn(w.id) ? 0.55 : 0}
-              onClick={pick(w.id)} className="cursor-pointer" data-id={w.id} />
+            <path key={w.id} d={d} fill="transparent" fillOpacity={0} stroke={isOn(w.id) ? 'var(--foreground)' : 'none'} strokeWidth={1.5}
+              vectorEffect="non-scaling-stroke" onClick={pick(w.id)} className="cursor-pointer" data-id={w.id} style={LIFT} />
           ))}
 
           {/* 门窗 */}
           {shapes.openings.map(o => (
-            <g key={o.id} onClick={pick(o.id)} className="cursor-pointer" data-id={o.id}>
-              <polygon points={pts(o.outline)} fill={o.glassBlock ? 'url(#glassblock)' : isOn(o.id) ? 'var(--chart-2)' : 'transparent'} fillOpacity={isOn(o.id) ? 0.35 : 1} />
+            <g key={o.id} onClick={pick(o.id)} className="cursor-pointer" data-id={o.id} style={LIFT}>
+              <polygon points={pts(o.outline)} fill={o.glassBlock ? 'url(#glassblock)' : 'transparent'}
+                stroke={isOn(o.id) ? 'var(--foreground)' : 'none'} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
               {o.lines.map((l, i) => (
-                <polyline key={i} points={pts(l)} fill="none" stroke={isOn(o.id) ? 'var(--chart-2)' : 'var(--foreground)'} strokeWidth={1.2}
+                <polyline key={i} points={pts(l)} fill="none" stroke="var(--foreground)" strokeWidth={1.2}
                   strokeDasharray={o.dashed ? '6 4' : undefined} vectorEffect="non-scaling-stroke" />
               ))}
               {o.arcs.map((a, i) => (
@@ -142,7 +174,7 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
           {/* 改前的墙：虚线 */}
           {before && (
             <g pointerEvents="none">
-               <path d={before} fill="none" stroke="var(--chart-1)" strokeWidth={2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
+               <path d={before} fill="none" stroke="var(--foreground)" strokeWidth={1.2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
             </g>
           )}
 
@@ -162,7 +194,7 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
           {/* 尺寸：选中墙的长度 */}
           {view.layers.dimensions && selWall && (
             <text x={(selWall.w.start[0] + selWall.w.end[0]) / 2} y={(selWall.w.start[1] + selWall.w.end[1]) / 2 - selWall.w.thickness}
-              fontSize={font * 0.85} textAnchor="middle" fill="var(--chart-2)" fontFamily="var(--font-mono)" pointerEvents="none"
+              fontSize={font * 0.85} textAnchor="middle" fill="var(--foreground)" fontFamily="var(--font-mono)" pointerEvents="none"
               paintOrder="stroke" stroke="var(--background)" strokeWidth={font / 6}>
               {(wallLength(selWall.w) / 1000).toFixed(2)} m
             </text>
