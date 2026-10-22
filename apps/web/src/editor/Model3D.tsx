@@ -17,10 +17,14 @@ const unitBox = new THREE.BoxGeometry(1, 1, 1);
 const useColors = () =>
   useThemeColors({
     bg: '--muted', wall: '--card', slab: '--secondary', ground: '--accent', furn: '--chart-3',
-    glass: '--chart-2', edge: '--muted-foreground', hl: '--chart-2', sky: '--background',
+    glass: '--muted-foreground', edge: '--muted-foreground', hl: '--chart-2', sky: '--background',
   });
 
-function BoxMesh({ b, base, color, edge, opacity = 1, onPick }: { b: Box; base: number; color: string; edge: string; opacity?: number; onPick: (e: ThreeEvent<MouseEvent>) => void }) {
+/** 选中或刚改过的对象保持原色，只描边并带一点主题强调色，白模不会整片变色 */
+const HL_MIX = 0.15;
+const tint = (color: string, hl?: string) => (hl ? `#${new THREE.Color(color).lerp(new THREE.Color(hl), HL_MIX).getHexString()}` : color);
+
+function BoxMesh({ b, base, color, edge, hl, opacity = 1, onPick }: { b: Box; base: number; color: string; edge: string; hl?: string; opacity?: number; onPick: (e: ThreeEvent<MouseEvent>) => void }) {
   return (
     <mesh
       geometry={unitBox}
@@ -32,13 +36,13 @@ function BoxMesh({ b, base, color, edge, opacity = 1, onPick }: { b: Box; base: 
       onClick={onPick}
       userData={{ id: b.id }}
     >
-      <meshStandardMaterial color={color} roughness={0.9} transparent={opacity < 1} opacity={opacity} />
-      {opacity === 1 && <Edges color={edge} threshold={20} />}
+      <meshStandardMaterial color={tint(color, hl)} roughness={0.9} transparent={opacity < 1} opacity={opacity} />
+      {opacity === 1 && <Edges color={hl ?? edge} threshold={20} lineWidth={hl ? 2 : 1} />}
     </mesh>
   );
 }
 
-function Slab({ s, y, thickness, color, edge, onPick }: { s: Space; y: number; thickness: number; color: string; edge: string; onPick: (e: ThreeEvent<MouseEvent>) => void }) {
+function Slab({ s, y, thickness, color, edge, hl, onPick }: { s: Space; y: number; thickness: number; color: string; edge: string; hl?: string; onPick: (e: ThreeEvent<MouseEvent>) => void }) {
   const geo = useMemo(() => {
     const shapes = s.shape.map(p => {
       const sh = new THREE.Shape(p.outer.map(([x, z]) => new THREE.Vector2(x * M, -z * M)));
@@ -51,8 +55,8 @@ function Slab({ s, y, thickness, color, edge, onPick }: { s: Space; y: number; t
   }, [s.shape, thickness]);
   return (
     <mesh geometry={geo} position={[0, (y - thickness) * M, 0]} receiveShadow onClick={onPick} userData={{ id: s.id }}>
-      <meshStandardMaterial color={color} roughness={1} />
-      <Edges color={edge} threshold={20} />
+      <meshStandardMaterial color={tint(color, hl)} roughness={1} />
+      <Edges color={hl ?? edge} threshold={20} lineWidth={hl ? 2 : 1} />
     </mesh>
   );
 }
@@ -129,17 +133,18 @@ export function Model3D() {
             <group key={l.id}>
               {project.spaces.filter(s => s.level === l.id && s.kind !== 'void' && !s.slabOpening).map(s => (
                 <Slab key={s.id} s={s} y={s.kind === 'outdoor' && l.elevation === 0 ? project.site.groundLevel + 20 : l.elevation} thickness={s.kind === 'outdoor' ? 20 : 120}
-                  color={on.has(s.id) ? c.hl : c.slab} edge={c.edge} onPick={pick(s.id)} />
+                  color={c.slab} hl={on.has(s.id) ? c.hl : undefined} edge={c.edge} onPick={pick(s.id)} />
               ))}
               {boxes.filter(b => b.level === l.id).map((b, i) => (
                 <BoxMesh key={`${b.id}-${i}`} b={b} base={elev.get(l.id) ?? 0} edge={c.edge} onPick={pick(b.id)}
-                  color={b.kind === 'glass' ? c.glass : hlWalls.has(b.id) ? c.hl : c.wall} opacity={b.kind === 'glass' ? 0.25 : 1} />
+                  color={b.kind === 'glass' ? c.glass : c.wall} hl={hlWalls.has(b.id) ? c.hl : undefined} opacity={b.kind === 'glass' ? 0.2 : 1} />
               ))}
               {view.layers.furniture && project.furniture.filter(f => f.level === l.id).map(f => (
                 <mesh key={f.id} geometry={unitBox} castShadow onClick={pick(f.id)} userData={{ id: f.id }}
                   position={[f.position[0] * M, ((elev.get(l.id) ?? 0) + (f.elevation ?? 0) + f.size.h / 2) * M, f.position[1] * M]}
                   rotation={[0, (-f.rotation * Math.PI) / 180, 0]} scale={[f.size.w * M, f.size.h * M, f.size.d * M]}>
-                  <meshStandardMaterial color={on.has(f.id) ? c.hl : c.furn} roughness={0.95} />
+                  <meshStandardMaterial color={tint(c.furn, on.has(f.id) ? c.hl : undefined)} roughness={0.95} />
+                  {on.has(f.id) && <Edges color={c.hl} threshold={20} lineWidth={2} />}
                 </mesh>
               ))}
             </group>
