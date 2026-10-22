@@ -34,7 +34,7 @@ api.onError((err, c) => {
 
 // 登录相关：验证码发送和登录接口限流
 api.on(['GET', 'POST'], '/auth/*', async c => {
-  if (c.req.method === 'POST' && /email-otp|sign-in/.test(c.req.path)) await limit(env.RL_AUTH, ip(c));
+  if (c.req.method === 'POST' && /email-otp|sign-in|sign-up/.test(c.req.path)) await limit(env.RL_AUTH, ip(c));
   return auth().handler(c.req.raw);
 });
 

@@ -58,13 +58,14 @@ jobs:
         env:
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           KEY_ENCRYPTION_SECRET: ${{ secrets.KEY_ENCRYPTION_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           MAIL_FROM: ${{ vars.MAIL_FROM }}
           APP_URL: ${{ vars.APP_URL }}
         run: |
           node -e '
-            const names = ["BETTER_AUTH_SECRET", "KEY_ENCRYPTION_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "MAIL_FROM", "APP_URL"];
+            const names = ["BETTER_AUTH_SECRET", "KEY_ENCRYPTION_SECRET", "RESEND_API_KEY", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "MAIL_FROM", "APP_URL"];
             const out = Object.fromEntries(names.filter(n => process.env[n]).map(n => [n, process.env[n]]));
             for (const n of ["BETTER_AUTH_SECRET", "KEY_ENCRYPTION_SECRET"]) if (!out[n]) { console.error(`缺少 ${n}`); process.exit(1); }
             require("fs").writeFileSync(process.env.RUNNER_TEMP + "/secrets.json", JSON.stringify(out));

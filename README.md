@@ -32,8 +32,8 @@ npm run dev                            # http://localhost:3000；验证码打印
 npm test                               # 核心包：面积对照、能力契约、约束（根目录）
 cd apps/web
 npm run fake-llm &                     # 假大模型（OpenAI 兼容接口，脚本化工具调用）
-npm run dev &
-npm run e2e                            # 端到端：agent 对话、确认、从零起步、分享、评论、版本、手机布局
+npm run dev > dev.log &
+DEV_LOG=dev.log npm run e2e            # 端到端：agent 对话、确认、从零起步、分享、评论、版本、手机布局、邮箱密码登录（验证码从 dev.log 读）
 ```
 
 ## 部署（Cloudflare Workers 免费版，GitHub Actions 自动部署）
@@ -56,22 +56,24 @@ D1 数据库 `plinth` 已建好（ID 写在 `apps/web/wrangler.jsonc`），Token
 | `CLOUDFLARE_ACCOUNT_ID` | 必填。Cloudflare 后台 Workers & Pages 页右侧的 Account ID |
 | `BETTER_AUTH_SECRET` | 必填。登录会话签名，32 位以上随机串 |
 | `KEY_ENCRYPTION_SECRET` | 必填。加密用户的大模型密钥，24 位以上随机串。**设好后不要改**，改了已保存的模型密钥就解不开 |
+| `RESEND_API_KEY` | 邮箱登录需要。发验证码（resend.com，免费额度每天 100 封） |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 可选。回调地址：`<网址>/api/auth/callback/google` |
 
 **Variables**
 
 | 名称 | 说明 |
 |---|---|
-| `MAIL_FROM` | 邮箱验证码登录需要。发件人，如 `Plinth <noreply@你的域名>`；不填则线上只能访客试用和 Google 登录 |
+| `MAIL_FROM` | 邮箱登录需要。发件人，如 `Plinth <noreply@你的域名>`，域名要先在 Resend 验证 |
 | `APP_URL` | 可选。绑定自己的域名时填，如 `https://plinth.example.com`；不填时按访问的网址推断 |
 
-### 邮箱验证码登录（Cloudflare Email Service）
+### 登录方式
 
-验证码邮件用 Cloudflare 自己的 Email Service（`wrangler.jsonc` 里的 `send_email` 绑定）发送，需要：
-1. Workers 付费版（每月 5 美元，含每月 3000 封邮件）。免费版只能发给账号里验证过的地址，发不了给用户
-2. 一个用 Cloudflare DNS 的域名：Cloudflare 后台 → Compute → Email Service → Email Sending → Onboard Domain
-3. GitHub Variables 里设 `MAIL_FROM`，发件地址用这个域名
+- 验证码：输入邮箱收验证码，没有账号自动创建
+- 邮箱 + 密码：注册后用验证码验证邮箱；忘记密码用验证码重设（只用验证码登录过的账号也能这样设密码）
+- Google（可选）
 
-不设 `MAIL_FROM` 时线上只能访客试用和 Google 登录；本地开发不设，验证码打印在终端。
+密码的慢哈希在用户设备上做（PBKDF2-SHA256 60 万轮，盐是 `plinth:` + 邮箱），服务器收到的是派生结果，再加随机盐做一次 SHA-256 存起来。免费版 Worker 每个请求只有 10 ms CPU，跑不动慢哈希；原始密码也因此从不离开设备。
+
+验证码邮件都走 Resend。不配 `RESEND_API_KEY` 时线上只能访客试用和 Google 登录；本地不配，验证码打印在终端。
 
 配好后推送到 `main`，或在 Actions 页手动运行 `deploy`。第一次部署后网址是 `https://plinth.<你的子域>.workers.dev`。

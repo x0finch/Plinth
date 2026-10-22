@@ -1,10 +1,11 @@
 /**
  * 登录：Better Auth，邮箱验证码 + Google，支持先试用（匿名）后登录。
- * 免费版每次请求约 10 ms CPU：不做密码登录（密码哈希太耗 CPU）；会话用签名 cookie 缓存，大多数请求不查库。
+ * 免费版每次请求约 10 ms CPU：密码的慢哈希在用户设备上做（见 password.ts）；会话用签名 cookie 缓存，大多数请求不查库。
  */
 import { betterAuth } from 'better-auth';
 import { env } from 'cloudflare:workers';
 import { sendOtpMail } from './mail';
+import { DERIVED_LENGTH, hashPassword, verifyPassword } from './password';
 import { schemaPlugins } from './auth-schema';
 import { transferOwnership } from './repo';
 
@@ -20,7 +21,16 @@ function create() {
     secret: env.BETTER_AUTH_SECRET,
     database: env.DB,
     trustedOrigins: env.APP_URL ? [env.APP_URL] : [],
-    emailAndPassword: { enabled: false },
+    // 邮箱 + 密码：收到的“密码”是设备上派生的 64 位十六进制串；注册后要用验证码验证邮箱
+    emailAndPassword: {
+      enabled: true,
+      requireEmailVerification: true,
+      minPasswordLength: DERIVED_LENGTH,
+      maxPasswordLength: DERIVED_LENGTH,
+      revokeSessionsOnPasswordReset: true,
+      password: { hash: hashPassword, verify: verifyPassword },
+    },
+    emailVerification: { sendOnSignUp: true, sendOnSignIn: true, autoSignInAfterVerification: true },
     socialProviders: google,
     session: {
       expiresIn: 60 * 60 * 24 * 30,

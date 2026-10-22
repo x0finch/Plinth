@@ -7,5 +7,6 @@ KEY_ENCRYPTION_SECRET=
 # Google 登录（可选，不填则不显示 Google 按钮）
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-# 验证码邮件的发件人（线上走 Cloudflare Email Service）。本地不填，验证码打印在终端
-MAIL_FROM=
+# 验证码邮件（Resend）。本地不填时验证码打印在终端
+RESEND_API_KEY=
+MAIL_FROM=Plinth <noreply@example.com>
