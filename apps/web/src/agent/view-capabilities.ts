@@ -72,4 +72,38 @@ export const viewScreenshot = defineRead({
   },
 });
 
-export const VIEW_CAPABILITIES = [viewGet, viewSet, viewFocus, viewScreenshot];
+
+/** 评论：方案里的评论挂在对象上，agent 可以读、回复、标成“待业主确认”或“已解决” */
+export interface CommentsHost {
+  list(): Promise<{ id: string; target_id: string | null; target_name: string | null; parent_id: string | null; author: string | null; body: string; status: string }[]>;
+  reply(parentId: string, body: string, status?: 'open' | 'pending-confirm' | 'resolved'): Promise<void>;
+}
+
+const comments = (ctx: CapabilityContext) => {
+  const c = ctx.host?.comments as CommentsHost | undefined;
+  if (!c) throw new Error('这项能力需要在浏览器里打开方案才能用');
+  return c;
+};
+
+export const commentsList = defineRead({
+  name: 'comments_list', title: '看评论', kind: 'query', permission: 'read', runtime: 'browser',
+  description: '列出方案里的评论（挂在哪个对象上、谁说的、状态、回复）。默认只列没解决的。',
+  input: z.object({ all: z.boolean().default(false) }),
+  run: async (i, ctx) => {
+    const rows = await comments(ctx).list();
+    const roots = rows.filter(r => !r.parent_id && (i.all || r.status !== 'resolved'));
+    return roots.map(r => ({ ...r, replies: rows.filter(x => x.parent_id === r.id).map(x => ({ author: x.author, body: x.body })) }));
+  },
+});
+
+export const commentReply = defineRead({
+  name: 'comment_reply', title: '回复评论', kind: 'relation', permission: 'reversible', runtime: 'browser',
+  description: '回复一条评论，并设置状态：改好了用 resolved；需要业主拍板时把选项写清楚，用 pending-confirm（待业主确认）。',
+  input: z.object({ comment: z.string().describe('评论 ID'), body: z.string(), status: z.enum(['open', 'pending-confirm', 'resolved']) }),
+  run: async (i, ctx) => {
+    await comments(ctx).reply(i.comment, i.body, i.status);
+    return { ok: true };
+  },
+});
+
+export const VIEW_CAPABILITIES = [viewGet, viewSet, viewFocus, viewScreenshot, commentsList, commentReply];

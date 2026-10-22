@@ -7,12 +7,18 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "auth:migration": "tsx scripts/auth-migration.ts"
+    "auth:migration": "tsx scripts/auth-migration.ts",
+    "db:migrate:local": "wrangler d1 migrations apply plinth --local",
+    "db:migrate:remote": "wrangler d1 migrations apply plinth --remote",
+    "deploy": "vite build && wrangler deploy",
+    "fake-llm": "node e2e/fake-llm.mjs",
+    "e2e": "node e2e/agent.e2e.mjs && node e2e/collab.e2e.mjs"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.64.0",
     "@cloudflare/workers-types": "^5.20261022.1",
     "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/router-plugin": "^1.168.47",
     "@types/polylabel": "^2.0.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -44,7 +50,6 @@
     "@tanstack/ai-react": "^0.31.1",
     "@tanstack/react-query": "^5.104.5",
     "@tanstack/react-router": "^1.170.45",
-    "@tanstack/react-start": "^1.169.3",
     "ai": "^7.0.148",
     "better-auth": "^1.7.12",
     "class-variance-authority": "^0.7.1",

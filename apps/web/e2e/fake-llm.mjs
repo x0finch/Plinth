@@ -1,0 +1,73 @@
+// 测试用的假大模型（OpenAI Chat Completions 流式接口）。按脚本先调用工具，再回一段话。
+// 用法：node e2e/fake-llm.mjs [端口=8787]
+import { createServer } from 'node:http';
+
+const port = Number(process.argv[2] ?? 8787);
+export const requests = [];
+
+const chunk = (delta, finish = null, usage) =>
+  `data: ${JSON.stringify({ id: 'fake', object: 'chat.completion.chunk', created: 0, model: 'fake', choices: [{ index: 0, delta, finish_reason: finish }], ...(usage ? { usage } : {}) })}\n\n`;
+
+/** 脚本：看最后一条消息决定下一步 */
+function next(body) {
+  const msgs = body.messages;
+  const last = msgs[msgs.length - 1];
+  const user = [...msgs].reverse().find(m => m.role === 'user');
+  const text = typeof user?.content === 'string' ? user.content : JSON.stringify(user?.content);
+  // 只数最后一条用户消息之后的工具结果
+  const lastUser = msgs.map(m => m.role).lastIndexOf('user');
+  const toolsSoFar = msgs.slice(lastUser).filter(m => m.role === 'tool').length;
+  if (/扩到|调到/.test(text) && toolsSoFar === 0) return { tool: { name: 'space_set_area', args: { space: '一层·老人房一', area: 12.5 } } };
+  if (/扩到|调到/.test(text) && toolsSoFar === 1) return { tool: { name: 'view_focus', args: { ids: ['L1-s15'] } } };
+  if (/删掉三层|删除三层/.test(text) && toolsSoFar === 0) return { tool: { name: 'level_remove', args: { level: '三层' } } };
+  if (/一家四口/.test(text) && toolsSoFar === 0)
+    return { tool: { name: 'brief_update', args: { household: ['夫妻', '两个孩子'], rooms: ['客厅', '厨房', '主卧', '次卧', '卫生间'] } } };
+  if (/一家四口/.test(text) && toolsSoFar === 1)
+    return {
+      tool: {
+        name: 'batch',
+        args: {
+          label: '排出一层起始方案',
+          calls: [
+            { name: 'room_add', input: { level: 'L1', name: '客厅', rect: [0, 0, 5000, 4500], wall_kind: 'bearing', wall_thickness: 240, floor: 'wood', door: { side: 'west', width: 1000 } } },
+            { name: 'room_add', input: { level: 'L1', name: '厨房', rect: [5000, 0, 3000, 2500], wall_kind: 'bearing', wall_thickness: 240, floor: 'tile', door: { side: 'west' } } },
+            { name: 'room_add', input: { level: 'L1', name: '卫生间', rect: [5000, 2500, 3000, 2000], floor: 'antislip', door: { side: 'west', width: 800 } } },
+            { name: 'room_add', input: { level: 'L1', name: '主卧', rect: [0, 4500, 4000, 3600], wall_kind: 'bearing', wall_thickness: 240, door: { side: 'north' } } },
+            { name: 'room_add', input: { level: 'L1', name: '次卧', rect: [4000, 4500, 4000, 3600], wall_kind: 'bearing', wall_thickness: 240, door: { side: 'north' } } },
+            { name: 'opening_add', input: { wall: '主卧南墙', kind: 'window', center_on: '主卧' } },
+            { name: 'opening_add', input: { wall: '次卧南墙', kind: 'window', center_on: '次卧' } },
+            { name: 'opening_add', input: { wall: '客厅北墙', kind: 'window', center_on: '客厅', width: 2400 } },
+          ],
+        },
+      },
+    };
+  if (/一家四口/.test(text) && toolsSoFar === 2) return { tool: { name: 'check_rules', args: {} } };
+  if (last.role === 'tool') return { text: `好了。${String(last.content).slice(0, 60)}` };
+  return { text: '收到。' };
+}
+
+createServer(async (req, res) => {
+  let raw = '';
+  for await (const c of req) raw += c;
+  const body = raw ? JSON.parse(raw) : {};
+  requests.push({ url: req.url, body });
+  console.log(`[fake-llm] ${req.method} ${req.url} messages=${body.messages?.length} tools=${body.tools?.length}`);
+  if (!req.url.endsWith('/chat/completions')) {
+    res.writeHead(404).end();
+    return;
+  }
+  const step = next(body);
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+  const usage = { prompt_tokens: 1200, completion_tokens: 40, total_tokens: 1240 };
+  if (step.tool) {
+    res.write(chunk({ role: 'assistant', content: null, tool_calls: [{ index: 0, id: `call_${Date.now()}`, type: 'function', function: { name: step.tool.name, arguments: '' } }] }));
+    res.write(chunk({ tool_calls: [{ index: 0, function: { arguments: JSON.stringify(step.tool.args) } }] }));
+    res.write(chunk({}, 'tool_calls'));
+  } else {
+    res.write(chunk({ role: 'assistant', content: '' }));
+    for (const part of step.text.match(/.{1,8}/gsu) ?? []) res.write(chunk({ content: part }));
+    res.write(chunk({}, 'stop'));
+  }
+  res.write(`data: ${JSON.stringify({ id: 'fake', object: 'chat.completion.chunk', created: 0, model: 'fake', choices: [], usage })}\n\n`);
+  res.end('data: [DONE]\n\n');
+}).listen(port, () => console.log(`[fake-llm] http://127.0.0.1:${port}/v1`));

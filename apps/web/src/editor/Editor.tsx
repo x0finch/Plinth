@@ -2,7 +2,7 @@
  * 方案编辑器：一边对话、一边画布。手机上画布全屏，面板从底部弹出。
  * 页面暴露 window.artifact.call(能力, 参数) 和“已就绪”信号，任何 agent 用自己的浏览器都能验证。
  */
-import { describe } from '@plinth/core';
+import { describe, type Project } from '@plinth/core';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowLeftIcon, BoxIcon, CloudCheckIcon, CloudIcon, DownloadIcon, EllipsisIcon, HistoryIcon, ImageIcon, LayoutPanelLeftIcon, LoaderIcon,
@@ -17,7 +17,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { registry } from '@/agent/registry';
-import { can, ROLE_ZH } from '@/lib/api';
+import { PlanPreview } from '@/components/site/PlanPreview';
+import { api, can, ROLE_ZH } from '@/lib/api';
 import { ChatPanel } from './ChatPanel';
 import { Model3D } from './Model3D';
 import { AreasPanel, CommentsPanel, PropsPanel, VersionsPanel } from './Panels';
@@ -161,6 +162,31 @@ function PanelBody({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   );
 }
 
+/** 每次保存后上传一张平面缩略图（方案列表用） */
+function Thumbnail() {
+  const version = useEditor(s => s.version);
+  const projectId = useEditor(s => s.projectId);
+  const canEdit = useEditor(s => s.canEdit());
+  const session = useEditor(s => s.session);
+  const ref = useRef<HTMLDivElement>(null);
+  const [snap, setSnap] = useState<Project | null>(null);
+  useEffect(() => {
+    if (!canEdit) return;
+    const t = setTimeout(() => setSnap(session.project), 2000);
+    return () => clearTimeout(t);
+  }, [version]);
+  useEffect(() => {
+    const svg = ref.current?.querySelector('svg');
+    if (!snap || !svg) return;
+    const cs = getComputedStyle(document.documentElement);
+    const html = svg.outerHTML
+      .replace(/var\((--[a-z-]+)\)/g, (_m, v: string) => cs.getPropertyValue(v).trim() || 'sans-serif')
+      .replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+    if (html.length < 190_000) void api(`/projects/${projectId}/thumbnail`, { method: 'PUT', body: html, headers: { 'Content-Type': 'image/svg+xml' } }).catch(() => {});
+  }, [snap]);
+  return snap ? <div ref={ref} className="hidden" aria-hidden><PlanPreview project={snap} /></div> : null;
+}
+
 function Workspace() {
   const view = useEditor(s => s.view);
   const project = useEditor(s => s.project);
@@ -240,6 +266,7 @@ function Workspace() {
         </Sheet>
       )}
       <ShareDialog open={share} onOpenChange={setShare} />
+      <Thumbnail />
     </div>
   );
 }

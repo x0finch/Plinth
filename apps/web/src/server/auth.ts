@@ -27,6 +27,10 @@ function create() {
       cookieCache: { enabled: true, maxAge: 5 * 60 },
     },
     user: { deleteUser: { enabled: true } },
+    // 邮箱验证码登录没有名字：默认用邮箱前缀
+    databaseHooks: {
+      user: { create: { before: async u => ({ data: { ...u, name: u.name || (u.email?.split('@')[0] ?? '') } }) } },
+    },
     // 限流交给 Cloudflare 的限流绑定，这里不再查库计数
     rateLimit: { enabled: false },
     advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] } },

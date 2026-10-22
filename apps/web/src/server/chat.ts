@@ -8,31 +8,23 @@ import { createGeminiChat } from '@tanstack/ai-gemini';
 import { createOpenaiChat } from '@tanstack/ai-openai';
 import { openaiCompatibleText } from '@tanstack/ai-openai/compatible';
 import { createOpenRouterText } from '@tanstack/ai-openrouter';
-import type { Permission } from '@plinth/core';
+import { isAutonomy, needsApproval, type Autonomy } from '../agent/policy';
 import { registry } from '../agent/registry';
 import { SYSTEM_PROMPT, contextPrompt, type AgentContext } from '../agent/prompt';
 import type { ModelConfigRow } from './repo';
 
-export type Autonomy = 'ask' | 'balanced' | 'auto';
-
-/** 哪些权限等级要业主点确认 */
-const NEEDS_APPROVAL: Record<Autonomy, Permission[]> = {
-  ask: ['reversible', 'main', 'external'],
-  balanced: ['main', 'external'],
-  auto: ['external'],
-};
+export type { Autonomy };
 
 /** 用得少的能力按需加载，省 token */
-const LAZY = new Set(['history_log', 'search_capabilities', 'level_remove', 'constraint_remove', 'wall_update', 'space_merge', 'space_remove', 'list_constraints']);
+const LAZY = new Set(['history_log', 'search_capabilities', 'constraint_remove', 'wall_update', 'space_merge', 'space_remove', 'list_constraints']);
 
 export function agentTools(autonomy: Autonomy) {
-  const approve = NEEDS_APPROVAL[autonomy];
   return registry.list().map(c =>
     toolDefinition({
       name: c.name,
       description: `${c.title}：${c.description}`,
       inputSchema: c.input,
-      needsApproval: approve.includes(c.permission) && c.kind !== 'query' && c.kind !== 'view',
+      needsApproval: needsApproval(c, autonomy),
       lazy: LAZY.has(c.name),
     }),
   );
@@ -58,7 +50,7 @@ export async function handleChat(request: Request, o: { config: ModelConfigRow; 
     return Response.json({ error: e instanceof Error ? e.message : '请求格式不对' }, { status: 400 });
   }
   const props = params.forwardedProps as { autonomy?: Autonomy; context?: AgentContext };
-  const autonomy: Autonomy = props.autonomy && props.autonomy in NEEDS_APPROVAL ? props.autonomy : 'balanced';
+  const autonomy: Autonomy = isAutonomy(props.autonomy) ? props.autonomy : 'balanced';
 
   let input = 0, output = 0;
   const usage: ChatMiddleware = {

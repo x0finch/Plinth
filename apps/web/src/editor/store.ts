@@ -6,7 +6,7 @@ import { Session, type Actor, type CallResult, type Project, type TxResult } fro
 import { createContext, useContext } from 'react';
 import { createStore, useStore } from 'zustand';
 import { registry } from '@/agent/registry';
-import type { ViewHost, ViewState } from '@/agent/view-capabilities';
+import type { CommentsHost, ViewHost, ViewState } from '@/agent/view-capabilities';
 import { api, ApiError, can, type Role } from '@/lib/api';
 
 export interface LastChange {
@@ -132,7 +132,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
           return { ok: false, error: { code: 'forbidden', message: get().readOnlyVersion != null ? '正在查看历史版本，不能修改' : '你只有查看权限' } };
         }
         const before = session.project;
-        const r = await registry.call(name, input, { session, actor, host: { view: get().viewHost() } });
+        const r = await registry.call(name, input, { session, actor, host: { view: get().viewHost(), comments: commentsHost(get().projectId) } });
         if (r.ok && cap?.mode === 'edit' && r.changed?.length) {
           set(s => ({
             pendingLabels: [...s.pendingLabels, session.log.at(-1)?.label ?? cap.title],
@@ -256,6 +256,18 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
     };
   });
   return store;
+}
+
+/** agent 读写评论：走服务端接口，回复后刷新评论面板 */
+function commentsHost(projectId: string): CommentsHost {
+  return {
+    list: () => api(`/projects/${projectId}/comments`),
+    async reply(parentId, body, status) {
+      await api(`/projects/${projectId}/comments`, { method: 'POST', json: { body: `【agent】${body}`, parentId } });
+      if (status) await api(`/projects/${projectId}/comments/${parentId}`, { method: 'PATCH', json: { status } });
+      window.dispatchEvent(new Event('plinth:comments-changed'));
+    },
+  };
 }
 
 export const EditorContext = createContext<EditorStore | null>(null);

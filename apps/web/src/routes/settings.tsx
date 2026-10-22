@@ -14,7 +14,7 @@ import { api } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { AUTONOMY_ZH, getAutonomy, setAutonomy } from '@/lib/prefs';
 import { queryClient, useMe } from '@/lib/query';
-import type { Autonomy } from '@/server/chat';
+import type { Autonomy } from '@/agent/policy';
 
 export const Route = createFileRoute('/settings')({ component: Settings });
 

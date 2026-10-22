@@ -1,5 +1,5 @@
 /** 侧栏面板：选中对象的属性、面积、评论、版本。 */
-import { areaReport, checkRules } from '@plinth/core';
+import { areaReport, checkConstraints, checkRules } from '@plinth/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckIcon, HistoryIcon, MessageSquareIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -64,6 +64,7 @@ export function PropsPanel() {
     return (
       <div className="space-y-4 p-4 text-sm">
         <p className="text-muted-foreground">在图上点选一面墙、一个房间、一扇门窗或一件家具，查看它的信息。按住 Shift 可以多选。</p>
+        <ConstraintsList />
         <Separator />
         <div>
           <p className="mb-2 font-medium">本层检查</p>
@@ -172,6 +173,40 @@ export function PropsPanel() {
   );
 }
 
+const CONSTRAINT_ZH: Record<string, string> = { align: '对齐', center: '居中', spacing: '间距', 'size-target': '面积目标', reference: '引用', rule: '规则' };
+
+function ConstraintsList() {
+  const project = useEditor(s => s.project);
+  const canEdit = useEditor(s => s.canEdit());
+  const call = useEditor(s => s.call);
+  const focus = useEditor(s => s.focus);
+  const status = useMemo(() => new Map(checkConstraints(project).map(c => [c.id, c])), [project]);
+  if (!project.constraints.length) return null;
+  return (
+    <>
+      <Separator />
+      <div>
+        <p className="mb-2 font-medium">约束</p>
+        <p className="mb-2 text-xs text-muted-foreground">你说过的相对关系，改别处时会自动保持。</p>
+        <ul className="space-y-1.5">
+          {project.constraints.map(c => {
+            const st = status.get(c.id);
+            return (
+              <li key={c.id} className="flex items-start gap-2">
+                <button className="min-w-0 flex-1 text-left hover:underline" onClick={() => focus(c.targets)}>
+                  <span className={st?.ok ? '' : 'text-amber-700 dark:text-amber-400'}>{c.note ?? st?.message ?? CONSTRAINT_ZH[c.type]}</span>
+                  <span className="ml-1 text-xs text-muted-foreground">{CONSTRAINT_ZH[c.type]}{c.hard ? ' · 必须' : ''}{st?.ok ? '' : ' · 未满足'}</span>
+                </button>
+                {canEdit && <Button size="icon-xs" variant="ghost" aria-label="删除约束" onClick={() => call('constraint_remove', { constraint: c.id })}><Trash2Icon /></Button>}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </>
+  );
+}
+
 export function AreasPanel() {
   const project = useEditor(s => s.project);
   const focus = useEditor(s => s.focus);
@@ -237,6 +272,11 @@ export function CommentsPanel({ onAskAgent }: { onAskAgent?: (text: string) => v
     mutationFn: (v: { id: string; status: CommentRow['status'] }) => api(`/projects/${projectId}/comments/${v.id}`, { method: 'PATCH', json: { status: v.status } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['comments', projectId] }),
   });
+  useEffect(() => {
+    const on = () => qc.invalidateQueries({ queryKey: ['comments', projectId] });
+    window.addEventListener('plinth:comments-changed', on);
+    return () => window.removeEventListener('plinth:comments-changed', on);
+  }, [projectId]);
   const roots = data.filter(c => !c.parent_id);
   const open = roots.filter(c => c.status !== 'resolved');
   const done = roots.filter(c => c.status === 'resolved');

@@ -1,5 +1,5 @@
 /** 本机偏好（只影响当前浏览器）：agent 自主程度 */
-import type { Autonomy } from '@/server/chat';
+import type { Autonomy } from '@/agent/policy';
 
 const KEY = 'plinth.autonomy';
 export const AUTONOMY_ZH: Record<Autonomy, { label: string; hint: string }> = {

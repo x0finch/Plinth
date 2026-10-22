@@ -2,6 +2,7 @@
  * 和 agent 对话。能力清单里的每项能力都是浏览器端工具：agent 调用时在这里执行（走同一个事务和撤销），
  * 需要确认的操作弹出确认卡片。对话按人、按方案保存。
  */
+import type { Project } from '@plinth/core';
 import { toolDefinition } from '@tanstack/ai';
 import { clientTools } from '@tanstack/ai-client';
 import { fetchServerSentEvents, useChat, type UIMessage } from '@tanstack/ai-react';
@@ -22,11 +23,22 @@ import { registry } from '@/agent/registry';
 import type { AgentContext } from '@/agent/prompt';
 import { api, can, ROLE_ZH } from '@/lib/api';
 import { AUTONOMY_ZH, getAutonomy, setAutonomy } from '@/lib/prefs';
-import type { Autonomy } from '@/server/chat';
+import { needsApproval, type Autonomy } from '@/agent/policy';
 import { useEditor, useEditorStore } from './store';
 
 const SUGGESTIONS = ['这个方案一共多大？每层都有哪些房间？', '老人房一扩到 12 平方米', '在主卧北墙开一扇 1.5 米宽的窗', '帮我检查一下方案有没有问题'];
 const SUGGESTIONS_BLANK = ['一家四口，两层，要三间卧室、一个书房，院子朝南', '帮我在 12×10 米的地上排一个一层的小院'];
+
+/** 把一次能力调用说成一句话（确认卡片用） */
+function describeCall(name: string, args: unknown, project: Project) {
+  const c = registry.get(name);
+  if (c?.mode === 'edit') {
+    try {
+      return c.label(c.input.parse(args), project);
+    } catch {}
+  }
+  return `${c?.title ?? name}：${JSON.stringify(args)}`;
+}
 
 /** 去掉发给模型时没用的大字段（截图） */
 function forModel(r: Awaited<ReturnType<typeof registry.call>>) {
@@ -118,7 +130,7 @@ export function ChatPanel() {
     () =>
       clientTools(
         ...registry.list().map(c =>
-          toolDefinition({ name: c.name, description: c.title, inputSchema: c.input }).client(async (args: unknown) => {
+          toolDefinition({ name: c.name, description: c.title, inputSchema: c.input, needsApproval: needsApproval(c, autonomy) }).client(async (args: unknown) => {
             const r = await store.getState().call(c.name, args, { kind: 'agent' });
             const img = (r.result as any)?.image;
             if (typeof img === 'string') setShots(s => [...s, img]);
@@ -126,7 +138,7 @@ export function ChatPanel() {
           }),
         ),
       ),
-    [store],
+    [store, autonomy],
   );
 
   const context = (): AgentContext => {
@@ -297,7 +309,7 @@ export function ChatPanel() {
         it.kind === 'tool-approval' ? (
           <div key={it.id} className="mx-3 mb-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
             <p className="font-medium">agent 想要：{registry.get(it.toolName)?.title ?? it.toolName}</p>
-            <pre className="mt-1 max-h-32 overflow-auto font-mono text-xs text-muted-foreground whitespace-pre-wrap">{JSON.stringify(it.originalArgs, null, 1)}</pre>
+            <p className="mt-1 text-muted-foreground">{describeCall(it.toolName, it.originalArgs, project)}</p>
             <div className="mt-2 flex gap-2">
               <Button size="sm" onClick={() => it.resolveInterrupt(true)}>同意</Button>
               <Button size="sm" variant="outline" onClick={() => it.resolveInterrupt(false)}>不要</Button>
