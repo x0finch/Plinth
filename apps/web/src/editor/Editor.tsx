@@ -59,13 +59,16 @@ function useIsMobile() {
   return m;
 }
 
-function download(dataUrl: string, filename: string) {
+/** 下载文件。大图的 data: 地址浏览器下载不可靠，统一转成 Blob 地址 */
+async function download(url: string, filename: string) {
+  const href = url.startsWith('data:') ? URL.createObjectURL(await (await fetch(url)).blob()) : url;
   const a = document.createElement('a');
-  a.href = dataUrl;
+  a.href = href;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
 }
 
 function SaveStatus() {
@@ -114,7 +117,7 @@ function Toolbar({ onShare, onExport }: { onShare: () => void; onExport: () => v
 
   const exportJson = () => {
     const blob = new Blob([JSON.stringify(project, null, 1)], { type: 'application/json' });
-    download(URL.createObjectURL(blob), `${project.name}.json`);
+    void download(URL.createObjectURL(blob), `${project.name}.json`);
   };
 
   return (
@@ -218,7 +221,7 @@ function Workspace() {
     try {
       const r = await capture!();
       const lv = project.levels.find(l => l.id === view.level)?.name ?? '';
-      download(r.dataUrl, `${project.name}-${lv}-${view.mode === '3d' ? '三维' : '平面'}.png`);
+      await download(r.dataUrl, `${project.name}-${lv}-${view.mode === '3d' ? '三维' : '平面'}.png`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '导出失败');
     }

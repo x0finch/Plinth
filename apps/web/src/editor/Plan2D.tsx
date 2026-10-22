@@ -148,7 +148,8 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
 
           {/* 标注：房间名 + 使用面积 */}
           {view.layers.labels && shapes.spaces.map(({ s, label, area }) => (
-            <g key={s.id} pointerEvents="none" textAnchor="middle" fontFamily="var(--font-sans)">
+            // 点房间名也能选中房间：房间里摆满家具时（尤其手机上）不容易点到空白处
+            <g key={s.id} textAnchor="middle" fontFamily="var(--font-sans)" onClick={pick(s.id)} className="cursor-pointer">
               <text x={label[0]} y={label[1]} fontSize={font} fill="var(--foreground)" fontWeight={500}
                 paintOrder="stroke" stroke="var(--background)" strokeWidth={font / 6}>{s.name}</text>
               {s.kind !== 'void' && (
