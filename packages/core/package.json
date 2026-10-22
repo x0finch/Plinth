@@ -1,0 +1,11 @@
+{
+  "name": "@plinth/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Plinth 核心包：数据规范、几何、面积，不依赖浏览器",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "polygon-clipping": "0.15.7"
+  }
+}
