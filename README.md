@@ -1,8 +1,8 @@
 # Plinth
 
-内置 Agent 的通用建筑设计平台。总体设计见 Claude Docs 文档《Plinth · 总体设计》。
+内置 Agent 的通用建筑设计平台。总体设计和路线图见 [#1](https://github.com/x0finch/Plinth/issues/1)，需求通过 GitHub issue 追踪。
 
-## 当前进度：路线图第 1 步（数据规范 v1 + 核心包）
+## 已完成：阶段 1（[#2](https://github.com/x0finch/Plinth/issues/2)，数据规范 v1 + 核心包）
 
 - `packages/core`：纯 TypeScript 核心包，不依赖浏览器
   - `schema.ts`：项目数据规范 v1（类型即文档）
