@@ -1,14 +1,14 @@
 import { area } from './geometry.js';
 import type { Project } from './schema.js';
 
-export interface Issue {
+export interface ValidationIssue {
   path: string;
   message: string;
 }
 
 /** 结构校验：ID 唯一、引用存在、几何有效。规则检查（门开向、房间重叠等）在路线图第 2 步。 */
-export function validate(p: Project): Issue[] {
-  const issues: Issue[] = [];
+export function validate(p: Project): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
   const ids = new Map<string, string>();
   const claim = (id: string, path: string) => {
     if (ids.has(id)) issues.push({ path, message: `ID ${id} 与 ${ids.get(id)} 重复` });
