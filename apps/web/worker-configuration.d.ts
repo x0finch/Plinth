@@ -6,7 +6,7 @@ interface __BaseEnv_Env {
 	RL_AUTH: RateLimit;
 	RL_CHAT: RateLimit;
 	RL_API: RateLimit;
-	APP_URL: "http://localhost:3000";
+	APP_URL?: string;
 	BETTER_AUTH_SECRET: string;
 	KEY_ENCRYPTION_SECRET: string;
 	GOOGLE_CLIENT_ID: string;

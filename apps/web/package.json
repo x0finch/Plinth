@@ -11,6 +11,7 @@
     "db:migrate:local": "wrangler d1 migrations apply plinth --local",
     "db:migrate:remote": "wrangler d1 migrations apply plinth --remote",
     "deploy": "vite build && wrangler deploy",
+    "deploy:ci": "wrangler d1 migrations apply plinth --remote && wrangler deploy",
     "fake-llm": "node e2e/fake-llm.mjs",
     "e2e": "node e2e/agent.e2e.mjs && node e2e/collab.e2e.mjs",
     "check:theme": "node scripts/check-theme.mjs",

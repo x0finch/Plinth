@@ -36,20 +36,43 @@ npm run dev &
 npm run e2e                            # 端到端：agent 对话、确认、从零起步、分享、评论、版本、手机布局
 ```
 
-## 部署（Cloudflare Workers 免费版）
+## 部署（Cloudflare Workers 免费版，全程在网页上完成）
 
-D1 数据库 `plinth` 已建好（ID 写在 `wrangler.jsonc`）。需要一个有 Workers 和 D1 编辑权限的 `CLOUDFLARE_API_TOKEN`：
+用 Cloudflare 的 Workers Builds：连上 GitHub 仓库后，每次推送到 `main` 自动构建、跑数据库迁移、部署。不需要本地环境，也不需要自己管 API Token。
 
-```sh
-cd apps/web
-npm run db:migrate:remote
-npx wrangler secret put BETTER_AUTH_SECRET
-npx wrangler secret put KEY_ENCRYPTION_SECRET
-npx wrangler secret put RESEND_API_KEY          # 验证码邮件；不配则线上只能访客试用和 Google 登录
-npx wrangler secret put GOOGLE_CLIENT_ID        # 可选
-npx wrangler secret put GOOGLE_CLIENT_SECRET    # 可选
-# 把 wrangler.jsonc 的 APP_URL、MAIL_FROM 改成线上域名
-npm run deploy
-```
+D1 数据库 `plinth` 已建好（ID 写在 `apps/web/wrangler.jsonc`），要在同一个 Cloudflare 账号里部署。
 
-Google 登录的回调地址：`<APP_URL>/api/auth/callback/google`。
+### 1. 连上仓库
+
+Cloudflare 后台 → Workers & Pages → Create → Import a repository → 选 `x0finch/Plinth`：
+
+| 设置 | 填写 |
+|---|---|
+| Project name | `plinth`（必须和 `wrangler.jsonc` 的 `name` 一致） |
+| Production branch | `main` |
+| Build command | `npm ci && npm run build -w @plinth/web` |
+| Deploy command | `npm run deploy:ci -w @plinth/web`（先迁移数据库，再部署） |
+| Root directory | 留空（仓库根目录） |
+
+保存后会跑第一次部署，完成后得到 `https://plinth.<你的子域>.workers.dev`。
+
+### 2. 设置密钥
+
+Worker → Settings → Variables and Secrets，添加后会自动生效：
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `BETTER_AUTH_SECRET` | Secret | 必填。登录会话签名，用密码生成器生成 32 位以上随机串 |
+| `KEY_ENCRYPTION_SECRET` | Secret | 必填。加密用户的大模型密钥，24 位以上随机串。**设好后不要改**，改了已保存的模型密钥就解不开 |
+| `RESEND_API_KEY` | Secret | 邮箱验证码登录需要（resend.com）。不配则线上只能访客试用和 Google 登录 |
+| `MAIL_FROM` | Text | 发件人，如 `Plinth <noreply@你的域名>`，域名要先在 Resend 验证 |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Secret | 可选。回调地址：`<网址>/api/auth/callback/google` |
+| `APP_URL` | Text | 只有绑定自己的域名时才填，如 `https://plinth.example.com`；不填时按访问的网址自动推断 |
+
+`wrangler.jsonc` 开了 `keep_vars`，后台设置的变量不会被下次部署覆盖。
+
+### 3. 之后
+
+推送到 `main` 就自动部署。构建日志在 Worker → Deployments 里看。
+
+如果第一次部署卡在数据库迁移（提示没有 D1 权限），到 My Profile → API Tokens 给 Workers Builds 自动创建的那个 Token 加上 “D1 编辑” 权限，再点 Retry。

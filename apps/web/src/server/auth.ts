@@ -14,11 +14,12 @@ function create() {
     : undefined;
   return betterAuth({
     appName: 'Plinth',
-    baseURL: env.APP_URL,
+    // 不设 APP_URL 时按请求的网址推断（workers.dev 默认网址即可用）；绑定自己的域名后再设
+    baseURL: env.APP_URL || undefined,
     basePath: '/api/auth',
     secret: env.BETTER_AUTH_SECRET,
     database: env.DB,
-    trustedOrigins: [env.APP_URL],
+    trustedOrigins: env.APP_URL ? [env.APP_URL] : [],
     emailAndPassword: { enabled: false },
     socialProviders: google,
     session: {

@@ -6,9 +6,19 @@ let keyPromise: Promise<CryptoKey> | null = null;
 const b64 = (buf: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(buf)));
 const unb64 = (s: string) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 
+/** 32 字节 base64 直接用；其他任意长随机串取 SHA-256，方便在网页后台直接填密码生成器的结果 */
+async function rawKey(secret: string) {
+  try {
+    const raw = unb64(secret);
+    if (raw.length === 32) return raw;
+  } catch {}
+  if (secret.length < 24) throw new Error('KEY_ENCRYPTION_SECRET 太短，至少 24 个字符');
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret)));
+}
+
 function masterKey() {
   if (!env.KEY_ENCRYPTION_SECRET) throw new Error('KEY_ENCRYPTION_SECRET 未配置');
-  keyPromise ??= crypto.subtle.importKey('raw', unb64(env.KEY_ENCRYPTION_SECRET), 'AES-GCM', false, ['encrypt', 'decrypt']);
+  keyPromise ??= rawKey(env.KEY_ENCRYPTION_SECRET).then(k => crypto.subtle.importKey('raw', k, 'AES-GCM', false, ['encrypt', 'decrypt']));
   return keyPromise;
 }
 
