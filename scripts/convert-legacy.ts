@@ -1,5 +1,5 @@
-// 把 samples/wushi-<方案号>/legacy.json 转成规范格式 project.json，并打印面积对照。
-// 用法：npm run convert -- [方案号=10]
+// Converts samples/wushi-<scheme>/legacy.json into a schema-conformant project.json and prints an area comparison.
+// Usage: npm run convert -- [scheme=10]
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { areaReport, fromLegacy, validate } from '@plinth/core';
@@ -14,5 +14,5 @@ if (issues.length) {
 }
 writeFileSync(join(dir, 'project.json'), JSON.stringify(project, null, 1) + '\n');
 const r = areaReport(project);
-for (const l of r.levels) console.log(`${l.name} 建筑面积 ${l.gross.toFixed(2)}㎡，${l.spaces.length} 个空间`);
-console.log(`合计建筑面积 ${r.totalGross.toFixed(2)}㎡ → ${join(dir, 'project.json')}`);
+for (const l of r.levels) console.log(`${l.name} gross area ${l.gross.toFixed(2)} m², ${l.spaces.length} spaces`);
+console.log(`Total gross area ${r.totalGross.toFixed(2)} m² → ${join(dir, 'project.json')}`);

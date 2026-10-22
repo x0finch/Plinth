@@ -6,7 +6,7 @@ type PcPolygon = [number, number][][];
 export const toPc = (p: Polygon): PcPolygon => [p.outer, ...(p.holes ?? [])].map(r => r.map(([x, y]) => [x, y] as [number, number]));
 
 export function fromPc(mp: PcPolygon[]): Polygon[] {
-  // polygon-clipping 输出的环首尾重复，去掉末点
+  // polygon-clipping repeats the first point at the end of each ring; drop the last point
   const ring = (r: [number, number][]): Ring => r.slice(0, -1).map(([x, y]) => [x, y] as Point);
   return mp.map(([outer, ...holes]) => (holes.length ? { outer: ring(outer), holes: holes.map(ring) } : { outer: ring(outer) }));
 }
@@ -36,13 +36,13 @@ const ringArea = (r: Ring) => {
   return Math.abs(s) / 2;
 };
 
-/** 面积，平方毫米 */
+/** Area in square millimetres */
 export const area = (polys: Polygon[]) =>
   polys.reduce((s, p) => s + ringArea(p.outer) - (p.holes ?? []).reduce((h, r) => h + ringArea(r), 0), 0);
 
 /**
- * 墙体实际占的平面范围。承重墙、隔墙两端各延长半个墙厚，使相交处的墙角被填满；
- * 围墙、女儿墙、栏杆不延长。
+ * The plan footprint a wall actually occupies. Bearing walls and partitions are extended by half their thickness at each end so corners at junctions are filled;
+ * fences, parapets and railings are not extended.
  */
 export function wallBody(w: Wall): Polygon {
   const [x1, y1] = w.start, [x2, y2] = w.end;

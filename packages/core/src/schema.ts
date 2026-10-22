@@ -1,29 +1,29 @@
 /**
- * Plinth 项目数据规范 v1。
+ * Plinth project data schema v1.
  *
- * 约定：
- * - 长度单位毫米；平面坐标 x 向东、y 向南；高度从各楼层底标高算起。
- * - 所有对象都有稳定的 `id`（给程序用）和可读的 `name`（给人和 agent 用，如“老人房二西墙”）。
- * - 推导结果（楼板、屋面、面积、墙体交接）不入库。
- * - 规范只收录已经在真实方案里用到、含义确定的字段；含义还不确定的放进 `extras`，
- *   用到第二次再升格成正式字段。字段的增删改通过 `version` + 迁移函数完成（见 migrate.ts）。
+ * Conventions:
+ * - Lengths are in millimetres; plan coordinates have x pointing east and y pointing south; heights are measured from each level's base elevation.
+ * - Every object has a stable `id` (for programs) and a readable `name` (for people and the agent, e.g. “老人房二西墙”).
+ * - Derived results (slabs, roofs, areas, wall junctions) are not stored.
+ * - The schema only includes fields already used in real designs with a settled meaning; anything uncertain goes into `extras`
+ *   and is promoted to a proper field on its second use. Fields are added, removed or changed via `version` + a migration function (see migrate.ts).
  */
 
 export const SCHEMA = 'plinth/project' as const;
 export const SCHEMA_VERSION = 1 as const;
 
 export type Id = string;
-/** 毫米 */
+/** Millimetres */
 export type Mm = number;
-/** [x, y]，毫米 */
+/** [x, y], millimetres */
 export type Point = [Mm, Mm];
-/** 闭合环，首尾不重复，外环逆时针或顺时针均可 */
+/** Closed ring without a repeated end point; outer rings may be clockwise or counter-clockwise */
 export type Ring = Point[];
 export interface Polygon {
   outer: Ring;
   holes?: Ring[];
 }
-/** 尚未进入规范、但需要原样保留的信息 */
+/** Information not yet in the schema that must be preserved as-is */
 export type Extras = Record<string, unknown>;
 
 export interface Project {
@@ -47,12 +47,12 @@ export interface Project {
 }
 
 export interface Site {
-  /** 用地范围 */
+  /** Site boundary */
   boundary: Ring;
-  /** 正北方向相对 -y 轴的顺时针角度（度）；0 表示图纸上方为北 */
+  /** Clockwise angle of true north from the -y axis (degrees); 0 means north is up on the drawing */
   northAngle: number;
-  location: { lat: number; lon: number; /** 时区，小时 */ tz: number };
-  /** 室外地坪相对一层地面的标高 */
+  location: { lat: number; lon: number; /** Time zone, hours */ tz: number };
+  /** Elevation of outdoor grade relative to the ground-floor level */
   groundLevel: Mm;
   extras?: Extras;
 }
@@ -60,9 +60,9 @@ export interface Site {
 export interface Level {
   id: Id;
   name: string;
-  /** 底标高 */
+  /** Base elevation */
   elevation: Mm;
-  /** 层高；屋顶层为 0，其上的墙必须写明 height */
+  /** Storey height; 0 for the roof level, whose walls must specify height */
   height: Mm;
   roof?: boolean;
 }
@@ -73,12 +73,12 @@ export interface Wall {
   id: Id;
   name: string;
   level: Id;
-  /** 中心线起点、终点 */
+  /** Centreline start and end points */
   start: Point;
   end: Point;
   thickness: Mm;
   kind: WallKind;
-  /** 墙高；不写则等于楼层层高 */
+  /** Wall height; defaults to the level's storey height */
   height?: Mm;
   openings: Opening[];
   extras?: Extras;
@@ -90,13 +90,13 @@ export interface Opening {
   id: Id;
   name: string;
   kind: OpeningKind;
-  /** 洞口中心到墙起点的距离（沿中心线） */
+  /** Distance from the opening centre to the wall start (along the centreline) */
   at: Mm;
   width: Mm;
   height: Mm;
-  /** 洞口底到楼面的高度 */
+  /** Height of the opening bottom above the floor */
   sill: Mm;
-  /** 平开门：铰链在靠起点还是终点一侧，向墙的哪一侧开（沿起点→终点看，平面图北在上） */
+  /** Swing door: whether the hinge is at the start or end side, and which side of the wall it opens to (looking from start → end, plan north up) */
   swing?: { hinge: 'start' | 'end'; side: 'left' | 'right' };
   glazing?: 'glass-block';
   extras?: Extras;
@@ -109,22 +109,22 @@ export interface Space {
   name: string;
   level: Id;
   kind: SpaceKind;
-  /** 轴线围合的范围（墙中心线），可由多块组成 */
+  /** Region enclosed by axes (wall centrelines); may consist of several parts */
   shape: Polygon[];
-  /** 地面材质类别，见 library.materials */
+  /** Floor material category, see library.materials */
   floor: string;
-  /** 楼板在此开洞（楼梯井、通高） */
+  /** The slab is open here (stairwell, double-height space) */
   slabOpening?: boolean;
   extras?: Extras;
 }
 
-/** 构件实例：楼梯、水池、排水沟等，引用 library.elements 的定义 + 参数 */
+/** Element instance: stairs, pools, drains, etc.; references a library.elements definition + parameters */
 export interface Element {
   id: Id;
   name: string;
   type: string;
   level: Id;
-  /** 跨楼层构件的顶层 */
+  /** Top level of a multi-level element */
   topLevel?: Id;
   params: Record<string, unknown>;
   extras?: Extras;
@@ -133,20 +133,20 @@ export interface Element {
 export interface Furniture {
   id: Id;
   name: string;
-  /** 家具类别，见 library.furniture */
+  /** Furniture category, see library.furniture */
   type: string;
   level: Id;
-  /** 中心点 */
+  /** Centre point */
   position: Point;
-  /** 绕中心顺时针旋转角（度，平面图北在上） */
+  /** Clockwise rotation about the centre (degrees, plan north up) */
   rotation: number;
   size: { w: Mm; d: Mm; h: Mm };
-  /** 离楼面高度（挂墙、吊装） */
+  /** Height above the floor (wall-mounted, suspended) */
   elevation?: Mm;
   extras?: Extras;
 }
 
-/** 约束：v1 只占位，求解在路线图第 3 步 */
+/** Constraints: placeholder in v1; solving is roadmap step 3 */
 export interface Constraint {
   id: Id;
   type: 'align' | 'center' | 'size-target' | 'spacing' | 'reference' | 'rule';
@@ -183,6 +183,6 @@ export interface Library {
 export interface Variant {
   id: Id;
   name: string;
-  /** 相对主线的变更，格式待定 */
+  /** Changes relative to the main line; format TBD */
   changes: unknown[];
 }

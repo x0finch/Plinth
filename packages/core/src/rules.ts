@@ -1,4 +1,4 @@
-/** 规则检查：轻量、确定、不依赖浏览器。错误会让操作被拒绝，警告只提示。 */
+/** Rule checks: lightweight, deterministic, no browser needed. Errors reject the operation; warnings are advisory. */
 import { add, openingSpaces, overlapArea, pointAt, scale, spaceWalls, wallDir, wallLength, wallNormal } from './topology.js';
 import { pointInPolygon } from './geometry.js';
 import type { Furniture, Id, Point, Polygon, Project, Space, Wall } from './schema.js';
@@ -23,7 +23,7 @@ function furnitureBox(f: Furniture): Polygon {
   return { outer: pts };
 }
 
-/** 平开门扇扫过的范围（近似成一个正方形） */
+/** Area swept by a swing door leaf (approximated as a square) */
 function doorSwing(w: Wall, o: Wall['openings'][number]): Polygon | null {
   if (o.kind !== 'door' || !o.swing) return null;
   const d = wallDir(w), n = scale(wallNormal(w), o.swing.side === 'right' ? 1 : -1);
@@ -37,7 +37,7 @@ function doorSwing(w: Wall, o: Wall['openings'][number]): Polygon | null {
 export function checkRules(p: Project): Issue[] {
   const out: Issue[] = [];
 
-  // 洞口：超出墙长、互相重叠
+  // Openings: beyond wall length, overlapping each other
   for (const w of p.walls) {
     const L = wallLength(w);
     const ops = [...w.openings].sort((a, b) => a.at - b.at);
@@ -52,7 +52,7 @@ export function checkRules(p: Project): Issue[] {
     }
   }
 
-  // 同层室内、半室外空间不应重叠
+  // Indoor and semi-outdoor spaces on the same level must not overlap
   const bodies = p.spaces.filter(s => s.kind === 'indoor' || s.kind === 'semi-outdoor');
   for (let i = 0; i < bodies.length; i++) for (let j = i + 1; j < bodies.length; j++) {
     const a = bodies[i], b = bodies[j];
@@ -61,7 +61,7 @@ export function checkRules(p: Project): Issue[] {
     if (ov > 0.05e6) out.push({ code: 'space-overlap', severity: 'error', message: `${a.name}和${b.name}重叠约 ${(ov / 1e6).toFixed(1)} m²`, targets: [a.id, b.id] });
   }
 
-  // 房间要能进得去；卧室要有窗
+  // Rooms must be enterable; bedrooms need a window
   for (const s of p.spaces.filter(ROOMLIKE)) {
     const walls = spaceWalls(p, s);
     const ops = walls.flatMap(b => b.wall.openings.map(o => ({ o, w: b.wall })));
@@ -72,7 +72,7 @@ export function checkRules(p: Project): Issue[] {
       out.push({ code: 'bedroom-no-window', severity: 'warning', message: `${s.name}没有可开启的窗`, targets: [s.id] });
   }
 
-  // 门扇扫过的地方不要放家具
+  // No furniture where a door leaf swings
   for (const w of p.walls) for (const o of w.openings) {
     const sw = doorSwing(w, o);
     if (!sw) continue;
@@ -83,7 +83,7 @@ export function checkRules(p: Project): Issue[] {
     }
   }
 
-  // 家具要放在某个空间里
+  // Furniture must be inside some space
   for (const f of p.furniture) {
     if (!p.spaces.some(s => s.level === f.level && s.shape.some(poly => pointInPolygon(f.position, poly))))
       out.push({ code: 'furniture-outside', severity: 'warning', message: `${f.name}不在任何空间里`, targets: [f.id] });

@@ -1,5 +1,5 @@
 /**
- * 契约测试：不碰界面，只靠调用能力就能建一栋房子、修改、检查。将来也是 MCP 的验收标准。
+ * Contract tests: build, modify and check a house purely through capability calls, without the UI. Also the future acceptance criteria for MCP.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -14,7 +14,7 @@ function harness(p: Project) {
   const call = async (name: string, input: unknown = {}): Promise<CallResult> => registry.call(name, input, { session, actor });
   const ok = async (name: string, input: unknown = {}) => {
     const r = await call(name, input);
-    if (!r.ok) throw new Error(`${name} 失败：${r.error?.message}`);
+    if (!r.ok) throw new Error(`${name} failed: ${r.error?.message}`);
     return r;
   };
   return { session, call, ok };
@@ -22,16 +22,16 @@ function harness(p: Project) {
 
 const sample = () => migrate(JSON.parse(readFileSync(join(import.meta.dirname, '../../../samples/wushi-10/project.json'), 'utf8')));
 
-describe('从零搭一栋房子', () => {
+describe('building a house from scratch', () => {
   let h: ReturnType<typeof harness>;
   beforeEach(() => {
     h = harness(createProject({ id: 't', name: '测试' }));
   });
 
-  it('逐间加房间、开门窗、放家具，规则检查通过', async () => {
+  it('adds rooms one by one, cuts doors and windows, places furniture, and passes rule checks', async () => {
     const living = await h.ok('room_add', { level: '一层', name: '客厅', rect: [0, 0, 6000, 5000], wall_thickness: 240, wall_kind: 'bearing' });
     expect((living.result as any).walls).toHaveLength(4);
-    // 卧室贴着客厅东墙：共用的墙不重复建
+    // The bedroom abuts the living room's east wall: the shared wall is not built twice
     const bed = await h.ok('room_add', { level: 'L1', name: '主卧', rect: [6000, 0, 4000, 5000], wall_thickness: 240, wall_kind: 'bearing', door: { side: 'west' } });
     expect((bed.result as any).walls).toHaveLength(3);
     expect((bed.result as any).door).toBeTruthy();
@@ -48,7 +48,7 @@ describe('从零搭一栋房子', () => {
     expect(spaces.find((s: any) => s.name === '主卧').net).toBeCloseTo(3.76 * 4.76, 1);
   });
 
-  it('房间重叠会被拒绝，数据不变', async () => {
+  it('rejects overlapping rooms and leaves data unchanged', async () => {
     await h.ok('room_add', { level: 'L1', name: 'A', rect: [0, 0, 4000, 4000] });
     const before = h.session.project;
     const r = await h.call('room_add', { level: 'L1', name: 'B', rect: [2000, 2000, 4000, 4000] });
@@ -57,7 +57,7 @@ describe('从零搭一栋房子', () => {
     expect(h.session.project).toBe(before);
   });
 
-  it('batch 中途失败整批回滚', async () => {
+  it('rolls back the whole batch when it fails midway', async () => {
     const before = h.session.project;
     const r = await h.call('batch', {
       label: '两间房',
@@ -70,26 +70,26 @@ describe('从零搭一栋房子', () => {
     expect(h.session.project).toBe(before);
   });
 
-  it('输入不合法时给出可读的错误', async () => {
+  it('gives a readable error for invalid input', async () => {
     const r = await h.call('wall_move', { wall: 1 });
     expect(r.error?.code).toBe('invalid-input');
   });
 });
 
-describe('在方案十上修改', () => {
+describe('editing scheme 10', () => {
   let h: ReturnType<typeof harness>;
   beforeEach(() => {
     h = harness(sample());
   });
 
-  it('按名称找到对象，重名时要求消歧', async () => {
+  it('finds objects by name and asks to disambiguate duplicates', async () => {
     const r = await h.ok('get_object', { ref: '一层·老人房一' });
     expect((r.result as any).netArea).toBeGreaterThan(10);
     const amb = await h.call('get_object', { ref: '楼梯' });
     expect(amb.error?.code).toBe('ambiguous-ref');
   });
 
-  it('移墙：两侧空间面积此消彼长，撤销后完全复原', async () => {
+  it('wall_move: areas on both sides trade off, and undo fully restores', async () => {
     const original = h.session.project;
     const info = (await h.ok('get_object', { ref: '一层·老人房一' })).result as any;
     const west = info.walls.find((w: any) => w.direction === '西');
@@ -103,21 +103,21 @@ describe('在方案十上修改', () => {
     expect(h.session.project).toEqual(original);
   });
 
-  it('调面积：老人房一到 12 m²', async () => {
+  it('space_set_area: 老人房一 to 12 m²', async () => {
     const r = await h.ok('space_set_area', { space: '一层·老人房一', area: 12 });
     const s = h.session.project.spaces.find(x => x.id === (r.result as any).space)!;
     expect(spaceNetArea(h.session.project, s)).toBeCloseTo(12, 0);
     expect(Math.abs(spaceNetArea(h.session.project, s) - 12)).toBeLessThan(0.15);
   });
 
-  it('拆承重墙会被拦下，提示专业复核', async () => {
+  it('blocks removing a bearing wall and asks for professional review', async () => {
     const w = h.session.project.walls.find(x => x.kind === 'bearing')!;
     const r = await h.call('wall_remove', { wall: w.id });
     expect(r.error?.code).toBe('structural');
   });
 });
 
-describe('约束', () => {
+describe('constraints', () => {
   let h: ReturnType<typeof harness>;
   beforeEach(async () => {
     h = harness(createProject({ id: 't', name: '测试' }));
@@ -125,28 +125,28 @@ describe('约束', () => {
     await h.ok('room_add', { level: 'L1', name: '书房', rect: [4000, 0, 3000, 4000] });
   });
 
-  it('门居中：移墙后门自动回到中线', async () => {
+  it('center door: the door returns to the centreline after a wall move', async () => {
     const door = h.session.project.walls.flatMap(w => w.openings).find(o => o.kind === 'door')!;
     await h.ok('constraint_add', { type: 'center', targets: [door.id, '卧室'], note: '门在房间中线上' });
     await h.ok('wall_move', { wall: '卧室西墙', direction: 'west', distance: 1000 });
     const after = h.session.project.walls.flatMap(w => w.openings).find(o => o.id === door.id)!;
     const wall = h.session.project.walls.find(w => w.openings.some(o => o.id === door.id))!;
-    // 卧室现在 x ∈ [-1000, 4000]，门中心应在 x = 1500
+    // The bedroom is now x ∈ [-1000, 4000], so the door centre should be at x = 1500
     expect(openingCenter(wall, after)[0]).toBe(1500);
   });
 
-  it('硬面积目标：会让面积跑出范围的操作被拒绝', async () => {
-    // 加约束时求解器会先把书房调到目标面积
+  it('hard area target: operations that push the area out of range are rejected', async () => {
+    // Adding the constraint makes the solver first bring the study to the target area
     await h.ok('constraint_add', { type: 'size-target', targets: ['书房', '书房东墙'], params: { area: 10.5, tolerance: 0.3 }, hard: true });
     const s = h.session.project.spaces.find(x => x.name === '书房')!;
     expect(Math.abs(spaceNetArea(h.session.project, s) - 10.5)).toBeLessThan(0.3);
-    // 亲手把这面墙往里挪 1 米：用户的操作不被拉回，硬约束不满足，整笔拒绝
+    // Manually move this wall 1 m inward: the user's action isn't pulled back, the hard constraint fails, and the whole transaction is rejected
     const r = await h.call('wall_move', { wall: '书房东墙', direction: 'west', distance: 1000 });
     expect(r.ok).toBe(false);
     expect(r.error?.code).toBe('constraint-violated');
   });
 
-  it('对齐：挪了一面，另一面跟着走', async () => {
+  it('align: moving one wall moves the other', async () => {
     await h.ok('room_add', { level: 'L1', name: '卫生间', rect: [7000, 0, 2000, 4000] });
     await h.ok('constraint_add', { type: 'align', targets: ['卧室南墙', '卫生间南墙'] });
     await h.ok('wall_move', { wall: '卧室南墙', direction: 'south', distance: 500 });
@@ -156,8 +156,8 @@ describe('约束', () => {
   });
 });
 
-describe('能力清单', () => {
-  it('每项能力都有说明、权限、可导出的输入格式', () => {
+describe('capability registry', () => {
+  it('every capability has a description, permission and exportable input schema', () => {
     for (const c of registry.list()) {
       expect(c.description.length, c.name).toBeGreaterThan(5);
       expect(['read', 'reversible', 'main', 'external']).toContain(c.permission);

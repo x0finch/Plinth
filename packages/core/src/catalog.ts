@@ -1,4 +1,4 @@
-/** 默认家具与材质目录（类别 + 参数，不绑具体模型）。新项目从这里取。 */
+/** Default furniture and material catalog (categories + parameters, not tied to specific models). New projects start from this. */
 import type { Library } from './schema.js';
 
 export const FURNITURE_CATALOG: Library['furniture'] = {

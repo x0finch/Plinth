@@ -1,6 +1,6 @@
 /**
- * 编辑会话：所有修改都是事务。流程固定为 校验 → 应用 → 约束重算 → 规则检查 → 写日志，
- * 任何一步失败整笔回滚。撤销 / 重做基于 immer 补丁。
+ * Editing session: every change is a transaction. The pipeline is fixed: validate → apply → re-solve constraints → check rules → log;
+ * if any step fails the whole transaction rolls back. Undo / redo is based on immer patches.
  */
 import { applyPatches, current, enablePatches, produceWithPatches, setAutoFreeze, type Patch } from 'immer';
 import { areaReport } from './area.js';
@@ -39,9 +39,9 @@ export interface TxResult<R = unknown> {
   ok: boolean;
   result?: R;
   error?: { code: string; message: string; issues?: Issue[] };
-  /** 被改动的对象 ID，供界面标出改动、镜头定位 */
+  /** IDs of changed objects, so the UI can highlight changes and frame the camera */
   changed: Id[];
-  /** 操作新引入的警告 */
+  /** Warnings newly introduced by the operation */
   warnings: Issue[];
   areaChanges: AreaChange[];
   constraints?: ConstraintReport;
@@ -53,7 +53,7 @@ export class TxError extends Error {
   }
 }
 
-/** 从补丁路径找出被改动的对象 ID */
+/** Find the IDs of changed objects from patch paths */
 function changedIds(before: Project, after: Project, patches: Patch[]): Id[] {
   const ids = new Set<Id>();
   for (const p of patches) {
@@ -72,7 +72,7 @@ function changedIds(before: Project, after: Project, patches: Patch[]): Id[] {
   return [...ids];
 }
 
-/** 本次被改了位置的墙和洞口，约束求解时以它们为参照 */
+/** Walls and openings moved in this transaction; the constraint solver uses them as anchors */
 function touchedGeometry(a: Project, b: Project): Id[] {
   const old = new Map(a.walls.map(w => [w.id, w]));
   const out: Id[] = [];
@@ -119,7 +119,7 @@ export class Session {
     for (const fn of this.listeners) fn(this.project);
   }
 
-  /** 替换整个项目（加载新版本），清空历史 */
+  /** Replace the whole project (load a new version) and clear history */
   load(p: Project) {
     this.project = p;
     this.past = [];
@@ -130,7 +130,7 @@ export class Session {
   get canUndo() { return this.past.length > 0; }
   get canRedo() { return this.future.length > 0; }
 
-  /** 只读访问：不进事务 */
+  /** Read-only access: not in a transaction */
   read<R>(fn: (p: Project) => R): R {
     return fn(this.project);
   }
@@ -154,7 +154,7 @@ export class Session {
     }
     if (!patches.length) return { ok: true, result, changed: [], warnings: [], areaChanges: [], constraints };
 
-    // 规则检查：只拦新引入的错误，原来就有的问题不阻止修改
+    // Rule check: only block newly introduced errors; pre-existing problems do not block the change
     const old = new Set(checkRules(before).map(issueKey));
     const fresh = checkRules(next).filter(i => !old.has(issueKey(i)));
     const errors = fresh.filter(i => i.severity === 'error');

@@ -1,6 +1,6 @@
 /**
- * 约束求解：对齐、居中、间距、面积目标四类。每类约束有一个“修复”动作，按轮迭代直到全部满足或达到上限。
- * 硬约束修不好会让事务回滚；软约束修不好只给警告。
+ * Constraint solving for four types: align, center, spacing and area target. Each type has a "fix" action; rounds iterate until all are satisfied or the limit is reached.
+ * An unfixable hard constraint rolls back the transaction; an unfixable soft constraint only produces a warning.
  */
 import { current, isDraft } from 'immer';
 import {
@@ -35,10 +35,10 @@ function findOpening(p: Project, id: Id) {
 }
 
 const parallel = (a: Wall, b: Wall) => Math.abs(cross(wallDir(a), wallDir(b))) < 1e-6;
-/** b 的中心线相对 a 的中心线沿 a 法线的偏移 */
+/** Offset of b's centreline from a's centreline along a's normal */
 const offsetBetween = (a: Wall, b: Wall) => dot(sub(b.start, a.start), wallNormal(a));
 
-/** 洞口所在墙与空间边界重合的区间 */
+/** Interval where the opening's wall coincides with the space boundary */
 function sharedInterval(w: Wall, s: Space): [number, number] | null {
   const d = wallDir(w), L = wallLength(w);
   let lo = Infinity, hi = -Infinity;
@@ -55,7 +55,7 @@ function sharedInterval(w: Wall, s: Space): [number, number] | null {
   return hi > lo ? [lo, hi] : null;
 }
 
-/** 选一面用来调面积的墙：优先隔墙、贴合最长 */
+/** Pick a wall to adjust area with: prefer partitions, then the longest shared edge */
 export function pickResizeWall(p: Project, s: Space): Wall | null {
   const cands = spaceWalls(p, s).filter(b => b.wall.kind === 'partition' || b.wall.kind === 'bearing');
   cands.sort((a, b) => (a.wall.kind === 'partition' ? 0 : 1) - (b.wall.kind === 'partition' ? 0 : 1) || b.length - a.length);
@@ -63,15 +63,15 @@ export function pickResizeWall(p: Project, s: Space): Wall | null {
 }
 
 /**
- * 移动一面墙让空间使用面积接近目标（㎡）。返回位移向量（毫米），不修改 p。
- * 面积对位移基本是线性的，用两次割线法求解，结果取整到 10 mm。
+ * Move one wall so the space's usable area approaches the target (m²). Returns the displacement vector (mm); does not modify p.
+ * Area is nearly linear in displacement, so two secant steps solve it; the result is rounded to 10 mm.
  */
 export function solveAreaMove(p: Project, spaceId: Id, target: number, wallId?: Id): { wall: Wall; vector: Point; area: number } | null {
   const s = findSpace(p, spaceId);
   if (!s) return null;
   const w = wallId ? findWall(p, wallId) : pickResizeWall(p, s);
   if (!w) return null;
-  const out = scale(wallNormal(w), -sideOf(w, s)); // 朝空间外
+  const out = scale(wallNormal(w), -sideOf(w, s)); // away from the space
   const areaAt = (d: number) => {
     const q = plain(p);
     if (d) moveWall(q, w.id, scale(out, d));
@@ -88,14 +88,14 @@ export function solveAreaMove(p: Project, spaceId: Id, target: number, wallId?: 
 }
 
 interface Handler {
-  /** 返回是否已满足、说明 */
+  /** Returns whether it is satisfied, plus a message */
   check(p: Project, c: Constraint): { ok: boolean; message: string };
-  /** 尝试修复，返回是否有改动 */
+  /** Try to fix; returns whether anything changed */
   fix(p: Project, c: Constraint, changed: Set<Id>): boolean;
 }
 
 const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
-  // 对齐：所有目标墙与参照墙共线。本次被改动的那面墙作参照，否则取第一面。
+  // Align: all target walls are collinear with the reference wall. The wall changed in this transaction is the reference; otherwise the first one.
   align: {
     check(p, c) {
       const ws = c.targets.map(id => findWall(p, id)).filter((w): w is Wall => !!w);
@@ -119,7 +119,7 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
     },
   },
 
-  // 居中：洞口在它所在墙与空间重合段的中点
+  // Center: the opening sits at the midpoint of the segment where its wall meets the space
   center: {
     check(p, c) {
       const hit = findOpening(p, c.targets[0]), s = findSpace(p, c.targets[1]);
@@ -140,7 +140,7 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
     },
   },
 
-  // 间距：洞口边到一面墙的净距，或两面平行墙中心线的距离
+  // Spacing: clear distance from an opening edge to a wall, or between the centrelines of two parallel walls
   spacing: {
     check(p, c) {
       const dist = Number(c.params.distance);
@@ -163,7 +163,7 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
       if (hit) {
         const g = openingGap(hit.w, hit.o, other);
         if (g == null || Math.abs(g - dist) <= 5) return false;
-        // 洞口在墙上靠近 other 的那一侧：沿墙方向远离 other 为正
+        // The side of the opening nearest other: positive along the wall away from other
         const sign = Math.sign(hit.o.at - projectPoint(hit.w, other.start).at) || 1;
         hit.o.at = Math.round(hit.o.at + sign * (dist - g));
         changed.add(hit.o.id);
@@ -173,7 +173,7 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
       if (!a || !parallel(a, other)) return false;
       const off = offsetBetween(a, other), want = Math.sign(off || 1) * dist;
       if (Math.abs(off - want) <= 5) return false;
-      // 被改动的一方作参照，移动另一方
+      // The changed one is the reference; move the other
       if (changed.has(other.id) && !changed.has(a.id)) {
         moveWall(p, a.id, scale(wallNormal(a), off - want).map(Math.round) as Point);
         changed.add(a.id);
@@ -185,7 +185,7 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
     },
   },
 
-  // 面积目标：使用面积在目标 ± 容差内，移动指定墙（或自动选一面）
+  // Area target: usable area within target ± tolerance, by moving the given wall (or an automatically chosen one)
   'size-target': {
     check(p, c) {
       const s = findSpace(p, c.targets[0]);
@@ -200,7 +200,7 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
       const target = Number(c.params.area), tol = Number(c.params.tolerance ?? 0.3);
       if (Math.abs(spaceNetArea(p, s) - target) <= tol) return false;
       const sol = solveAreaMove(p, s.id, target, c.targets[1]);
-      // 用户这次亲手动过的墙不拉回去：以用户的操作为准，约束记为未满足
+      // Don't pull back a wall the user just moved by hand: the user's action wins and the constraint is marked unsatisfied
       if (!sol || changed.has(sol.wall.id) || (!sol.vector[0] && !sol.vector[1])) return false;
       moveWall(p, sol.wall.id, sol.vector);
       changed.add(sol.wall.id);
@@ -209,12 +209,12 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
   },
 };
 
-/** 洞口边到另一面墙表面的净距 */
+/** Clear distance from an opening edge to the surface of another wall */
 function openingGap(w: Wall, o: Wall['openings'][number], other: Wall): number | null {
   if (parallel(w, other)) return null;
   const at = projectPoint(w, other.start).at;
   const cross0 = projectPoint(w, other.end).at;
-  const pos = Math.abs(cross0 - at) < 1 ? at : null; // other 垂直于 w 时两端投影相同
+  const pos = Math.abs(cross0 - at) < 1 ? at : null; // when other is perpendicular to w both ends project to the same point
   if (pos == null) return null;
   const edge = o.at > pos ? o.at - o.width / 2 : o.at + o.width / 2;
   return Math.abs(edge - pos) - other.thickness / 2;
@@ -230,7 +230,7 @@ export function checkConstraints(p: Project): ConstraintStatus[] {
   });
 }
 
-/** 在事务里调用：迭代修复，直到满足或 8 轮上限 */
+/** Called inside a transaction: iterate fixes until satisfied or the 8-round limit */
 export function solveConstraints(p: Project, changedIds: Id[] = []): ConstraintReport {
   const changed = new Set(changedIds);
   let rounds = 0;

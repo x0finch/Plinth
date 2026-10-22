@@ -1,8 +1,8 @@
 import { SCHEMA, SCHEMA_VERSION, type Project } from './schema.js';
 
 /**
- * 规范升级时在这里加一步：MIGRATIONS[n] 把 version n 的数据改成 version n+1。
- * 旧样例因此永远能读，改规范的成本只是一个函数。
+ * When the schema is upgraded, add a step here: MIGRATIONS[n] converts version n data to version n+1.
+ * Old samples therefore always load, and changing the schema costs just one function.
  */
 const MIGRATIONS: Record<number, (doc: any) => any> = {};
 

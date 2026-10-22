@@ -1,11 +1,11 @@
-/** 新建项目：空白方案，带默认目录。 */
+/** New project: a blank design with the default catalog. */
 import { FURNITURE_CATALOG, MATERIAL_CATALOG } from './catalog.js';
 import { SCHEMA, SCHEMA_VERSION, type Project } from './schema.js';
 
 export interface NewProjectOptions {
   id: string;
   name: string;
-  /** 用地宽、深（毫米），默认 20 × 20 米 */
+  /** Site width and depth (mm); defaults to 20 × 20 m */
   site?: { width: number; depth: number };
   location?: { lat: number; lon: number; tz: number };
   floors?: number;

@@ -1,24 +1,24 @@
 /**
- * 从数据生成三维构件块：墙按洞口切成若干实体段（洞口下的窗台、洞口上的过梁、洞口之间的墙垛），
- * 每段是一个沿墙方向的长方体。渲染器只需画盒子，导出 glTF 也用同一份结果。
+ * Generates 3D blocks from the data: each wall is cut at its openings into solid segments (sills below openings, lintels above, piers between them),
+ * each a box aligned with the wall. The renderer only draws boxes, and glTF export uses the same result.
  */
 import { wallDir, wallLength } from './topology.js';
 import type { Id, Project, Wall } from './schema.js';
 
 export interface Box {
-  /** 所属对象 */
+  /** Owning object */
   id: Id;
   level: Id;
   kind: 'wall' | 'sill' | 'lintel' | 'railing' | 'parapet' | 'fence' | 'glass';
-  /** 底面中心（平面坐标，毫米） */
+  /** Bottom-face centre (plan coordinates, mm) */
   center: [number, number];
-  /** 底面离本层楼面的高度 */
+  /** Height of the bottom face above this level's floor */
   z: number;
-  /** 沿墙长度、墙厚、高度 */
+  /** Length along the wall, wall thickness, height */
   length: number;
   thickness: number;
   height: number;
-  /** 墙方向与 x 轴的夹角（弧度，y 向南） */
+  /** Angle between the wall direction and the x axis (radians, y points south) */
   angle: number;
 }
 

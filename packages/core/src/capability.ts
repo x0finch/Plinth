@@ -1,21 +1,21 @@
 /**
- * 能力清单：界面、内置 agent、将来的 MCP 只调用这里登记的能力。
- * 每项能力：已登记（名称、说明、输入格式、权限等级、范例）、输入输出都是 JSON、标注运行要求。
+ * Capability registry: the UI, the built-in agent and (later) MCP only call capabilities registered here.
+ * Each capability is registered (name, description, input schema, permission level, examples), takes and returns JSON, and declares its runtime requirements.
  */
 import { z } from 'zod';
 import { TxError, type Actor, type Session, type TxResult } from './session.js';
 import type { Project } from './schema.js';
 
-/** 权限等级，对应 agent 的自主程度 */
+/** Permission level, matching the agent's degree of autonomy */
 export type Permission = 'read' | 'reversible' | 'main' | 'external';
 export type CapabilityKind = 'query' | 'edit' | 'relation' | 'verify' | 'view';
-/** any：核心包即可运行；browser：需要浏览器（渲染、截图） */
+/** any: runs in the core package alone; browser: needs a browser (rendering, screenshots) */
 export type Runtime = 'any' | 'browser';
 
 export interface CapabilityContext {
   session: Session;
   actor: Actor;
-  /** 浏览器运行时注入的扩展上下文（视图、截图） */
+  /** Extra context injected by the browser runtime (view, screenshots) */
   host?: Record<string, unknown>;
 }
 
@@ -30,15 +30,15 @@ interface Base<I extends z.ZodType> {
   examples?: { input: z.input<I>; note: string }[];
 }
 
-/** 修改类：在事务里改数据 */
+/** Mutation: changes data inside a transaction */
 export interface EditCapability<I extends z.ZodType = z.ZodType, R = unknown> extends Base<I> {
   mode: 'edit';
-  /** 写进操作日志的一句话 */
+  /** One-line summary written to the operation log */
   label: (input: z.output<I>, p: Project) => string;
   apply: (draft: Project, input: z.output<I>, ctx: CapabilityContext) => R;
 }
 
-/** 查询类或宿主类：只读或作用于视图 */
+/** Query or host: read-only, or acts on the view */
 export interface ReadCapability<I extends z.ZodType = z.ZodType, R = unknown> extends Base<I> {
   mode: 'read';
   run: (input: z.output<I>, ctx: CapabilityContext) => R | Promise<R>;
@@ -51,7 +51,7 @@ export const defineRead = <I extends z.ZodType, R>(c: Omit<ReadCapability<I, R>,
 
 export interface CallResult {
   ok: boolean;
-  /** 修改类的结果 */
+  /** Result of a mutation */
   result?: unknown;
   error?: { code: string; message: string; details?: unknown };
   changed?: string[];
@@ -67,8 +67,8 @@ export class Registry {
   }
 
   register(c: Capability) {
-    if (!/^[a-z][a-z0-9_]{1,63}$/.test(c.name)) throw new Error(`能力名不合法：${c.name}`);
-    if (this.map.has(c.name)) throw new Error(`能力重复登记：${c.name}`);
+    if (!/^[a-z][a-z0-9_]{1,63}$/.test(c.name)) throw new Error(`Invalid capability name: ${c.name}`);
+    if (this.map.has(c.name)) throw new Error(`Capability registered twice: ${c.name}`);
     this.map.set(c.name, c);
     return this;
   }
@@ -81,7 +81,7 @@ export class Registry {
     return [...this.map.values()];
   }
 
-  /** 按关键词搜索：名称、标题、说明里出现的词越多越靠前 */
+  /** Keyword search: the more query words appear in name, title and description, the higher the rank */
   search(query: string, limit = 10) {
     const words = query.toLowerCase().split(/[\s,，、]+/).filter(Boolean);
     return this.list()
@@ -95,7 +95,7 @@ export class Registry {
       .map(x => describe(x.c));
   }
 
-  /** 调用：校验输入 → 修改类走事务 → 返回可序列化结果 */
+  /** Call: validate input → run mutations in a transaction → return a serializable result */
   async call(name: string, raw: unknown, ctx: CapabilityContext): Promise<CallResult> {
     const c = this.map.get(name);
     if (!c) return { ok: false, error: { code: 'unknown-capability', message: `没有名为 ${name} 的能力` } };

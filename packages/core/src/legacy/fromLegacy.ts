@@ -1,6 +1,6 @@
 /**
- * 把旧页面（乌石合院）导出的方案数据转换成 Plinth 项目数据规范。
- * 输入是 scripts/extract-legacy.mjs 抓下来的 legacy.json，只在导入时用一次。
+ * Converts design data exported from the legacy page (乌石合院) into the Plinth project data schema.
+ * Input is the legacy.json captured by scripts/extract-legacy.mjs; used once, at import.
  */
 import { rect, union, pointInPolygon } from '../geometry.js';
 import {
@@ -36,7 +36,7 @@ const SPACE_KIND: Record<string, SpaceKind> = { in: 'indoor', semi: 'semi-outdoo
 const LEVEL_IDS = ['L1', 'L2', 'L3', 'L4', 'L5'];
 const pad = (n: number) => String(n).padStart(2, '0');
 
-/** 同一楼层内重名时加序号：客厅北墙、客厅北墙（2） */
+/** Append a number when a name repeats within a level: 客厅北墙, 客厅北墙（2） */
 function namer() {
   const seen = new Map<string, number>();
   return (base: string) => {
@@ -47,8 +47,8 @@ function namer() {
 }
 
 /**
- * 按墙两侧的空间给墙起名。一侧贴着多个室内空间、另一侧没有室内空间的叫“北外墙”；
- * 其余取贴合最长的空间（室内优先）：“老人房二西墙”。
+ * Name walls after the spaces on their sides. A wall with several indoor spaces on one side and none on the other is called e.g. “北外墙”;
+ * otherwise use the space with the longest shared edge (indoor first): “老人房二西墙”.
  */
 function wallName(w: LWall, rooms: LRoom[], kind: WallKind): string {
   const horiz = w.y1 === w.y2, tol = 5;
@@ -104,10 +104,10 @@ export function fromLegacy(src: LegacyExport): Project {
     fl.walls.forEach((w, wi) => {
       const kind: WallKind = WALL_KIND[w.kind] ?? (w.bearing ? 'bearing' : 'partition');
       const name = wallNames(wallName(w, fl.rooms, kind));
-      // 同一面墙上同类洞口从起点往终点编号：北外墙·窗1、北外墙·窗2
+      // Openings of the same kind on one wall are numbered from start to end: 北外墙·窗1, 北外墙·窗2
       const word = (o: LOp) => {
         const k = OP_KIND[o.type];
-        if (!k) throw new Error(`未知洞口类型 ${o.type}`);
+        if (!k) throw new Error(`Unknown opening type ${o.type}`);
         return (o.gb ? '玻璃砖' : '') + OP_WORD[k];
       };
       const total = new Map<string, number>(), seq = new Map<string, number>();
@@ -124,7 +124,7 @@ export function fromLegacy(src: LegacyExport): Project {
           width,
           height: h,
           sill,
-          // 旧数据 side 沿墙法线 (-dy, dx) 计正负，y 向南时正向即沿起点→终点的右侧
+          // Legacy `side` is signed along the wall normal (-dy, dx); with y south, positive is the right side looking start → end
           ...(k === 'door' ? { swing: { hinge: hinge === 'e' ? 'end' : 'start', side: (side ?? -1) > 0 ? 'right' : 'left' } } : {}),
           ...(gb ? { glazing: 'glass-block' as const } : {}),
           ...(Object.keys(rest).length ? { extras: rest } : {}),

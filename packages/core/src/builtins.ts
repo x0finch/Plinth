@@ -1,4 +1,4 @@
-/** 内置能力：查询、编辑、关系、验证。浏览器才有的视图类能力在运行时登记。 */
+/** Built-in capabilities: query, edit, relation, verify. Browser-only view capabilities are registered at runtime. */
 import { z } from 'zod';
 import { defineEdit, defineRead, Registry, type Capability, type CapabilityContext } from './capability.js';
 import { areaReport, grossArea, netArea } from './area.js';
@@ -12,7 +12,7 @@ import {
 import { TxError } from './session.js';
 import type { Element, Furniture, Id, Level, Opening, Point, Polygon, Project, Space, Wall } from './schema.js';
 
-// ---------- 引用解析：ID 或可读名称 ----------
+// ---------- Reference resolution: ID or readable name ----------
 
 type Kind = 'level' | 'wall' | 'space' | 'opening' | 'furniture' | 'element' | 'constraint';
 
@@ -30,7 +30,7 @@ function pool(p: Project, kind: Kind): { id: Id; name: string; level?: Id }[] {
   }
 }
 
-/** 按 ID 或名称找对象；名称可带楼层前缀“二层·主卧” */
+/** Find an object by ID or name; names may carry a level prefix, e.g. “二层·主卧” */
 export function resolve(p: Project, kind: Kind, ref: string, level?: string): { id: Id; name: string; level?: Id } {
   const all = pool(p, kind);
   const byId = all.find(o => o.id === ref);
@@ -67,12 +67,12 @@ function getOpening(p: Project, ref: string) {
   throw new TxError('not-found', ref);
 }
 
-// ---------- 输入片段 ----------
+// ---------- Input fragments ----------
 
-const zRef = (what: string) => z.string().describe(`${what}的 ID 或名称（名称可加楼层前缀，如“二层·主卧”）`);
-const zPoint = z.tuple([z.number(), z.number()]).describe('[x, y] 毫米，x 向东、y 向南');
-const zRect = z.tuple([z.number(), z.number(), z.number(), z.number()]).describe('[x, y, 宽(东西向), 深(南北向)] 毫米，x,y 为西北角');
-const zDirection = z.enum(['north', 'south', 'east', 'west']).describe('方向：north 北 / south 南 / east 东 / west 西');
+const zRef = (what: string) => z.string().describe(`ID or name of the ${what} (names may take a level prefix, e.g. “二层·主卧”)`);
+const zPoint = z.tuple([z.number(), z.number()]).describe('[x, y] in mm; x points east, y points south');
+const zRect = z.tuple([z.number(), z.number(), z.number(), z.number()]).describe('[x, y, width (east-west), depth (north-south)] in mm; x, y is the north-west corner');
+const zDirection = z.enum(['north', 'south', 'east', 'west']).describe('Direction: north / south / east / west');
 const zWallKind = z.enum(['bearing', 'partition', 'fence', 'parapet', 'railing']);
 const zSpaceKind = z.enum(['indoor', 'semi-outdoor', 'outdoor', 'roof-terrace', 'void']);
 const zOpeningKind = z.enum(['door', 'sliding-door', 'gate', 'window', 'opening']);
@@ -100,7 +100,7 @@ const toPolygon = (input: { rect?: number[]; polygon?: Point[] }): Polygon => {
 const r1 = (n: number) => Math.round(n * 10) / 10;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-// ---------- 摘要输出 ----------
+// ---------- Summary output ----------
 
 function wallInfo(p: Project, w: Wall) {
   const sides = p.spaces
@@ -161,7 +161,7 @@ function objectInfo(p: Project, ref: string) {
   return null;
 }
 
-/** 按任意名称或 ID 找对象，不限类型 */
+/** Find an object of any type by name or ID */
 function findAny(p: Project, ref: string): Id {
   const kinds: Kind[] = ['space', 'wall', 'opening', 'furniture', 'element', 'level', 'constraint'];
   const errors: string[] = [];
@@ -176,7 +176,7 @@ function findAny(p: Project, ref: string): Id {
   throw new TxError('not-found', `找不到“${ref}”。可以先用 find_objects 搜索`);
 }
 
-// ---------- 编辑辅助 ----------
+// ---------- Edit helpers ----------
 
 function addWall(p: Project, level: Id, start: Point, end: Point, o: { thickness?: number; kind?: Wall['kind']; height?: number; name?: string } = {}): Wall {
   if (Math.hypot(end[0] - start[0], end[1] - start[1]) < 50) throw new TxError('invalid-input', '墙太短（小于 50 mm）');
@@ -206,7 +206,7 @@ function addOpening(p: Project, w: Wall, kind: Opening['kind'], o: { at?: number
   return op;
 }
 
-/** 沿墙方向，某空间与墙重合段的中点 */
+/** Midpoint, along the wall, of the segment where a space meets the wall */
 function centerOnSpace(w: Wall, s: Space): number | null {
   const d = wallDir(w), L = wallLength(w);
   let lo = Infinity, hi = -Infinity;
@@ -220,7 +220,7 @@ function centerOnSpace(w: Wall, s: Space): number | null {
   return hi > lo ? (lo + hi) / 2 : null;
 }
 
-/** 给多边形每条边补墙：已有墙覆盖的部分跳过 */
+/** Add walls along each polygon edge, skipping parts already covered by walls */
 function wallsAround(p: Project, level: Id, poly: Polygon, thickness: number, kind: Wall['kind']): Wall[] {
   const out: Wall[] = [];
   const ring = poly.outer;
@@ -229,7 +229,7 @@ function wallsAround(p: Project, level: Id, poly: Polygon, thickness: number, ki
     const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (L < 50) continue;
     const dir: Point = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
-    // 已有共线墙覆盖的区间
+    // Intervals covered by existing collinear walls
     const covered: [number, number][] = [];
     for (const w of p.walls) {
       if (w.level !== level) continue;
@@ -263,7 +263,7 @@ function addSpace(p: Project, level: Id, name: string, shape: Polygon[], kind: S
   return s;
 }
 
-/** 墙改动后刷新自动名称：只改名字仍是自动生成样式的 */
+/** Refresh auto-generated names after wall changes: only renames walls whose names are still auto-generated */
 function renameWalls(p: Project, level: Id) {
   for (const w of p.walls.filter(x => x.level === level)) {
     if ((w.extras as any)?.customName) continue;
@@ -276,13 +276,13 @@ function renameWalls(p: Project, level: Id) {
   }
 }
 
-// ---------- 能力 ----------
+// ---------- Capabilities ----------
 
 const read = defineRead, edit = defineEdit;
 
 export const projectSummary = read({
   name: 'project_summary', title: '项目概况', kind: 'query', permission: 'read', runtime: 'any',
-  description: '项目名称、楼层、各层建筑面积、对象数量、需求和约束概况。开始工作前先调用。',
+  description: 'Project name, levels, gross area per level, object counts, brief and constraint overview. Call this before starting work.',
   input: z.object({}),
   run: (_, { session }) => {
     const p = session.project;
@@ -302,11 +302,11 @@ export const projectSummary = read({
 
 export const findObjects = read({
   name: 'find_objects', title: '搜索对象', kind: 'query', permission: 'read', runtime: 'any',
-  description: '按名称关键词、类型、楼层搜索墙、空间、门窗、家具、构件。返回 ID、名称、类型、楼层。',
+  description: 'Search walls, spaces, openings, furniture and elements by name keyword, type and level. Returns ID, name, type and level.',
   input: z.object({
-    query: z.string().optional().describe('名称关键词，如“老人房”“北墙”“窗”'),
+    query: z.string().optional().describe('Name keyword, e.g. “老人房”, “北墙”, “窗”'),
     type: z.enum(['wall', 'space', 'opening', 'furniture', 'element', 'level', 'constraint']).optional(),
-    level: z.string().optional().describe('楼层 ID 或名称'),
+    level: z.string().optional().describe('Level ID or name'),
     limit: z.number().int().min(1).max(200).default(50),
   }),
   run: ({ query, type, level, limit }, { session }) => {
@@ -321,14 +321,14 @@ export const findObjects = read({
 
 export const getObject = read({
   name: 'get_object', title: '查看对象', kind: 'query', permission: 'read', runtime: 'any',
-  description: '查看一个对象的详情。空间：使用面积、范围、四周的墙及方位、相邻空间、家具；墙：端点、长度、厚度、两侧空间、门窗；门窗：所在墙、位置、连通的空间。',
-  input: z.object({ ref: z.string().describe('对象 ID 或名称') }),
+  description: 'Get details of one object. Space: usable area, bounds, surrounding walls and their directions, neighboring spaces, furniture. Wall: endpoints, length, thickness, spaces on each side, openings. Opening: host wall, position, connected spaces.',
+  input: z.object({ ref: z.string().describe('Object ID or name') }),
   run: ({ ref }, { session }) => objectInfo(session.project, findAny(session.project, ref)),
 });
 
 export const areaReportCap = read({
   name: 'area_report', title: '面积统计', kind: 'query', permission: 'read', runtime: 'any',
-  description: '各层建筑面积和每个空间的使用面积（㎡）。',
+  description: 'Gross area per level and usable area per space (m²).',
   input: z.object({ level: z.string().optional() }),
   run: ({ level }, { session }) => {
     const p = session.project;
@@ -343,7 +343,7 @@ export const areaReportCap = read({
 
 export const checkRulesCap = read({
   name: 'check_rules', title: '规则检查', kind: 'verify', permission: 'read', runtime: 'any',
-  description: '检查房间重叠、门窗超出或重叠、房间没有入口、卧室没有窗、门扇碰家具、家具不在空间内，以及约束是否满足。',
+  description: 'Check for overlapping rooms, openings beyond the wall or overlapping, rooms without an entrance, bedrooms without a window, door leaves hitting furniture, furniture outside any space, and whether constraints are satisfied.',
   input: z.object({}),
   run: (_, { session }) => ({
     issues: checkRules(session.project),
@@ -353,7 +353,7 @@ export const checkRulesCap = read({
 
 export const listConstraints = read({
   name: 'list_constraints', title: '约束列表', kind: 'query', permission: 'read', runtime: 'any',
-  description: '列出所有约束及是否满足。',
+  description: 'List all constraints and whether each is satisfied.',
   input: z.object({}),
   run: (_, { session }) => {
     const st = new Map(checkConstraints(session.project).map(s => [s.id, s]));
@@ -363,10 +363,10 @@ export const listConstraints = read({
 
 export const wallAdd = edit({
   name: 'wall_add', title: '加墙', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '在指定楼层加一面直墙。端点在墙中心线上。',
+  description: 'Add a straight wall on the given level. Endpoints lie on the wall centreline.',
   input: z.object({
-    level: zRef('楼层'), start: zPoint, end: zPoint,
-    thickness: z.number().positive().optional().describe('墙厚，默认隔墙 120、承重墙 240'),
+    level: zRef('level'), start: zPoint, end: zPoint,
+    thickness: z.number().positive().optional().describe('Wall thickness; defaults to 120 for partitions, 240 for bearing walls'),
     kind: zWallKind.default('partition'), height: z.number().positive().optional(), name: z.string().optional(),
   }),
   label: i => `加墙`,
@@ -375,16 +375,16 @@ export const wallAdd = edit({
     if (i.name) w.extras = { ...w.extras, customName: true };
     return { id: w.id, name: w.name };
   },
-  examples: [{ input: { level: 'L1', start: [3000, 120], end: [3000, 3600], thickness: 120 }, note: '一层加一面南北向隔墙' }],
+  examples: [{ input: { level: 'L1', start: [3000, 120], end: [3000, 3600], thickness: 120 }, note: 'Add a north-south partition on level 1' }],
 });
 
 export const wallMove = edit({
   name: 'wall_move', title: '移墙', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '把一面墙沿垂直于墙的方向平移。相连的墙会伸缩跟上，两侧空间的边界跟着变，门窗保持在墙上的位置。',
+  description: 'Translate a wall perpendicular to itself. Connected walls stretch to follow, the boundaries of spaces on both sides update, and openings keep their position on the wall.',
   input: z.object({
-    wall: zRef('墙'),
-    direction: zDirection.optional(), distance: z.number().optional().describe('移动距离（毫米）'),
-    to: z.number().optional().describe('直接移到某坐标：东西向的墙给 y，南北向的墙给 x'),
+    wall: zRef('wall'),
+    direction: zDirection.optional(), distance: z.number().optional().describe('Distance to move (mm)'),
+    to: z.number().optional().describe('Move directly to a coordinate: y for east-west walls, x for north-south walls'),
   }),
   label: (i, p) => `移动${resolve(p, 'wall', i.wall).name}`,
   apply: (p, i) => {
@@ -398,20 +398,20 @@ export const wallMove = edit({
       if (!i.direction || i.distance == null) throw new TxError('invalid-input', '需要 direction + distance，或 to');
       v = scale(DIR_VEC[i.direction], i.distance);
     }
-    // 只取垂直于墙的分量
+    // Keep only the component perpendicular to the wall
     const k = dot(v, n);
     if (Math.abs(k) < 1) throw new TxError('invalid-input', `${w.name}不能沿这个方向移动（方向与墙平行）`);
     moveWall(p, w.id, round(scale(n, k)));
     renameWalls(p, w.level);
     return { id: w.id, start: w.start, end: w.end };
   },
-  examples: [{ input: { wall: '老人房一西墙', direction: 'west', distance: 500 }, note: '老人房一西墙向西移 0.5 米' }],
+  examples: [{ input: { wall: '老人房一西墙', direction: 'west', distance: 500 }, note: 'Move 老人房一西墙 0.5 m west' }],
 });
 
 export const wallUpdate = edit({
   name: 'wall_update', title: '改墙', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '修改墙的厚度、类型、高度或名称。',
-  input: z.object({ wall: zRef('墙'), thickness: z.number().positive().optional(), kind: zWallKind.optional(), height: z.number().positive().nullable().optional(), name: z.string().optional() }),
+  description: 'Change a wall\'s thickness, kind, height or name.',
+  input: z.object({ wall: zRef('wall'), thickness: z.number().positive().optional(), kind: zWallKind.optional(), height: z.number().positive().nullable().optional(), name: z.string().optional() }),
   label: (i, p) => `修改${resolve(p, 'wall', i.wall).name}`,
   apply: (p, i) => {
     const w = getWall(p, i.wall);
@@ -431,8 +431,8 @@ export const wallUpdate = edit({
 
 export const wallRemove = edit({
   name: 'wall_remove', title: '拆墙', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '拆除一面墙（连同墙上的门窗）。不会自动合并两侧空间，需要时再用 space_merge。',
-  input: z.object({ wall: zRef('墙') }),
+  description: 'Remove a wall (with its openings). Spaces on both sides are not merged automatically; use space_merge if needed.',
+  input: z.object({ wall: zRef('wall') }),
   label: (i, p) => `拆除${resolve(p, 'wall', i.wall).name}`,
   apply: (p, i) => {
     const w = getWall(p, i.wall);
@@ -445,12 +445,12 @@ export const wallRemove = edit({
 
 export const openingAdd = edit({
   name: 'opening_add', title: '开门窗', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '在墙上开门、窗、推拉门或洞口。位置用 at（洞口中心到墙起点的距离），或 center_on（居中在某空间与这面墙重合的一段上），都不给就放在墙中间。',
+  description: 'Add a door, window, sliding door or opening to a wall. Position it with at (distance from the opening centre to the wall start) or center_on (centred on the segment where a space meets this wall); with neither it goes at the wall midpoint.',
   input: z.object({
-    wall: zRef('墙'), kind: zOpeningKind,
-    at: z.number().optional(), center_on: z.string().optional().describe('空间 ID 或名称'),
-    width: z.number().positive().optional(), height: z.number().positive().optional(), sill: z.number().min(0).optional().describe('窗台高（毫米）'),
-    swing: z.object({ hinge: z.enum(['start', 'end']), side: z.enum(['left', 'right']) }).optional().describe('平开门的铰链端和开向（沿起点→终点看）'),
+    wall: zRef('wall'), kind: zOpeningKind,
+    at: z.number().optional(), center_on: z.string().optional().describe('Space ID or name'),
+    width: z.number().positive().optional(), height: z.number().positive().optional(), sill: z.number().min(0).optional().describe('Sill height (mm)'),
+    swing: z.object({ hinge: z.enum(['start', 'end']), side: z.enum(['left', 'right']) }).optional().describe('Hinge end and swing side of a swing door (looking from start → end)'),
     glass_block: z.boolean().optional(), name: z.string().optional(),
   }),
   label: (i, p) => `在${resolve(p, 'wall', i.wall).name}上开${OPENING_WORD[i.kind]}`,
@@ -465,14 +465,14 @@ export const openingAdd = edit({
     const o = addOpening(p, w, i.kind, { ...i, at, glassBlock: i.glass_block });
     return { id: o.id, name: o.name, at: o.at };
   },
-  examples: [{ input: { wall: '主卧北墙', kind: 'window', width: 1500, center_on: '主卧' }, note: '在主卧北墙居中开一扇 1.5 米宽的窗' }],
+  examples: [{ input: { wall: '主卧北墙', kind: 'window', width: 1500, center_on: '主卧' }, note: 'Add a 1.5 m wide window centred on 主卧北墙' }],
 });
 
 export const openingUpdate = edit({
   name: 'opening_update', title: '改门窗', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '修改门窗的位置、尺寸、类型或开向。',
+  description: 'Change an opening\'s position, size, kind or swing.',
   input: z.object({
-    opening: zRef('门窗'), at: z.number().optional(), move_by: z.number().optional().describe('沿墙方向移动（毫米，正数朝墙终点）'),
+    opening: zRef('opening'), at: z.number().optional(), move_by: z.number().optional().describe('Move along the wall (mm; positive toward the wall end)'),
     width: z.number().positive().optional(), height: z.number().positive().optional(), sill: z.number().min(0).optional(), kind: zOpeningKind.optional(),
     swing: z.object({ hinge: z.enum(['start', 'end']), side: z.enum(['left', 'right']) }).optional(), name: z.string().optional(),
   }),
@@ -494,8 +494,8 @@ export const openingUpdate = edit({
 
 export const openingRemove = edit({
   name: 'opening_remove', title: '封门窗', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '封掉一个门窗洞口。',
-  input: z.object({ opening: zRef('门窗') }),
+  description: 'Close up (remove) an opening.',
+  input: z.object({ opening: zRef('opening') }),
   label: (i, p) => `封掉${resolve(p, 'opening', i.opening).name}`,
   apply: (p, i) => {
     const { w, o } = getOpening(p, i.opening);
@@ -505,16 +505,16 @@ export const openingRemove = edit({
   },
 });
 
-const zShape = { rect: zRect.optional(), polygon: z.array(zPoint).optional().describe('任意多边形顶点（按顺序）') };
+const zShape = { rect: zRect.optional(), polygon: z.array(zPoint).optional().describe('Vertices of an arbitrary polygon (in order)') };
 
 export const roomAdd = edit({
   name: 'room_add', title: '加房间', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '加一个房间：建空间，并在四周没有墙的地方补墙（已有的墙会复用）。可同时在某一侧开门。从零建方案时用它逐间搭。',
+  description: 'Add a room: creates the space and adds walls wherever its edges have none (existing walls are reused). Can also add a door on one side. Use it to build a design room by room from scratch.',
   input: z.object({
-    level: zRef('楼层'), name: z.string(), ...zShape,
-    kind: zSpaceKind.default('indoor'), floor: z.string().default('oak').describe('地面材质类别'),
+    level: zRef('level'), name: z.string(), ...zShape,
+    kind: zSpaceKind.default('indoor'), floor: z.string().default('oak').describe('Floor material category'),
     wall_thickness: z.number().positive().default(120), wall_kind: zWallKind.default('partition'),
-    door: z.object({ side: zDirection, width: z.number().positive().optional() }).optional().describe('在房间哪一侧的墙上居中开门'),
+    door: z.object({ side: zDirection, width: z.number().positive().optional() }).optional().describe('Which side\'s wall gets a centred door'),
   }),
   label: i => `加房间“${i.name}”`,
   apply: (p, i) => {
@@ -535,13 +535,13 @@ export const roomAdd = edit({
     }
     return { id: s.id, name: s.name, walls: walls.map(w => ({ id: w.id, name: w.name })), door: door && { id: door.id, name: door.name } };
   },
-  examples: [{ input: { level: 'L2', name: '书房', rect: [10000, 120, 3000, 3480], door: { side: 'south' } }, note: '二层加一间 3×3.48 米的书房，南墙开门' }],
+  examples: [{ input: { level: 'L2', name: '书房', rect: [10000, 120, 3000, 3480], door: { side: 'south' } }, note: 'Add a 3 × 3.48 m study on level 2 with a door in the south wall' }],
 });
 
 export const spaceAdd = edit({
   name: 'space_add', title: '划空间', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '只划定一个空间（如院子、露台、走廊），不加墙。',
-  input: z.object({ level: zRef('楼层'), name: z.string(), ...zShape, kind: zSpaceKind.default('indoor'), floor: z.string().default('tile') }),
+  description: 'Define a space only (e.g. courtyard, terrace, corridor), without adding walls.',
+  input: z.object({ level: zRef('level'), name: z.string(), ...zShape, kind: zSpaceKind.default('indoor'), floor: z.string().default('tile') }),
   label: i => `划出“${i.name}”`,
   apply: (p, i) => {
     const level = resolveLevel(p, i.level).id;
@@ -552,8 +552,8 @@ export const spaceAdd = edit({
 
 export const spaceUpdate = edit({
   name: 'space_update', title: '改空间', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '修改空间的名称、类型、地面材质，或用 rect / polygon 重新划定范围（不动墙）。',
-  input: z.object({ space: zRef('空间'), name: z.string().optional(), kind: zSpaceKind.optional(), floor: z.string().optional(), ...zShape }),
+  description: 'Change a space\'s name, kind or floor material, or redefine its extent with rect / polygon (walls are not moved).',
+  input: z.object({ space: zRef('space'), name: z.string().optional(), kind: zSpaceKind.optional(), floor: z.string().optional(), ...zShape }),
   label: (i, p) => `修改${resolve(p, 'space', i.space).name}`,
   apply: (p, i) => {
     const s = getSpace(p, i.space);
@@ -573,8 +573,8 @@ export const spaceUpdate = edit({
 
 export const spaceRemove = edit({
   name: 'space_remove', title: '删空间', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '删除空间。walls=true 时一并拆掉只属于这个空间的隔墙（承重墙不拆）。',
-  input: z.object({ space: zRef('空间'), walls: z.boolean().default(false) }),
+  description: 'Delete a space. With walls=true, also removes partitions that belong only to this space (bearing walls are kept).',
+  input: z.object({ space: zRef('space'), walls: z.boolean().default(false) }),
   label: (i, p) => `删除${resolve(p, 'space', i.space).name}`,
   apply: (p, i) => {
     const s = getSpace(p, i.space);
@@ -595,8 +595,8 @@ export const spaceRemove = edit({
 
 export const spaceMerge = edit({
   name: 'space_merge', title: '合并空间', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '把几个相邻空间合成一个（拆掉它们之间的隔墙）。',
-  input: z.object({ spaces: z.array(zRef('空间')).min(2), name: z.string().optional() }),
+  description: 'Merge several adjacent spaces into one (removing the partitions between them).',
+  input: z.object({ spaces: z.array(zRef('space')).min(2), name: z.string().optional() }),
   label: (i, p) => `合并${i.spaces.map(s => resolve(p, 'space', s).name).join('、')}`,
   apply: (p, i) => {
     const ss = i.spaces.map(r => getSpace(p, r));
@@ -616,8 +616,8 @@ export const spaceMerge = edit({
 
 export const spaceSetArea = edit({
   name: 'space_set_area', title: '调面积', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '移动空间的一面墙，让使用面积接近目标值（㎡）。不指定墙时自动选一面隔墙。相邻空间会相应变小或变大。',
-  input: z.object({ space: zRef('空间'), area: z.number().positive().describe('目标使用面积（㎡）'), wall: z.string().optional().describe('要移动的墙') }),
+  description: 'Move one wall of a space so its usable area approaches the target (m²). Without a wall given, a partition is chosen automatically. Neighboring spaces shrink or grow accordingly.',
+  input: z.object({ space: zRef('space'), area: z.number().positive().describe('Target usable area (m²)'), wall: z.string().optional().describe('Wall to move') }),
   label: (i, p) => `把${resolve(p, 'space', i.space).name}调到约 ${i.area} m²`,
   apply: (p, i) => {
     const s = getSpace(p, i.space);
@@ -627,17 +627,17 @@ export const spaceSetArea = edit({
     renameWalls(p, s.level);
     return { space: s.id, wall: { id: sol.wall.id, name: sol.wall.name }, moved: sol.vector, area: r2(sol.area) };
   },
-  examples: [{ input: { space: '老人房一', area: 12 }, note: '老人房一调到约 12 m²' }],
+  examples: [{ input: { space: '老人房一', area: 12 }, note: 'Resize 老人房一 to about 12 m²' }],
 });
 
 export const furnitureAdd = edit({
   name: 'furniture_add', title: '放家具', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '放一件家具。type 用家具类别（见 project_summary 的 furnitureTypes，也可用新类别并给 size）。position 不给时放在 space 的中心。',
+  description: 'Place a piece of furniture. type is a furniture category (see furnitureTypes in project_summary; a new category is allowed if size is given). Without position it goes at the centre of space.',
   input: z.object({
-    level: zRef('楼层').optional(), type: z.string(), position: zPoint.optional(), space: z.string().optional(),
-    rotation: z.number().default(0).describe('顺时针旋转角（度）'),
+    level: zRef('level').optional(), type: z.string(), position: zPoint.optional(), space: z.string().optional(),
+    rotation: z.number().default(0).describe('Clockwise rotation (degrees)'),
     size: z.object({ w: z.number().positive(), d: z.number().positive(), h: z.number().positive() }).optional(),
-    elevation: z.number().optional(), label: z.string().optional().describe('新类别的中文名'),
+    elevation: z.number().optional(), label: z.string().optional().describe('Display name of a new category (in Chinese)'),
   }),
   label: i => `放${i.type}`,
   apply: (p, i) => {
@@ -669,8 +669,8 @@ export const furnitureAdd = edit({
 
 export const furnitureMove = edit({
   name: 'furniture_move', title: '挪家具', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '移动或旋转家具：position 绝对位置，或 by 相对位移；rotation 新的旋转角。',
-  input: z.object({ furniture: zRef('家具'), position: zPoint.optional(), by: zPoint.optional(), rotation: z.number().optional() }),
+  description: 'Move or rotate furniture: position for an absolute location or by for a relative offset; rotation for the new angle.',
+  input: z.object({ furniture: zRef('furniture'), position: zPoint.optional(), by: zPoint.optional(), rotation: z.number().optional() }),
   label: (i, p) => `挪动${resolve(p, 'furniture', i.furniture).name}`,
   apply: (p, i) => {
     const f = getFurniture(p, i.furniture);
@@ -683,8 +683,8 @@ export const furnitureMove = edit({
 
 export const furnitureRemove = edit({
   name: 'furniture_remove', title: '移走家具', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '移走一件家具。',
-  input: z.object({ furniture: zRef('家具') }),
+  description: 'Remove a piece of furniture.',
+  input: z.object({ furniture: zRef('furniture') }),
   label: (i, p) => `移走${resolve(p, 'furniture', i.furniture).name}`,
   apply: (p, i) => {
     const f = getFurniture(p, i.furniture);
@@ -695,7 +695,7 @@ export const furnitureRemove = edit({
 
 export const levelAdd = edit({
   name: 'level_add', title: '加楼层', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '在最上面的非屋顶层之上加一层（屋顶层随之上移）。copy_from 给出时复制那一层的墙和空间（不含家具）。',
+  description: 'Add a level above the topmost non-roof level (the roof level moves up). With copy_from, copies that level\'s walls and spaces (not furniture).',
   input: z.object({ name: z.string(), height: z.number().positive().default(3000), copy_from: z.string().optional() }),
   label: i => `加楼层“${i.name}”`,
   apply: (p, i) => {
@@ -722,8 +722,8 @@ export const levelAdd = edit({
 
 export const levelRemove = edit({
   name: 'level_remove', title: '删楼层', kind: 'edit', permission: 'main', runtime: 'any',
-  description: '删除一层及其上所有墙、空间、家具。上面的楼层整体下移。影响主方案，需业主确认。',
-  input: z.object({ level: zRef('楼层') }),
+  description: 'Delete a level with all its walls, spaces and furniture. Levels above move down. Affects the main design and needs owner confirmation.',
+  input: z.object({ level: zRef('level') }),
   label: (i, p) => `删除${resolveLevel(p, i.level).name}`,
   apply: (p, i) => {
     const lv = resolveLevel(p, i.level);
@@ -741,19 +741,19 @@ export const levelRemove = edit({
 export const constraintAdd = edit({
   name: 'constraint_add', title: '加约束', kind: 'relation', permission: 'reversible', runtime: 'any',
   description: [
-    '把业主说的相对关系存成约束，以后改动时自动保持。支持：',
-    'align（targets: 几面平行墙，保持共线）；',
-    'center（targets: [门窗, 空间]，门窗居中在该空间那段墙上）；',
-    'spacing（targets: [门窗或墙, 墙]，params.distance 毫米：门窗边到墙面的净距，或两面平行墙中心距）；',
-    'size-target（targets: [空间, 可选的墙]，params.area ㎡、params.tolerance 默认 0.3）。',
-    'hard=true 时违反会拒绝操作。source：业主原话为 user，你推断的为 agent。',
+    'Store a relationship stated by the owner as a constraint, maintained automatically on later edits. Supported: ',
+    'align (targets: several parallel walls, kept collinear); ',
+    'center (targets: [opening, space]; the opening is centred on that space\'s segment of the wall); ',
+    'spacing (targets: [opening or wall, wall], params.distance in mm: clear distance from the opening edge to the wall face, or centre-to-centre distance of two parallel walls); ',
+    'size-target (targets: [space, optional wall], params.area in m², params.tolerance default 0.3). ',
+    'With hard=true, violating operations are rejected. source: user if the owner said it, agent if you inferred it.',
   ].join(''),
   input: z.object({
     type: z.enum(SUPPORTED_CONSTRAINTS as [string, ...string[]]),
-    targets: z.array(z.string()).min(1).describe('对象 ID 或名称'),
+    targets: z.array(z.string()).min(1).describe('Object IDs or names'),
     params: z.record(z.string(), z.unknown()).default({}),
     hard: z.boolean().default(false), source: z.enum(['user', 'agent', 'default']).default('user'),
-    note: z.string().optional().describe('用业主的原话记录'),
+    note: z.string().optional().describe('Record in the owner\'s own words'),
   }),
   label: i => `加约束：${i.note ?? i.type}`,
   apply: (p, i) => {
@@ -766,14 +766,14 @@ export const constraintAdd = edit({
     return { id: c.id };
   },
   examples: [
-    { input: { type: 'center', targets: ['主卧南墙·门', '主卧'], note: '门在房间中线上' }, note: '门居中' },
-    { input: { type: 'size-target', targets: ['老人房一'], params: { area: 12 }, note: '老人房一约 12 平' }, note: '面积目标' },
+    { input: { type: 'center', targets: ['主卧南墙·门', '主卧'], note: '门在房间中线上' }, note: 'Centre a door' },
+    { input: { type: 'size-target', targets: ['老人房一'], params: { area: 12 }, note: '老人房一约 12 平' }, note: 'Area target' },
   ],
 });
 
 export const constraintRemove = edit({
   name: 'constraint_remove', title: '删约束', kind: 'relation', permission: 'reversible', runtime: 'any',
-  description: '删除一条约束。',
+  description: 'Delete a constraint.',
   input: z.object({ constraint: z.string() }),
   label: i => `删除约束 ${i.constraint}`,
   apply: (p, i) => {
@@ -785,7 +785,7 @@ export const constraintRemove = edit({
 
 export const briefUpdate = edit({
   name: 'brief_update', title: '记录需求', kind: 'relation', permission: 'reversible', runtime: 'any',
-  description: '记录或更新业主需求：家庭成员、房间清单、偏好、预算、备注。数组字段整体替换。',
+  description: 'Record or update the owner\'s brief: household members, room list, preferences, budget, notes. Array fields are replaced wholesale.',
   input: z.object({
     household: z.array(z.string()).optional(), rooms: z.array(z.string()).optional(), preferences: z.array(z.string()).optional(),
     budget: z.string().optional(), notes: z.array(z.string()).optional(),
@@ -799,7 +799,7 @@ export const briefUpdate = edit({
 
 export const decisionAdd = edit({
   name: 'decision_add', title: '记录决策', kind: 'relation', permission: 'reversible', runtime: 'any',
-  description: '把一次取舍写进决策日志：做了什么、为什么、放弃了哪些选项。',
+  description: 'Write a trade-off to the decision log: what was done, why, and which options were rejected.',
   input: z.object({ summary: z.string(), reason: z.string().optional(), rejected: z.array(z.string()).optional() }),
   label: i => `记录决策：${i.summary}`,
   apply: (p, i) => {
@@ -811,7 +811,7 @@ export const decisionAdd = edit({
 
 export const historyUndo = defineRead({
   name: 'history_undo', title: '撤销', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '撤销上一步修改。',
+  description: 'Undo the last change.',
   input: z.object({}),
   run: (_, { session }) => {
     const e = session.undo();
@@ -821,7 +821,7 @@ export const historyUndo = defineRead({
 
 export const historyRedo = defineRead({
   name: 'history_redo', title: '重做', kind: 'edit', permission: 'reversible', runtime: 'any',
-  description: '重做刚撤销的修改。',
+  description: 'Redo the change just undone.',
   input: z.object({}),
   run: (_, { session }) => {
     const e = session.redo();
@@ -831,18 +831,18 @@ export const historyRedo = defineRead({
 
 export const historyLog = read({
   name: 'history_log', title: '操作记录', kind: 'query', permission: 'read', runtime: 'any',
-  description: '本次会话的操作日志：谁、何时、做了什么、为什么。',
+  description: 'Operation log for this session: who, when, what and why.',
   input: z.object({ limit: z.number().int().positive().default(20) }),
   run: ({ limit }, { session }) => session.log.slice(-limit),
 });
 
-/** 批量：多个修改合成一个事务，一次撤销 */
+/** Batch: several edits combined into one transaction, undone together */
 export function batchCapability(registry: Registry) {
   return edit({
     name: 'batch', title: '批量修改', kind: 'edit', permission: 'reversible', runtime: 'any',
-    description: '把多个修改类能力合成一步执行：全部成功或全部回滚，撤销时一起撤销。大改动、从零搭方案时使用。',
+    description: 'Run several edit capabilities as one step: all succeed or all roll back, and they undo together. Use for large changes or building a design from scratch.',
     input: z.object({
-      label: z.string().describe('这批修改的一句话说明'),
+      label: z.string().describe('One-sentence summary of this batch'),
       calls: z.array(z.object({ name: z.string(), input: z.record(z.string(), z.unknown()).default({}) })).min(1).max(60),
     }),
     label: i => i.label,
@@ -867,7 +867,7 @@ export function batchCapability(registry: Registry) {
 
 export const searchCapabilitiesFor = (registry: Registry) => read({
   name: 'search_capabilities', title: '搜索能力', kind: 'query', permission: 'read', runtime: 'any',
-  description: '按关键词搜索可用的能力，返回名称、说明、输入格式和范例。',
+  description: 'Search available capabilities by keyword; returns name, description, input schema and examples.',
   input: z.object({ query: z.string().default('') }),
   run: ({ query }) => registry.search(query, 15),
 });
@@ -881,7 +881,7 @@ export const BUILTIN: Capability[] = [
   historyUndo, historyRedo, historyLog,
 ];
 
-/** 内置能力清单（含 batch 和 search_capabilities） */
+/** Built-in capability registry (including batch and search_capabilities) */
 export function createRegistry(extra: Capability[] = []): Registry {
   const r = new Registry([...BUILTIN, ...extra]);
   r.register(batchCapability(r));

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Plinth 核心包：数据规范、几何、面积，不依赖浏览器",
+  "description": "Plinth core: data schema, geometry and area; no browser dependency",
   "exports": {
     ".": "./src/index.ts"
   },

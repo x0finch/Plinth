@@ -1,4 +1,4 @@
-/** 墙、空间、洞口之间的几何关系：邻接、定位、连带移动。 */
+/** Geometric relations between walls, spaces and openings: adjacency, location, linked moves. */
 import pc from 'polygon-clipping';
 import { area, difference, pointInPolygon, toPc, union, wallBody } from './geometry.js';
 import type { Id, Opening, Point, Polygon, Project, Space, Wall, WallKind } from './schema.js';
@@ -15,7 +15,7 @@ export const round = (p: Point): Point => [Math.round(p[0]), Math.round(p[1])];
 
 export const wallLength = (w: Wall) => len(sub(w.end, w.start));
 export const wallDir = (w: Wall): Point => scale(sub(w.end, w.start), 1 / wallLength(w));
-/** 法线：沿起点→终点看的右手侧（平面图北在上、y 向南） */
+/** Normal: the right-hand side looking from start → end (plan north up, y south) */
 export const wallNormal = (w: Wall): Point => {
   const [dx, dy] = wallDir(w);
   return [-dy, dx];
@@ -24,20 +24,20 @@ export const wallNormal = (w: Wall): Point => {
 export const pointAt = (w: Wall, at: number): Point => add(w.start, scale(wallDir(w), at));
 export const openingCenter = (w: Wall, o: Opening) => pointAt(w, o.at);
 
-/** 点到线段的距离及投影参数（沿墙距离） */
+/** Distance from a point to a segment and its projection parameter (distance along the wall) */
 export function project(w: Wall, p: Point): { dist: number; at: number } {
   const d = wallDir(w), v = sub(p, w.start);
   const at = dot(v, d);
   return { dist: Math.abs(cross(d, v)), at };
 }
 
-/** 点是否在墙中心线上（含端点） */
+/** Whether a point lies on the wall centreline (endpoints included) */
 export function onWall(w: Wall, p: Point, tol = TOL) {
   const { dist, at } = project(w, p);
   return dist <= tol && at >= -tol && at <= wallLength(w) + tol;
 }
 
-/** 两条直线的交点（平行时返回 null） */
+/** Intersection of two lines (null when parallel) */
 export function intersectLines(p1: Point, d1: Point, p2: Point, d2: Point): Point | null {
   const den = cross(d1, d2);
   if (Math.abs(den) < 1e-9) return null;
@@ -48,7 +48,7 @@ export function intersectLines(p1: Point, d1: Point, p2: Point, d2: Point): Poin
 const edges = (p: Polygon): [Point, Point][] =>
   [p.outer, ...(p.holes ?? [])].flatMap(r => r.map((a, i) => [a, r[(i + 1) % r.length]] as [Point, Point]));
 
-/** 墙与空间边界重合的长度 */
+/** Length where a wall coincides with a space boundary */
 export function sharedLength(w: Wall, s: Space, tol = TOL): number {
   const d = wallDir(w), L = wallLength(w);
   let total = 0;
@@ -68,9 +68,9 @@ export const centroid = (s: Space): Point => {
   return [x / n, y / n];
 };
 
-/** 空间在墙的哪一侧：沿法线为 1，反方向为 -1 */
+/** Which side of the wall the space is on: 1 along the normal, -1 opposite */
 export function sideOf(w: Wall, s: Space): 1 | -1 {
-  // 从墙中点沿法线两侧各探一小步，看哪侧落在空间里
+  // Probe a small step to each side of the wall midpoint along the normal and see which falls inside the space
   const L = wallLength(w), n = wallNormal(w);
   const samples = [0.25, 0.5, 0.75].map(t => pointAt(w, L * t));
   const probe = (k: number) => samples.filter(m => s.shape.some(p => pointInPolygon(add(m, scale(n, k * 50)), p))).length;
@@ -79,7 +79,7 @@ export function sideOf(w: Wall, s: Space): 1 | -1 {
 
 export interface SpaceBoundary { wall: Wall; length: number; side: 1 | -1 }
 
-/** 围合空间的墙 */
+/** Walls enclosing a space */
 export function spaceWalls(p: Project, s: Space): SpaceBoundary[] {
   return p.walls
     .filter(w => w.level === s.level)
@@ -88,7 +88,7 @@ export function spaceWalls(p: Project, s: Space): SpaceBoundary[] {
     .map(b => ({ ...b, side: sideOf(b.wall, s) }));
 }
 
-/** 隔着一面墙或直接相邻的空间 */
+/** Spaces adjacent directly or across a wall */
 export function spaceNeighbors(p: Project, s: Space): { space: Space; via: Wall[] }[] {
   const mine = spaceWalls(p, s);
   const out: { space: Space; via: Wall[] }[] = [];
@@ -100,7 +100,7 @@ export function spaceNeighbors(p: Project, s: Space): { space: Space; via: Wall[
   return out;
 }
 
-/** 洞口连通的两侧空间 */
+/** The spaces on either side connected by an opening */
 export function openingSpaces(p: Project, w: Wall, o: Opening): Space[] {
   const c = openingCenter(w, o), n = wallNormal(w), off = w.thickness / 2 + 100;
   return [1, -1].map(k => p.spaces.find(s => s.level === w.level && s.shape.some(poly => pointInPolygon(add(c, scale(n, k * off)), poly))))
@@ -110,7 +110,7 @@ export function openingSpaces(p: Project, w: Wall, o: Opening): Space[] {
 const DIRS: Record<string, string> = { '0,-1': '北', '0,1': '南', '1,0': '东', '-1,0': '西' };
 export const KIND_WORD: Record<WallKind, string> = { bearing: '墙', partition: '墙', fence: '围墙', parapet: '女儿墙', railing: '栏杆' };
 
-/** 按墙两侧空间起名（与 legacy 导入一致）：贴合最长的室内空间优先 */
+/** Name a wall after the spaces on its sides (consistent with legacy import): the indoor space with the longest shared edge wins */
 export function autoWallName(p: Project, w: Wall): string {
   const rank: Record<Space['kind'], number> = { indoor: 3, 'semi-outdoor': 2, 'roof-terrace': 1, outdoor: 1, void: 0 };
   let best: { s: Space; score: number } | null = null;
@@ -126,7 +126,7 @@ export function autoWallName(p: Project, w: Wall): string {
   }
   const word = KIND_WORD[w.kind];
   if (!best) return `${w.level}${word}`;
-  // 墙在空间的哪个方位：空间指向墙的方向
+  // Which direction the wall lies from the space: the direction from the space toward the wall
   const n = scale(wallNormal(w), -sideOf(w, best.s));
   const key = `${Math.round(n[0])},${Math.round(n[1])}`;
   const dir = DIRS[key] ?? '';
@@ -134,14 +134,14 @@ export function autoWallName(p: Project, w: Wall): string {
   return `${best.s.name}${dir}${word}`;
 }
 
-/** 同层内重名时加序号 */
+/** Append a number when a name repeats within a level */
 export function uniqueName(existing: Iterable<string>, base: string): string {
   const set = new Set(existing);
   if (!set.has(base)) return base;
   for (let i = 2; ; i++) if (!set.has(`${base}（${i}）`)) return `${base}（${i}）`;
 }
 
-/** 生成新 ID：前缀 + 递增序号 */
+/** Generate a new ID: prefix + incrementing number */
 export function nextId(p: Project, prefix: string): Id {
   const all = new Set<string>([
     ...p.levels.map(o => o.id), ...p.walls.map(o => o.id), ...p.walls.flatMap(w => w.openings.map(o => o.id)),
@@ -155,8 +155,8 @@ export function nextId(p: Project, prefix: string): Id {
 }
 
 /**
- * 平移一面墙，并连带调整：端点搭在这面墙上的墙伸缩到新位置，这面墙的端点沿所搭的墙滑动，
- * 落在墙线上的空间顶点跟着平移，被移动起点的墙上洞口保持绝对位置不变。直接修改传入的数据。
+ * Translate a wall with linked adjustments: walls whose endpoints rest on it stretch to the new position, its own endpoints slide along the walls they rest on,
+ * space vertices on the wall line move with it, and openings on walls whose start point moved keep their absolute position. Mutates the input data.
  */
 export function moveWall(p: Project, wallId: Id, v: Point) {
   const w = p.walls.find(x => x.id === wallId)!;
@@ -165,7 +165,7 @@ export function moveWall(p: Project, wallId: Id, v: Point) {
   const d = wallDir(oldWall);
   const others = p.walls.filter(o => o.level === w.level && o.id !== w.id);
 
-  // 本墙端点：若搭在另一面不平行的墙上，沿那面墙滑动
+  // This wall's endpoints: if resting on a non-parallel wall, slide along that wall
   const slide = (pt: Point): Point => {
     const moved = add(pt, v);
     const host = others.find(o => Math.abs(cross(wallDir(o), d)) > 1e-6 && onWall(o, pt));
@@ -175,7 +175,7 @@ export function moveWall(p: Project, wallId: Id, v: Point) {
   w.start = round(slide(old.start));
   w.end = round(slide(old.end));
 
-  // 端点搭在本墙上的其他墙：伸缩到新墙线
+  // Other walls with endpoints on this wall: stretch to the new wall line
   for (const o of others) {
     const od = wallDir(o);
     if (Math.abs(cross(od, d)) < 1e-6) continue;
@@ -192,7 +192,7 @@ export function moveWall(p: Project, wallId: Id, v: Point) {
     }
   }
 
-  // 空间顶点：落在旧墙线上（含墙厚范围内的延长）的跟着平移
+  // Space vertices on the old wall line (including its extension within the wall thickness) move along
   const ext = w.thickness;
   for (const s of p.spaces) {
     if (s.level !== w.level) continue;
@@ -206,18 +206,18 @@ export function moveWall(p: Project, wallId: Id, v: Point) {
         }
       }
     }
-    // 只整理动过的空间，避免把整层都记成“改动”
+    // Only tidy spaces that moved, so the whole level isn't recorded as "changed"
     if (moved) s.shape = union(s.shape);
   }
 }
 
-/** 空间的使用面积（㎡），与 area.ts 一致 */
+/** Usable area of a space (m²), consistent with area.ts */
 export function spaceNetArea(p: Project, s: Space) {
   const bodies = p.walls.filter(w => w.level === s.level && w.kind !== 'railing').map(wallBody);
   return area(difference(s.shape, bodies)) / 1e6;
 }
 
-/** 两组多边形的重叠面积（mm²） */
+/** Overlap area of two polygon sets (mm²) */
 export function overlapArea(a: Polygon[], b: Polygon[]) {
   if (!a.length || !b.length) return 0;
   return area(

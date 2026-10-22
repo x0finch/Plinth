@@ -1,5 +1,5 @@
-// 在无头浏览器里跑旧页面，把方案数据原样抓出来，作为转换的原始输入和面积验收基准。
-// 用法：node scripts/extract-legacy.mjs [方案号=10]
+// Runs the legacy page in a headless browser and captures the design data as-is, as raw input for conversion and the baseline for area acceptance.
+// Usage: node scripts/extract-legacy.mjs [scheme=10]
 import { chromium } from 'playwright';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -14,7 +14,7 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
 const page = await browser.newPage();
 const errors = [];
 page.on('pageerror', e => errors.push(String(e)));
-// 旧页面用 Math.random 生成 ID，固定种子保证每次导出一致
+// The legacy page generates IDs with Math.random; a fixed seed keeps every export identical
 await page.addInitScript(() => {
   let a = 20261022;
   Math.random = () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -50,5 +50,5 @@ await browser.close();
 mkdirSync(out, { recursive: true });
 writeFileSync(join(out, 'legacy.json'), JSON.stringify(data.legacy, null, 1) + '\n');
 writeFileSync(join(out, 'expected-areas.json'), JSON.stringify(data.expected, null, 1) + '\n');
-console.log(`方案${sch}：${data.legacy.design.floors.length} 层，写入 ${out}`);
-if (errors.length) console.log('页面报错（不影响数据）：\n' + errors.join('\n'));
+console.log(`Scheme ${sch}: ${data.legacy.design.floors.length} floors, written to ${out}`);
+if (errors.length) console.log('Page errors (data unaffected):\n' + errors.join('\n'));

@@ -6,7 +6,7 @@ export interface ValidationIssue {
   message: string;
 }
 
-/** 结构校验：ID 唯一、引用存在、几何有效。规则检查（门开向、房间重叠等）在路线图第 2 步。 */
+/** Structural validation: unique IDs, existing references, valid geometry. Rule checks (door swing, room overlap, etc.) are roadmap step 2. */
 export function validate(p: Project): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const ids = new Map<string, string>();

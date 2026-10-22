@@ -3,15 +3,15 @@ import type { Id, Project, Space, Wall } from './schema.js';
 
 const M2 = 1e6;
 
-/** 使用面积（㎡）：空间范围扣除实际墙体，栏杆不扣 */
+/** Usable area (m²): space footprints minus actual wall bodies; railings are not deducted */
 export function netArea(space: Space, walls: Wall[]): number {
   const bodies = walls.filter(w => w.level === space.level && w.kind !== 'railing').map(wallBody);
   return area(difference(space.shape, bodies)) / M2;
 }
 
 /**
- * 建筑面积（㎡）：室内空间加上围着它们的承重墙、隔墙，量到外墙外皮。
- * 半室外、室外、屋顶平台不计。
+ * Gross floor area (m²): indoor spaces plus the bearing walls and partitions around them, measured to the outer face of exterior walls.
+ * Semi-outdoor, outdoor and roof-terrace spaces are excluded.
  */
 export function grossArea(project: Project, level: Id): number {
   const indoor = project.spaces.filter(s => s.level === level && s.kind === 'indoor').flatMap(s => s.shape);
