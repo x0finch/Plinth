@@ -1,5 +1,5 @@
-// 测试用的假大模型（OpenAI Chat Completions 流式接口）。按脚本先调用工具，再回一段话。
-// 用法：node e2e/fake-llm.mjs [端口=8787]
+// Fake LLM for tests (OpenAI Chat Completions streaming API). Follows a script: call tools first, then reply with text.
+// Usage: node e2e/fake-llm.mjs [port=8787]
 import { createServer } from 'node:http';
 
 const port = Number(process.argv[2] ?? 8787);
@@ -8,13 +8,13 @@ export const requests = [];
 const chunk = (delta, finish = null, usage) =>
   `data: ${JSON.stringify({ id: 'fake', object: 'chat.completion.chunk', created: 0, model: 'fake', choices: [{ index: 0, delta, finish_reason: finish }], ...(usage ? { usage } : {}) })}\n\n`;
 
-/** 脚本：看最后一条消息决定下一步 */
+/** Script: decide the next step from the latest messages */
 function next(body) {
   const msgs = body.messages;
   const last = msgs[msgs.length - 1];
   const user = [...msgs].reverse().find(m => m.role === 'user');
   const text = typeof user?.content === 'string' ? user.content : JSON.stringify(user?.content);
-  // 只数最后一条用户消息之后的工具结果
+  // Count only tool results after the last user message
   const lastUser = msgs.map(m => m.role).lastIndexOf('user');
   const toolsSoFar = msgs.slice(lastUser).filter(m => m.role === 'tool').length;
   if (/扩到|调到/.test(text) && toolsSoFar === 0) return { tool: { name: 'space_set_area', args: { space: '一层·老人房一', area: 12.5 } } };

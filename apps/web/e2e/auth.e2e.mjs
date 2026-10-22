@@ -1,21 +1,24 @@
-// 端到端：邮箱密码注册（验证码验证邮箱）→ 退出 → 密码登录 → 错密码 → 忘记密码重设 → 原始密码从不发给服务器
-// 用法：DEV_LOG=<npm run dev 的输出文件> node e2e/auth.e2e.mjs（本地不配 RESEND_API_KEY，验证码打印在日志里）
+// E2E: email+password sign-up (verify email with OTP) → sign out → password sign-in → wrong password → forgot-password reset → raw password never sent to the server
+// Usage: DEV_LOG=<file with `npm run dev` output> node e2e/auth.e2e.mjs (without RESEND_API_KEY locally, OTPs are printed to the log)
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
 
 const BASE = process.env.BASE ?? 'http://localhost:3000';
-if (!process.env.DEV_LOG) throw new Error('需要 DEV_LOG：dev 服务器的日志文件，用来读验证码');
+if (!process.env.DEV_LOG) throw new Error('DEV_LOG is required: the dev server log file, used to read OTPs');
 const check = (ok, msg) => {
   console.log(`${ok ? '✓' : '✗'} ${msg}`);
   if (!ok) process.exitCode = 1;
 };
-const otpOf = async (email, purpose) => {
+const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Dev log line: "[dev] OTP for <email>: <6 digits> (<type>)", type is sign-in | email-verification | forget-password | change-email
+const otpOf = async (email, type) => {
+  const re = new RegExp(`\\[dev\\] OTP for ${escapeRe(email)}: (\\d{6}) \\(${escapeRe(type)}\\)`, 'g');
   for (let i = 0; i < 20; i++) {
-    const m = [...readFileSync(process.env.DEV_LOG, 'utf8').matchAll(new RegExp(`${email.replace(/[.+]/g, '\\$&')} 的验证码：(\\d{6})（${purpose}）`, 'g'))].at(-1);
+    const m = [...readFileSync(process.env.DEV_LOG, 'utf8').matchAll(re)].at(-1);
     if (m) return m[1];
     await new Promise(r => setTimeout(r, 250));
   }
-  throw new Error(`没收到 ${email} 的${purpose}验证码`);
+  throw new Error(`No ${type} OTP received for ${email}`);
 };
 
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
@@ -27,16 +30,16 @@ p.on('request', r => { const body = r.postData() ?? ''; if (body.includes(SECRET
 const me = () => p.evaluate(async () => (await (await fetch('/api/me')).json()).user);
 const signOut = () => p.evaluate(() => fetch('/api/auth/sign-out', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }));
 
-// 登录接口每个 IP 每分钟限 10 次：前面的测试用过一些，等一个窗口再开始
+// Sign-in endpoints are limited to 10 requests per IP per minute; earlier tests used some, so wait one window first
 await new Promise(r => setTimeout(r, 61000));
 
-// 先以访客身份建一个方案
+// Create a project as a guest first
 await p.goto(BASE, { waitUntil: 'networkidle' });
 await p.getByRole('button', { name: '从零开始' }).click();
 await p.waitForURL(/\/p\//);
 const guestProject = p.url().match(/\/p\/([^/?]+)/)[1];
 
-// 注册
+// Sign up
 const email = `pw${Date.now()}@example.com`;
 await p.goto(`${BASE}/login`);
 await p.getByRole('tab', { name: '密码' }).click();
@@ -45,29 +48,29 @@ await p.getByLabel('邮箱').fill(email);
 await p.getByLabel('设置密码').fill(SECRET);
 await p.getByRole('button', { name: '注册' }).click();
 await p.locator('input#code').waitFor({ timeout: 20000 });
-check(true, '注册后要求用验证码验证邮箱');
-await p.locator('input#code').fill(await otpOf(email, '验证邮箱'));
+check(true, 'sign-up asks for an OTP to verify the email');
+await p.locator('input#code').fill(await otpOf(email, 'email-verification'));
 await p.getByRole('button', { name: '验证并登录' }).click();
 await p.waitForURL(/\/projects/);
 let u = await me();
-check(u.email === email && !u.isAnonymous, `验证后已登录：${u.email}`);
+check(u.email === email && !u.isAnonymous, `signed in after verification: ${u.email}`);
 const mine = await p.evaluate(async () => (await (await fetch('/api/projects')).json()).map(x => x.id));
-check(mine.includes(guestProject), '访客期间的方案转到了新账号');
+check(mine.includes(guestProject), 'guest project moved to the new account');
 
-// 退出后用密码登录；错密码报错
+// Sign out, then sign in with password; wrong password shows an error
 await signOut();
 await p.goto(`${BASE}/login`);
 await p.getByRole('tab', { name: '密码' }).click();
 await p.getByLabel('邮箱').fill(email);
 await p.locator('input#password').fill('wrong password 1');
 await p.getByRole('button', { name: '登录', exact: true }).click();
-check(await p.getByRole('alert').filter({ hasText: '邮箱或密码不对' }).waitFor({ timeout: 20000 }).then(() => true, () => false), '错密码：提示“邮箱或密码不对”');
+check(await p.getByRole('alert').filter({ hasText: '邮箱或密码不对' }).waitFor({ timeout: 20000 }).then(() => true, () => false), 'wrong password: shows the invalid-credentials alert');
 await p.locator('input#password').fill(SECRET);
 await p.getByRole('button', { name: '登录', exact: true }).click();
 await p.waitForURL(/\/projects/);
-check((await me()).email === email, '密码登录成功');
+check((await me()).email === email, 'password sign-in succeeds');
 
-// 忘记密码：验证码 + 新密码
+// Forgot password: OTP + new password
 await signOut();
 await p.goto(`${BASE}/login`);
 await p.getByRole('tab', { name: '密码' }).click();
@@ -75,27 +78,27 @@ await p.getByRole('button', { name: '忘记密码' }).click();
 await p.getByLabel('邮箱').fill(email);
 await p.getByRole('button', { name: '发送验证码' }).click();
 await p.locator('input#code').waitFor({ timeout: 20000 });
-await p.locator('input#code').fill(await otpOf(email, '重设密码'));
+await p.locator('input#code').fill(await otpOf(email, 'forget-password'));
 await p.getByLabel('新密码').fill(NEW_SECRET);
 await p.getByRole('button', { name: '重设并登录' }).click();
 await p.waitForURL(/\/projects/);
-check((await me()).email === email, '重设密码后自动登录');
+check((await me()).email === email, 'signed in automatically after password reset');
 await signOut();
 const old = await p.evaluate(async ([e, pw]) => {
   const { derivePassword } = await import('/src/lib/password.ts');
   const r = await fetch('/api/auth/sign-in/email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: e, password: await derivePassword(e, pw) }) });
   return r.status;
 }, [email, SECRET]);
-check(old === 401, `旧密码失效（${old}）`);
+check(old === 401, `old password rejected (${old})`);
 
-// 只用验证码登录过的账号，也能用“忘记密码”设一个密码
-// 登录接口每个 IP 每分钟限 10 次，上面已经用了将近 10 次：等过这一分钟
+// An account that only ever signed in with an OTP can also set a password via "forgot password"
+// Sign-in endpoints are limited to 10 per IP per minute and we've used nearly 10 above: wait out this minute
 await new Promise(r => setTimeout(r, 61000));
 const otpUser = `otp${Date.now()}@example.com`;
 await p.goto(`${BASE}/login`);
 await p.getByLabel('邮箱').fill(otpUser);
 await p.getByRole('button', { name: '发送验证码' }).click();
-await p.locator('input#code').fill(await otpOf(otpUser, '登录'));
+await p.locator('input#code').fill(await otpOf(otpUser, 'sign-in'));
 await p.getByRole('button', { name: '登录', exact: true }).click();
 await p.waitForURL(/\/projects/);
 await signOut();
@@ -104,11 +107,11 @@ await p.getByRole('tab', { name: '密码' }).click();
 await p.getByRole('button', { name: '忘记密码' }).click();
 await p.getByLabel('邮箱').fill(otpUser);
 await p.getByRole('button', { name: '发送验证码' }).click();
-await p.locator('input#code').fill(await otpOf(otpUser, '重设密码'));
+await p.locator('input#code').fill(await otpOf(otpUser, 'forget-password'));
 await p.getByLabel('新密码').fill(NEW_SECRET);
 await p.getByRole('button', { name: '重设并登录' }).click();
 await p.waitForURL(/\/projects/);
-check((await me()).email === otpUser, '验证码账号设了密码并登录');
+check((await me()).email === otpUser, 'OTP-only account set a password and signed in');
 
-check(leaked.length === 0, leaked.length ? `原始密码发给了：${leaked.join(', ')}` : '原始密码从没发给服务器');
+check(leaked.length === 0, leaked.length ? `raw password sent to: ${leaked.join(', ')}` : 'raw password never sent to the server');
 await b.close();
