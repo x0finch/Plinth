@@ -16,6 +16,6 @@
     { "name": "RL_CHAT", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } },
     { "name": "RL_API", "namespace_id": "1003", "simple": { "limit": 300, "period": 60 } }
   ],
-  // 网址等普通变量在 Cloudflare 后台设置，部署时保留，不被这里覆盖
+  // 密钥和网址等设置由 GitHub CI 用 wrangler secret bulk 同步（见 .github/workflows/deploy.yml）
   "keep_vars": true
 }

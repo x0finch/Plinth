@@ -1,0 +1,74 @@
+# 检查 + 部署到 Cloudflare Workers
+# - 拉取请求、推送：跑类型检查、核心包测试、主题颜色检查、构建
+# - 推送到 main：检查通过后迁移线上 D1、部署、同步 Worker 密钥
+# 需要在 GitHub 仓库 Settings → Secrets and variables → Actions 里配置，见 README“部署”
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx tsc --noEmit -p apps/web
+      - run: npm test
+      - run: npm run check:theme -w @plinth/web
+      - run: npm run build -w @plinth/web
+
+  deploy:
+    needs: check
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w @plinth/web
+      - name: 迁移线上数据库
+        working-directory: apps/web
+        run: npx wrangler d1 migrations apply plinth --remote
+      - name: 部署
+        working-directory: apps/web
+        run: npx wrangler deploy
+      - name: 同步 Worker 密钥（只上传填了的项）
+        working-directory: apps/web
+        env:
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          KEY_ENCRYPTION_SECRET: ${{ secrets.KEY_ENCRYPTION_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          MAIL_FROM: ${{ vars.MAIL_FROM }}
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          node -e '
+            const names = ["BETTER_AUTH_SECRET", "KEY_ENCRYPTION_SECRET", "RESEND_API_KEY", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "MAIL_FROM", "APP_URL"];
+            const out = Object.fromEntries(names.filter(n => process.env[n]).map(n => [n, process.env[n]]));
+            for (const n of ["BETTER_AUTH_SECRET", "KEY_ENCRYPTION_SECRET"]) if (!out[n]) { console.error(`缺少 ${n}`); process.exit(1); }
+            require("fs").writeFileSync(process.env.RUNNER_TEMP + "/secrets.json", JSON.stringify(out));
+            console.log("同步：" + Object.keys(out).join("、"));
+          '
+          npx wrangler secret bulk "$RUNNER_TEMP/secrets.json"
+          rm "$RUNNER_TEMP/secrets.json"

@@ -36,43 +36,34 @@ npm run dev &
 npm run e2e                            # 端到端：agent 对话、确认、从零起步、分享、评论、版本、手机布局
 ```
 
-## 部署（Cloudflare Workers 免费版，全程在网页上完成）
+## 部署（Cloudflare Workers 免费版，GitHub Actions 自动部署）
 
-用 Cloudflare 的 Workers Builds：连上 GitHub 仓库后，每次推送到 `main` 自动构建、跑数据库迁移、部署。不需要本地环境，也不需要自己管 API Token。
+`.github/workflows/deploy.yml`：
+- 拉取请求和推送：类型检查、核心包测试、主题颜色检查、构建
+- 推送到 `main`：检查通过后迁移线上 D1 → 部署 → 把下面的密钥同步到 Worker
 
-D1 数据库 `plinth` 已建好（ID 写在 `apps/web/wrangler.jsonc`），要在同一个 Cloudflare 账号里部署。
+D1 数据库 `plinth` 已建好（ID 写在 `apps/web/wrangler.jsonc`），Token 要来自同一个 Cloudflare 账号。
 
-### 1. 连上仓库
+### 在 GitHub 上配置
 
-Cloudflare 后台 → Workers & Pages → Create → Import a repository → 选 `x0finch/Plinth`：
+仓库 Settings → Secrets and variables → Actions：
 
-| 设置 | 填写 |
+**Secrets**
+
+| 名称 | 说明 |
 |---|---|
-| Project name | `plinth`（必须和 `wrangler.jsonc` 的 `name` 一致） |
-| Production branch | `main` |
-| Build command | `npm ci && npm run build -w @plinth/web` |
-| Deploy command | `npm run deploy:ci -w @plinth/web`（先迁移数据库，再部署） |
-| Root directory | 留空（仓库根目录） |
+| `CLOUDFLARE_API_TOKEN` | 必填。Cloudflare → My Profile → API Tokens → Create Token，用 “Edit Cloudflare Workers” 模板，再加上 Account → D1 → Edit |
+| `CLOUDFLARE_ACCOUNT_ID` | 必填。Cloudflare 后台 Workers & Pages 页右侧的 Account ID |
+| `BETTER_AUTH_SECRET` | 必填。登录会话签名，32 位以上随机串 |
+| `KEY_ENCRYPTION_SECRET` | 必填。加密用户的大模型密钥，24 位以上随机串。**设好后不要改**，改了已保存的模型密钥就解不开 |
+| `RESEND_API_KEY` | 可选。发邮件（resend.com） |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 可选。回调地址：`<网址>/api/auth/callback/google` |
 
-保存后会跑第一次部署，完成后得到 `https://plinth.<你的子域>.workers.dev`。
+**Variables**
 
-### 2. 设置密钥
+| 名称 | 说明 |
+|---|---|
+| `MAIL_FROM` | 可选。发件人，如 `Plinth <noreply@你的域名>`，域名要先在 Resend 验证 |
+| `APP_URL` | 可选。绑定自己的域名时填，如 `https://plinth.example.com`；不填时按访问的网址推断 |
 
-Worker → Settings → Variables and Secrets，添加后会自动生效：
-
-| 名称 | 类型 | 说明 |
-|---|---|---|
-| `BETTER_AUTH_SECRET` | Secret | 必填。登录会话签名，用密码生成器生成 32 位以上随机串 |
-| `KEY_ENCRYPTION_SECRET` | Secret | 必填。加密用户的大模型密钥，24 位以上随机串。**设好后不要改**，改了已保存的模型密钥就解不开 |
-| `RESEND_API_KEY` | Secret | 邮箱验证码登录需要（resend.com）。不配则线上只能访客试用和 Google 登录 |
-| `MAIL_FROM` | Text | 发件人，如 `Plinth <noreply@你的域名>`，域名要先在 Resend 验证 |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Secret | 可选。回调地址：`<网址>/api/auth/callback/google` |
-| `APP_URL` | Text | 只有绑定自己的域名时才填，如 `https://plinth.example.com`；不填时按访问的网址自动推断 |
-
-`wrangler.jsonc` 开了 `keep_vars`，后台设置的变量不会被下次部署覆盖。
-
-### 3. 之后
-
-推送到 `main` 就自动部署。构建日志在 Worker → Deployments 里看。
-
-如果第一次部署卡在数据库迁移（提示没有 D1 权限），到 My Profile → API Tokens 给 Workers Builds 自动创建的那个 Token 加上 “D1 编辑” 权限，再点 Retry。
+配好后推送到 `main`，或在 Actions 页手动运行 `deploy`。第一次部署后网址是 `https://plinth.<你的子域>.workers.dev`。
