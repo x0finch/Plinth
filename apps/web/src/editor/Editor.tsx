@@ -8,7 +8,7 @@ import {
   ArrowLeftIcon, BoxIcon, CloudCheckIcon, CloudIcon, DownloadIcon, EllipsisIcon, HistoryIcon, ImageIcon, LayoutPanelLeftIcon, LoaderIcon,
   MessageSquareIcon, MessagesSquareIcon, Redo2Icon, RulerIcon, Share2Icon, SquareIcon, TriangleAlertIcon, Undo2Icon, InfoIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -22,12 +22,15 @@ import { PlanPreview } from '@/components/site/PlanPreview';
 import { api, can, ROLE_ZH } from '@/lib/api';
 import { ChatPanel } from './ChatPanel';
 import { CanvasFrame } from '@/canvas/CanvasFrame';
+import { Spinner } from '@/components/ui/spinner';
 import { HopDriver } from '@/canvas/HopDriver';
-import { Model3D } from './Model3D';
 import { AreasPanel, CommentsPanel, PropsPanel, VersionsPanel } from './Panels';
 import { Plan2D, svgToPng } from './Plan2D';
 import { ShareDialog } from './ShareDialog';
 import { createEditorStore, EditorContext, useEditor, type InitialProject } from './store';
+
+/** 三维（three.js）占方案页脚本的大头，切到三维时才加载 */
+const Model3D = lazy(() => import('./Model3D').then(m => ({ default: m.Model3D })));
 
 declare global {
   interface Window {
@@ -252,7 +255,11 @@ function Workspace() {
           <Conflict />
           <CanvasFrame className="absolute inset-0 size-full border-0">
             <HopDriver />
-            {view.mode === '2d' ? <Plan2D svgRef={svgRef} /> : <Model3D />}
+            {view.mode === '2d' ? <Plan2D svgRef={svgRef} /> : (
+              <Suspense fallback={<div className="flex size-full items-center justify-center text-muted-foreground"><Spinner className="size-6" /></div>}>
+                <Model3D />
+              </Suspense>
+            )}
           </CanvasFrame>
           {/* 手机：楼层切换浮在画布上 */}
           <div className="absolute top-2 left-2 md:hidden">
