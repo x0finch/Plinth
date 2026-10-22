@@ -8,7 +8,7 @@ import { projectBoxes, type Box, type Project, type Space } from '@plinth/core';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useCanvasDocument } from '@/canvas/CanvasFrame';
-import { hops } from '@/canvas/hop';
+import { hops, REVEAL } from '@/canvas/hop';
 import { useReducedMotion } from '@/canvas/HopDriver';
 import { useThemeColors } from '@/lib/theme';
 import { useEditor } from './store';
@@ -29,11 +29,87 @@ const useColors = () =>
  */
 function useHop<T extends THREE.Object3D>(id: string) {
   const ref = useRef<T>(null);
-  useFrame(() => {
+  useFrame(({ camera, size }) => {
     const o = ref.current;
-    if (o) o.position.y = o.userData.restY + hops.lift(id, performance.now()) * M;
+    if (!o) return;
+    const px = hops.lift(id, performance.now());
+    o.position.y = o.userData.restY;
+    if (!px) return;
+    // 跳的高度按屏幕像素换算：离镜头越远，抬得越高
+    const dist = camera.position.distanceTo(o.getWorldPosition(tmp));
+    const fov = (camera as THREE.PerspectiveCamera).fov ?? 40;
+    o.position.y += (px * 2 * dist * Math.tan((fov * Math.PI) / 360)) / size.height;
   });
   return ref;
+}
+const tmp = new THREE.Vector3();
+
+/**
+ * 选中的对象被墙挡住时（比如房间里的家具），镜头升高、对准它，让它露出来，再跳一下。
+ * 本来就看得见时镜头不动。
+ */
+function Reveal({ ownerOf }: { ownerOf: (id: string) => string | undefined }) {
+  const selection = useEditor(s => s.view.selection);
+  const { camera, scene, controls } = useThree();
+  const anim = useRef<{ t0: number; from: [THREE.Vector3, THREE.Vector3]; to: [THREE.Vector3, THREE.Vector3]; id: string } | null>(null);
+  const prev = useRef<string[]>([]);
+
+  useEffect(() => {
+    const id = selection.find(x => !prev.current.includes(x));
+    prev.current = selection;
+    if (!id) return;
+    const target = ownerOf(id) ?? id;
+    const parts: THREE.Mesh[] = [];
+    scene.traverse(o => {
+      if ((o as THREE.Mesh).isMesh && o.userData.id === target) parts.push(o as THREE.Mesh);
+    });
+    if (!parts.length) return;
+    const box = new THREE.Box3();
+    for (const m of parts) box.expandByObject(m);
+    const center = box.getCenter(new THREE.Vector3());
+    const top = new THREE.Vector3(center.x, box.max.y, center.z);
+    if ([center, top].some(p => visible(p, target))) return;
+
+    // 看不见：保持方位，镜头抬到接近俯视，对准它
+    const orbit = controls as unknown as { target: THREE.Vector3 } | null;
+    const fromTarget = orbit?.target.clone() ?? new THREE.Vector3();
+    const offset = camera.position.clone().sub(fromTarget);
+    const s = new THREE.Spherical().setFromVector3(offset);
+    s.phi = Math.min(s.phi, 0.45);
+    const toTarget = new THREE.Vector3(center.x, box.min.y, center.z);
+    const toPos = toTarget.clone().add(new THREE.Vector3().setFromSpherical(s));
+    anim.current = { t0: performance.now(), from: [camera.position.clone(), fromTarget], to: [toPos, toTarget], id };
+  }, [selection]);
+
+  /** 从镜头到这一点，最先碰到的实体是不是目标自己（玻璃不算遮挡） */
+  const visible = (p: THREE.Vector3, target: string) => {
+    const ray = new THREE.Raycaster(camera.position, p.clone().sub(camera.position).normalize());
+    const far = camera.position.distanceTo(p);
+    for (const hit of ray.intersectObjects(scene.children, true)) {
+      const o = hit.object as THREE.Mesh;
+      if (!o.isMesh || !o.userData.id) continue;
+      if (o.userData.id === target) return true;
+      if ((o.material as THREE.Material).transparent) continue;
+      return hit.distance > far - 0.05;
+    }
+    return true;
+  };
+
+  useFrame(() => {
+    const a = anim.current;
+    if (!a) return;
+    const t = Math.min(1, (performance.now() - a.t0) / REVEAL.ms);
+    const k = t * t * (3 - 2 * t);
+    camera.position.lerpVectors(a.from[0], a.to[0], k);
+    const orbit = controls as unknown as { target: THREE.Vector3; update(): void } | null;
+    orbit?.target.lerpVectors(a.from[1], a.to[1], k);
+    orbit?.update();
+    if (t === 1) {
+      anim.current = null;
+      hops.poke(a.id);
+    }
+  });
+  return null;
 }
 
 /** 减少动态效果时，选中的对象用前景色细描边 */
@@ -184,6 +260,7 @@ export function Model3D() {
         </group>
       </Bounds>
       <OrbitControls makeDefault enableDamping maxPolarAngle={Math.PI / 2 - 0.05} />
+      <Reveal ownerOf={ownerOf} />
       <Capture />
     </Canvas>
   );

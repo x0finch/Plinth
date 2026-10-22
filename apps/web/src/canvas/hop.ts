@@ -10,13 +10,18 @@ import type { Point, Project } from '@plinth/core';
 
 export type Weight = 'heavy' | 'light' | 'furniture' | 'floor';
 
-/** lift：三维抬高（毫米）；scale：平面图放大倍数；ms：一跳的时长 */
+/**
+ * lift：三维里跳多高，按屏幕像素算（镜头远近都一样明显）；scale：平面图放大倍数；ms：一跳的时长
+ */
 export const PROFILE: Record<Weight, { lift: number; scale: number; ms: number }> = {
-  heavy: { lift: 200, scale: 1.02, ms: 560 },
-  light: { lift: 320, scale: 1.035, ms: 460 },
-  furniture: { lift: 400, scale: 1.06, ms: 420 },
-  floor: { lift: 150, scale: 1.015, ms: 560 },
+  heavy: { lift: 12, scale: 1.02, ms: 560 },
+  light: { lift: 18, scale: 1.035, ms: 460 },
+  furniture: { lift: 22, scale: 1.06, ms: 420 },
+  floor: { lift: 10, scale: 1.015, ms: 560 },
 };
+
+/** 选中的东西被挡住时，镜头转过去用多久 */
+export const REVEAL = { ms: 600 };
 
 const REPEAT_MS = 3000;
 const REPEAT_GAIN = 0.55;
@@ -114,7 +119,12 @@ class Hops {
     for (const x of items) this.emit(x.id, now + (Math.hypot(x.d!.at[0] - cx, x.d!.at[1] - cy) / far) * span, 1);
   }
 
-  /** 某对象此刻离地多少毫米（0 = 原位），三维每帧调用 */
+  /** 镜头转过去露出被挡住的对象后，再跳一下 */
+  poke(id: string) {
+    this.emit(id, performance.now(), 1);
+  }
+
+  /** 某对象此刻在屏幕上抬起多少像素（0 = 原位），三维每帧调用 */
   lift(id: string, now: number) {
     let v = 0;
     for (const h of this.recent.get(id) ?? []) {
