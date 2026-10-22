@@ -5,7 +5,7 @@
 @import "@fontsource-variable/geist-mono";
 @import "./theme/light.css";
 
-/* 网页主题跟随系统深浅色，不放切换按钮 */
+/* Page theme follows the system color scheme; no toggle */
 @custom-variant dark (@media (prefers-color-scheme: dark));
 
 @theme inline {
@@ -99,7 +99,7 @@
   }
 }
 
-/* 网页主题跟随系统深浅色，不放切换按钮 */
+/* Page theme follows the system color scheme; no toggle */
 @media (prefers-color-scheme: dark) {
 :root {
     --background: oklch(0 0 0);

@@ -1,6 +1,6 @@
 /**
- * 编辑器状态：一个打开的方案一份。数据在核心包的 Session 里，所有修改都经能力清单；
- * 这里只管视图状态、自动保存、冲突和“改前 / 改后”对比。
+ * Editor state, one per open plan. Data lives in the core package Session and all changes go through the capability list;
+ * this only handles view state, autosave, conflicts and the before/after comparison.
  */
 import { Session, type Actor, type CallResult, type Project, type TxResult } from '@plinth/core';
 import { createContext, useContext } from 'react';
@@ -36,7 +36,7 @@ export interface EditorState {
   conflict: { version: number; content: Project } | null;
   lastChange: LastChange | null;
   compare: boolean;
-  /** 画布注册的截图函数 */
+  /** Screenshot function registered by the canvas */
   capture: (() => Promise<{ dataUrl: string; width: number; height: number }>) | null;
 }
 
@@ -69,7 +69,7 @@ export interface InitialProject {
 
 const firstLevel = (p: Project) => p.levels.find(l => !l.roof)?.id ?? p.levels[0]?.id ?? 'L1';
 
-/** 对象所在楼层 */
+/** Floor the object is on */
 export function levelOf(p: Project, id: string): string | undefined {
   return (
     p.walls.find(w => w.id === id)?.level ??
@@ -153,7 +153,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
       },
 
       select(ids) {
-        // 点空白处：同时清掉改动标记
+        // Click on empty space: also clear change highlights
         set(s => ({ view: { ...s.view, selection: ids, highlight: ids.length ? s.view.highlight : [] } }));
       },
 
@@ -189,7 +189,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
           });
           set(cur => ({
             version: r.version, saving: false, savedAt: Date.now(),
-            // 保存期间又有新修改：继续标记未保存，稍后再存
+            // New changes during save: stay dirty and save again later
             dirty: session.project !== snapshot,
             pendingLabels: cur.pendingLabels.slice(labels.length),
           }));
@@ -258,7 +258,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
   return store;
 }
 
-/** agent 读写评论：走服务端接口，回复后刷新评论面板 */
+/** Agent reads/writes comments via the server API and refreshes the comments panel after replying */
 function commentsHost(projectId: string): CommentsHost {
   return {
     list: () => api(`/projects/${projectId}/comments`),
@@ -274,12 +274,12 @@ export const EditorContext = createContext<EditorStore | null>(null);
 
 export function useEditor<T>(selector: (s: EditorState & EditorActions) => T): T {
   const store = useContext(EditorContext);
-  if (!store) throw new Error('useEditor 必须在 EditorContext 里');
+  if (!store) throw new Error('useEditor must be used inside EditorContext');
   return useStore(store, selector);
 }
 
 export function useEditorStore() {
   const store = useContext(EditorContext);
-  if (!store) throw new Error('useEditorStore 必须在 EditorContext 里');
+  if (!store) throw new Error('useEditorStore must be used inside EditorContext');
   return store;
 }

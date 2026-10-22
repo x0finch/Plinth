@@ -1,4 +1,4 @@
-/** 用户可选的大模型厂商。适配器由 TanStack AI 提供，这里只列元信息和推荐型号。 */
+/** LLM providers users can choose. Adapters come from TanStack AI; this only lists metadata and suggested models. */
 export interface ProviderInfo {
   name: string;
   models: string[];

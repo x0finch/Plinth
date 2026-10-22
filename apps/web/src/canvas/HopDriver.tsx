@@ -1,10 +1,10 @@
-/** 把编辑器的选中、改动接到跳动上：选中就跳，改动就波纹扫过一轮 */
+/** Wire editor selection and changes to hops: hop on select, ripple once on change */
 import { useEffect, useState } from 'react';
 import { useEditor } from '@/editor/store';
 import { useCanvasDocument } from './CanvasFrame';
 import { hops } from './hop';
 
-/** 系统“减少动态效果”打开时不跳，选中改用细描边 */
+/** With the system "reduce motion" setting, no hops; selection uses a thin outline */
 export function useReducedMotion() {
   const win = useCanvasDocument().defaultView ?? window;
   const [reduced, setReduced] = useState(() => win.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -27,7 +27,7 @@ export function HopDriver() {
   hops.setProject(project);
   hops.reduced = reduced;
   useEffect(() => hops.select(selection), [selection]);
-  // 改动、撤销、重做、agent 聚焦都会换一份 highlight
+  // Changes, undo, redo and agent focus all produce a new highlight
   useEffect(() => hops.ripple(highlight), [highlight]);
   useEffect(() => () => hops.stop(), []);
   return null;

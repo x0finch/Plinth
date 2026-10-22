@@ -6,14 +6,14 @@ import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 /**
- * 前端：TanStack Router 单页应用，构建成静态资源。
- * 服务端：Worker 里只有 Hono（/api/*），不带 React，体积和冷启动都小，适合免费版的 3 MB / 10 ms 限制。
+ * Frontend: a TanStack Router SPA, built to static assets.
+ * Server: the Worker contains only Hono (/api/*), no React, keeping bundle size and cold start small enough for the free plan's 3 MB / 10 ms limits.
  */
 export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: { port: 3000 },
   build: { sourcemap: false },
-  // Worker 环境（名字同 wrangler.jsonc 的 name）也压缩：冷启动解析更快
+  // Minify the Worker environment too (named after `name` in wrangler.jsonc): faster parsing on cold start
   environments: { plinth: { build: { minify: true } } },
   plugins: [tanstackRouter({ target: 'react', autoCodeSplitting: true }), viteReact(), tailwindcss(), cloudflare()],
 });

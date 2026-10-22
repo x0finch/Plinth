@@ -1,6 +1,6 @@
 /**
- * 只在浏览器里运行的视图能力：切换视图、定位、截图。
- * 视图状态也是数据：相机、楼层、选中、改动标记都能读写。服务端只用它们的定义生成工具说明。
+ * View capabilities that run only in the browser: switch view, focus, screenshot.
+ * View state is data too: camera, level, selection and change highlights are all readable/writable. The server only uses their definitions to build tool descriptions.
  */
 import { defineRead, type CapabilityContext } from '@plinth/core';
 import { z } from 'zod';
@@ -14,7 +14,7 @@ export interface ViewState {
   layers: { furniture: boolean; dimensions: boolean; labels: boolean };
 }
 
-/** 画布实现这个接口，注入到 CapabilityContext.host.view */
+/** Implemented by the canvas and injected into CapabilityContext.host.view */
 export interface ViewHost {
   get(): ViewState;
   set(patch: Partial<ViewState>): ViewState;
@@ -30,7 +30,7 @@ const host = (ctx: CapabilityContext) => {
 
 export const viewGet = defineRead({
   name: 'view_get', title: '读取视图', kind: 'view', permission: 'read', runtime: 'browser',
-  description: '读取当前视图：平面还是三维、当前楼层、选中的对象、刚改动的对象、相机、图层开关。用户说“这面墙”“这里”时，先读选中的对象。',
+  description: 'Read the current view: plan or 3D, current level, selected objects, recently changed objects, camera, layer toggles. When the user says "this wall" or "here", read the selected objects first.',
   input: z.object({}),
   run: (_, ctx) => {
     const s = host(ctx).get();
@@ -43,9 +43,9 @@ export const viewGet = defineRead({
 
 export const viewSet = defineRead({
   name: 'view_set', title: '切换视图', kind: 'view', permission: 'read', runtime: 'browser',
-  description: '切换平面 / 三维、楼层，开关家具、尺寸、标注图层。',
+  description: 'Switch between plan and 3D, change level, and toggle the furniture, dimensions and labels layers.',
   input: z.object({
-    mode: z.enum(['2d', '3d']).optional(), level: z.string().optional().describe('楼层 ID 或名称'),
+    mode: z.enum(['2d', '3d']).optional(), level: z.string().optional().describe('Level ID or name'),
     layers: z.object({ furniture: z.boolean().optional(), dimensions: z.boolean().optional(), labels: z.boolean().optional() }).optional(),
   }),
   run: (i, ctx) => {
@@ -57,14 +57,14 @@ export const viewSet = defineRead({
 
 export const viewFocus = defineRead({
   name: 'view_focus', title: '指给你看', kind: 'view', permission: 'read', runtime: 'browser',
-  description: '把镜头转到这些对象，让它们在图上跳一下（自动切到它们所在楼层）。改完之后用它把改动处指给业主看。',
-  input: z.object({ ids: z.array(z.string()).min(1).describe('对象 ID'), highlight: z.boolean().default(true) }),
+  description: 'Turn the camera to these objects and make them pulse on the drawing (switches to their level automatically). Use it after a change to show the homeowner what changed.',
+  input: z.object({ ids: z.array(z.string()).min(1).describe('Object IDs'), highlight: z.boolean().default(true) }),
   run: (i, ctx) => host(ctx).focus(i.ids, i.highlight),
 });
 
 export const viewScreenshot = defineRead({
   name: 'view_screenshot', title: '截图', kind: 'verify', permission: 'read', runtime: 'browser',
-  description: '截取当前视图给业主看（图片显示在对话里）。',
+  description: 'Take a screenshot of the current view to show the homeowner (the image appears in the chat).',
   input: z.object({}),
   run: async (_, ctx) => {
     const s = await host(ctx).screenshot();
@@ -73,7 +73,7 @@ export const viewScreenshot = defineRead({
 });
 
 
-/** 评论：方案里的评论挂在对象上，agent 可以读、回复、标成“待业主确认”或“已解决” */
+/** Comments: comments in a project are attached to objects; the agent can read them, reply, and mark them pending-confirm or resolved */
 export interface CommentsHost {
   list(): Promise<{ id: string; target_id: string | null; target_name: string | null; parent_id: string | null; author: string | null; body: string; status: string }[]>;
   reply(parentId: string, body: string, status?: 'open' | 'pending-confirm' | 'resolved'): Promise<void>;
@@ -87,7 +87,7 @@ const comments = (ctx: CapabilityContext) => {
 
 export const commentsList = defineRead({
   name: 'comments_list', title: '看评论', kind: 'query', permission: 'read', runtime: 'browser',
-  description: '列出方案里的评论（挂在哪个对象上、谁说的、状态、回复）。默认只列没解决的。',
+  description: 'List the comments in the project (target object, author, status, replies). By default only unresolved ones.',
   input: z.object({ all: z.boolean().default(false) }),
   run: async (i, ctx) => {
     const rows = await comments(ctx).list();
@@ -98,8 +98,8 @@ export const commentsList = defineRead({
 
 export const commentReply = defineRead({
   name: 'comment_reply', title: '回复评论', kind: 'relation', permission: 'reversible', runtime: 'browser',
-  description: '回复一条评论，并设置状态：改好了用 resolved；需要业主拍板时把选项写清楚，用 pending-confirm（待业主确认）。',
-  input: z.object({ comment: z.string().describe('评论 ID'), body: z.string(), status: z.enum(['open', 'pending-confirm', 'resolved']) }),
+  description: 'Reply to a comment and set its status: use resolved when the change is done; when the homeowner must decide, spell out the options and use pending-confirm (awaiting the homeowner\'s confirmation). Write the reply in Simplified Chinese.',
+  input: z.object({ comment: z.string().describe('Comment ID'), body: z.string(), status: z.enum(['open', 'pending-confirm', 'resolved']) }),
   run: async (i, ctx) => {
     await comments(ctx).reply(i.comment, i.body, i.status);
     return { ok: true };

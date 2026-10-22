@@ -1,4 +1,4 @@
-/** 前端调用 /api 的薄封装：统一 JSON、错误信息 */
+/** Thin client wrapper for /api: shared JSON handling and error messages */
 export class ApiError extends Error {
   constructor(public status: number, message: string, public data?: any) {
     super(message);

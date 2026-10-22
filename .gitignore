@@ -1,5 +1,5 @@
 node_modules/
 dist/
 
-# 端到端测试截图（不指定输出目录时写在这里）
+# E2E test screenshots (written here when no output directory is given)
 /apps/web/*.png

@@ -1,6 +1,6 @@
 /**
- * 读主题颜色给 three.js 用。主题变量是 oklch，three.js 不认，借 canvas 让浏览器换算成 rgb。
- * 画布在自己的 iframe 里、只有亮色，所以从画布文档读；网页里的调用读网页文档并跟随系统深浅色。
+ * Read theme colors for three.js. Theme variables are oklch, which three.js can't parse, so a canvas lets the browser convert them to rgb.
+ * The canvas lives in its own light-only iframe, so read from the canvas document; calls from the page read the page document and follow the system color scheme.
  */
 import { useEffect, useState } from 'react';
 

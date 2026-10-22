@@ -18,9 +18,9 @@ export const Route = createFileRoute('/login')({
 });
 
 /**
- * 两种登录方式：
- * - 验证码：输入邮箱收验证码，没有账号会自动创建
- * - 密码：注册后用验证码验证邮箱；忘记密码也用验证码重设
+ * Two sign-in methods:
+ * - Code: enter email and receive a code; an account is created if none exists
+ * - Password: after sign-up the email is verified with a code; forgotten passwords are reset with a code too
  */
 type Step =
   | { tab: 'code'; at: 'email' | 'code' }
@@ -53,7 +53,7 @@ function Login() {
     await navigate({ to: redirect?.startsWith('/') ? redirect : '/projects' });
   };
 
-  /** 跑一个步骤：转圈、清错误、出错显示原因 */
+  /** Run a step: show spinner, clear error, show the reason on failure */
   const run = (label: string, fn: () => Promise<{ error?: { code?: string; message?: string; status?: number } | null } | void>, fallback: string) =>
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -72,7 +72,7 @@ function Login() {
     setStep(s);
   };
 
-  // 验证码登录
+  // Code sign-in
   const sendCode = run('发送中', async () => {
     const r = await authClient.emailOtp.sendVerificationOtp({ email, type: 'sign-in' });
     if (!r.error) go({ tab: 'code', at: 'code' });
@@ -84,7 +84,7 @@ function Login() {
     return r;
   }, '登录失败');
 
-  // 密码登录：慢哈希在设备上做，要几百毫秒
+  // Password sign-in: slow hashing runs on device and takes a few hundred ms
   const signIn = run('正在加密密码', async () => {
     const r = await authClient.signIn.email({ email, password: await derivePassword(email, password) });
     if (r.error?.code === 'EMAIL_NOT_VERIFIED') {

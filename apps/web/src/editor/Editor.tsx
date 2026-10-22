@@ -1,6 +1,6 @@
 /**
- * 方案编辑器：一边对话、一边画布。手机上画布全屏，面板从底部弹出。
- * 页面暴露 window.artifact.call(能力, 参数) 和“已就绪”信号，任何 agent 用自己的浏览器都能验证。
+ * Plan editor: chat on one side, canvas on the other. On phones the canvas is full screen and panels slide up from the bottom.
+ * The page exposes window.artifact.call(capability, args) and a "ready" signal, so any agent can verify it with its own browser.
  */
 import { describe, type Project } from '@plinth/core';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -29,7 +29,7 @@ import { Plan2D, svgToPng } from './Plan2D';
 import { ShareDialog } from './ShareDialog';
 import { createEditorStore, EditorContext, useEditor, type InitialProject } from './store';
 
-/** 三维（three.js）占方案页脚本的大头，切到三维时才加载 */
+/** 3D (three.js) is most of the plan page script; load it only when switching to 3D */
 const Model3D = lazy(() => import('./Model3D').then(m => ({ default: m.Model3D })));
 
 declare global {
@@ -64,7 +64,7 @@ function useIsMobile() {
   return m;
 }
 
-/** 下载文件。大图的 data: 地址浏览器下载不可靠，统一转成 Blob 地址 */
+/** Download a file. Browsers download large data: URLs unreliably, so always convert to a Blob URL */
 async function download(url: string, filename: string) {
   const href = url.startsWith('data:') ? URL.createObjectURL(await (await fetch(url)).blob()) : url;
   const a = document.createElement('a');
@@ -118,7 +118,7 @@ function Toolbar({ onShare, onExport }: { onShare: () => void; onExport: () => v
   const redo = useEditor(s => s.redo);
   const canEdit = useEditor(s => s.canEdit());
   const session = useEditor(s => s.session);
-  useEditor(s => s.project); // 撤销/重做可用状态随数据变化
+  useEditor(s => s.project); // undo/redo availability follows the data
 
   const exportJson = () => {
     const blob = new Blob([JSON.stringify(project, null, 1)], { type: 'application/json' });
@@ -177,7 +177,7 @@ function PanelBody({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   );
 }
 
-/** 每次保存后上传一张平面缩略图（方案列表用） */
+/** Upload a plan thumbnail after each save (for the plan list) */
 function Thumbnail() {
   const version = useEditor(s => s.version);
   const projectId = useEditor(s => s.projectId);
@@ -213,7 +213,7 @@ function Workspace() {
   const [sheet, setSheet] = useState(false);
   const [share, setShare] = useState(false);
 
-  // 平面图模式下由 SVG 提供截图
+  // In plan mode the SVG provides the screenshot
   useEffect(() => {
     if (view.mode === '2d') {
       setCapture(() => (svgRef.current ? svgToPng(svgRef.current) : Promise.reject(new Error('平面图未就绪'))));
@@ -232,7 +232,7 @@ function Workspace() {
     }
   };
 
-  // 选中对象时，手机上自动打开属性面板
+  // On phones, open the properties panel when an object is selected
   const sel = view.selection[0];
   useEffect(() => {
     if (sel && tab !== 'chat') setTab('props');
@@ -261,7 +261,7 @@ function Workspace() {
               </Suspense>
             )}
           </CanvasFrame>
-          {/* 手机：楼层切换浮在画布上 */}
+          {/* Phone: floor switcher floats over the canvas */}
           <div className="absolute top-2 left-2 md:hidden">
             <ToggleGroup value={[view.level]} onValueChange={v => v[0] && setView({ level: v[0] as string })} variant="outline" size="sm" className="bg-background">
               {project.levels.map(l => <ToggleGroupItem key={l.id} value={l.id}>{l.name}</ToggleGroupItem>)}
@@ -300,12 +300,12 @@ export function Editor({ initial, search }: { initial: InitialProject; search: {
   );
   const navigate = useNavigate();
 
-  // 链接里指定版本时只读打开
+  // Open read-only when the link specifies a version
   useEffect(() => {
     if (search.v && search.v !== initial.version) void store.getState().loadVersion(search.v);
   }, []);
 
-  // 浏览器自动化接口
+  // Browser automation interface
   useEffect(() => {
     window.artifact = {
       ready: true,
@@ -321,7 +321,7 @@ export function Editor({ initial, search }: { initial: InitialProject; search: {
     };
   }, [store]);
 
-  // 视图状态写回链接，方便分享到指定楼层和视图
+  // Write view state back to the URL so links share a specific floor and view
   useEffect(
     () =>
       store.subscribe((s, prev) => {
@@ -331,7 +331,7 @@ export function Editor({ initial, search }: { initial: InitialProject; search: {
     [store],
   );
 
-  // 快捷键；离开前保存
+  // Shortcuts; save before leaving
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;

@@ -1,4 +1,4 @@
-/** 分享与权限：成员、分享链接、邮箱邀请、方案选用的模型、用量。 */
+/** Sharing and permissions: members, share links, email invites, the plan's model, usage. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { CopyIcon, LinkIcon, Trash2Icon } from 'lucide-react';

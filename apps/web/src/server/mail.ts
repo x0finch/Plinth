@@ -1,4 +1,4 @@
-/** 发验证码邮件：线上用 Resend；本地没配时打印到终端。 */
+/** Send OTP emails: Resend in production; printed to the terminal locally when not configured. */
 import { env } from 'cloudflare:workers';
 
 export type OtpType = 'sign-in' | 'email-verification' | 'forget-password' | 'change-email';
@@ -13,7 +13,7 @@ const PURPOSE: Record<OtpType, string> = {
 export async function sendOtpMail(email: string, otp: string, type: OtpType = 'sign-in') {
   const purpose = PURPOSE[type] ?? '登录';
   if (!env.RESEND_API_KEY) {
-    console.log(`[dev] ${email} 的验证码：${otp}（${purpose}）`);
+    console.log(`[dev] OTP for ${email}: ${otp} (${type})`);
     return;
   }
   const res = await fetch('https://api.resend.com/emails', {

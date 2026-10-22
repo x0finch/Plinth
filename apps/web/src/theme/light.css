@@ -1,4 +1,4 @@
-/* Vercel 主题（tweakcn）亮色变量：网页亮色模式和画布共用。画布只有亮色。 */
+/* Vercel theme (tweakcn) light variables: shared by the page light mode and the canvas. The canvas is light only. */
 :root {
     --background: oklch(0.9900 0 0);
     --foreground: oklch(0 0 0);

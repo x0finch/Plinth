@@ -1,4 +1,4 @@
-/** 服务端 API：Hono。页面由静态资源层直接返回，只有 /api/* 进这里。 */
+/** Server API (Hono). Pages are served by the static assets layer; only /api/* comes here. */
 import { createProject as newProjectData, migrate, type Project } from '@plinth/core';
 import { env } from 'cloudflare:workers';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
@@ -32,13 +32,13 @@ api.onError((err, c) => {
   return c.json({ error: '服务器出错了，请稍后再试' }, 500);
 });
 
-// 登录相关：验证码发送和登录接口限流
+// Auth: rate-limit OTP sending and sign-in endpoints
 api.on(['GET', 'POST'], '/auth/*', async c => {
   if (c.req.method === 'POST' && /email-otp|sign-in|sign-up/.test(c.req.path)) await limit(env.RL_AUTH, ip(c));
   return auth().handler(c.req.raw);
 });
 
-// 会话：签名 cookie 缓存，大多数请求不查库
+// Session: cached in a signed cookie, so most requests skip the database
 const session: MiddlewareHandler<{ Variables: Vars }> = async (c, next) => {
   const s = await auth().api.getSession({ headers: c.req.raw.headers });
   c.set('user', (s?.user as User) ?? null);
@@ -75,7 +75,7 @@ function checkContent(json: unknown): Project {
   }
 }
 
-// ---------- 账号 ----------
+// ---------- Account ----------
 
 api.get('/me', async c => {
   const u = c.get('user');
@@ -89,7 +89,7 @@ api.get('/account/export', async c => {
   return c.json(data, 200, { 'Content-Disposition': `attachment; filename="plinth-export-${new Date().toISOString().slice(0, 10)}.json"` });
 });
 
-// ---------- 方案 ----------
+// ---------- Projects ----------
 
 api.get('/projects', async c => c.json(await repo.listProjects(requireUser(c).id)));
 
@@ -170,7 +170,7 @@ api.get('/projects/:id/versions/:v', async c => {
   return c.json({ ...v, content: JSON.parse(v.content) });
 });
 
-// ---------- 成员、分享、邀请 ----------
+// ---------- Members, share links, invites ----------
 
 const zShareRole = z.enum(['editor', 'commenter', 'viewer']);
 
@@ -225,7 +225,7 @@ api.delete('/projects/:id/members/:userId', async c => {
   const id = c.req.param('id');
   const { user } = await requireRole(c, id, 'viewer');
   const target = c.req.param('userId');
-  // 主人可以移除别人；任何人可以退出
+  // The owner can remove others; anyone can leave
   if (target !== user.id) await requireRole(c, id, 'owner');
   await repo.removeMember(id, target);
   return c.json({ ok: true });
@@ -245,7 +245,7 @@ api.post('/share/:token/accept', async c => {
   return c.json({ projectId: link.project_id, role });
 });
 
-// ---------- 评论 ----------
+// ---------- Comments ----------
 
 api.get('/projects/:id/comments', async c => {
   const id = c.req.param('id');
@@ -281,7 +281,7 @@ api.delete('/projects/:id/comments/:cid', async c => {
   return c.json({ ok: true });
 });
 
-// ---------- 模型配置 ----------
+// ---------- Model configs ----------
 
 api.get('/models', async c => c.json({ configs: await repo.listModelConfigs(requireUser(c).id), providers: PROVIDERS }));
 

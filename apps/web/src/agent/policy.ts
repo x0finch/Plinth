@@ -1,4 +1,4 @@
-/** 哪些能力要业主点确认：服务端（工具定义）和浏览器（确认卡片）共用同一套规则 */
+/** Which capabilities need the homeowner's confirmation: one rule set shared by the server (tool definitions) and the browser (confirmation cards) */
 import type { Capability, Permission } from '@plinth/core';
 
 export type Autonomy = 'ask' | 'balanced' | 'auto';

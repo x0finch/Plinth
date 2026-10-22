@@ -1,4 +1,4 @@
-/** 侧栏面板：选中对象的属性、面积、评论、版本。 */
+/** Side panels: selected object properties, areas, comments, versions. */
 import { areaReport, checkConstraints, checkRules } from '@plinth/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckIcon, EyeIcon, HistoryIcon, MessageSquareIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react';

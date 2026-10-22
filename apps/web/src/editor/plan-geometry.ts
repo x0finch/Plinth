@@ -1,4 +1,4 @@
-/** 平面图要画的形状：从项目数据推导，按楼层缓存。 */
+/** Shapes the plan draws: derived from project data, cached per floor. */
 import {
   add, difference, netArea, scale, union, wallBody, wallDir, wallNormal, pointAt,
   type Furniture, type Opening, type Point, type Polygon, type Project, type Space, type Wall,
@@ -10,11 +10,11 @@ export interface OpeningShape {
   wallId: string;
   kind: Opening['kind'];
   glassBlock: boolean;
-  /** 洞口外框（命中区域） */
+  /** Opening outline (hit area) */
   outline: Point[];
-  /** 线条（门扇、窗线） */
+  /** Lines (door leaves, window lines) */
   lines: Point[][];
-  /** 门扇弧线 SVG path */
+  /** Door swing arc SVG path */
   arcs: string[];
   dashed: boolean;
 }
@@ -22,7 +22,7 @@ export interface OpeningShape {
 export interface LevelShapes {
   bounds: [number, number, number, number];
   spaces: { s: Space; d: string; label: Point; area: number }[];
-  /** 承重墙、隔墙合并后的实体（已扣掉门窗洞口） */
+  /** Merged solids of load-bearing walls and partitions (openings cut out) */
   solid: string;
   bearing: string;
   light: string;
@@ -64,7 +64,7 @@ function openingShape(w: Wall, o: Opening): OpeningShape {
       const open = add(h, scale(n, side * l.len));
       const closed = add(h, scale(d, l.dir * l.len));
       lines.push([h, open]);
-      // 弧线：从门扇打开位置扫到关闭位置
+      // Arc: sweep from the open leaf position to the closed one
       const sweep = (side * l.dir) > 0 ? 0 : 1;
       arcs.push(`M${open[0]},${open[1]}A${l.len},${l.len} 0 0 ${sweep} ${closed[0]},${closed[1]}`);
     }

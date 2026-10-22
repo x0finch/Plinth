@@ -1,7 +1,7 @@
-# 检查 + 部署到 Cloudflare Workers
-# - 拉取请求、推送：跑类型检查、核心包测试、主题颜色检查、构建
-# - 推送到 main：检查通过后迁移线上 D1、部署、同步 Worker 密钥
-# 需要在 GitHub 仓库 Settings → Secrets and variables → Actions 里配置，见 README“部署”
+# Check + deploy to Cloudflare Workers
+# - Pull requests and pushes: typecheck, core package tests, theme color check, build
+# - Pushes to main: after checks pass, migrate the production D1, deploy, sync Worker secrets
+# Configure under the repo's Settings → Secrets and variables → Actions; see "Deployment" in the README
 name: deploy
 
 on:
@@ -27,7 +27,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run check:theme -w @plinth/web
-      # 构建会生成路由表 routeTree.gen.ts（不入库），网页的类型检查要在它之后
+      # The build generates the route tree routeTree.gen.ts (not committed); the web typecheck must run after it
       - run: npm run build -w @plinth/web
       - run: npx tsc --noEmit -p apps/web
 
@@ -40,12 +40,12 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      # 还没配 Cloudflare 时跳过部署（只留一条提醒），不让每次推送都标红
-      - name: 检查部署配置
+      # Skip deployment (leaving only a warning) until Cloudflare is configured, so pushes don't fail
+      - name: Check deployment config
         id: cfg
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "::warning title=没有部署::还没配置 CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID（仓库 Settings → Secrets and variables → Actions），本次跳过部署。见 README“部署”。"
+            echo "::warning title=Not deployed::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID are not configured (repo Settings → Secrets and variables → Actions); skipping deployment. See \"Deployment\" in the README."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -61,15 +61,15 @@ jobs:
         if: steps.cfg.outputs.ready == 'true'
       - run: npm run build -w @plinth/web
         if: steps.cfg.outputs.ready == 'true'
-      - name: 迁移线上数据库
+      - name: Migrate production database
         if: steps.cfg.outputs.ready == 'true'
         working-directory: apps/web
         run: npx wrangler d1 migrations apply plinth --remote
-      - name: 部署
+      - name: Deploy
         if: steps.cfg.outputs.ready == 'true'
         working-directory: apps/web
         run: npx wrangler deploy
-      - name: 同步 Worker 密钥（只上传填了的项）
+      - name: Sync Worker secrets (only those that are set)
         if: steps.cfg.outputs.ready == 'true'
         working-directory: apps/web
         env:
@@ -84,9 +84,9 @@ jobs:
           node -e '
             const names = ["BETTER_AUTH_SECRET", "KEY_ENCRYPTION_SECRET", "RESEND_API_KEY", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "MAIL_FROM", "APP_URL"];
             const out = Object.fromEntries(names.filter(n => process.env[n]).map(n => [n, process.env[n]]));
-            for (const n of ["BETTER_AUTH_SECRET", "KEY_ENCRYPTION_SECRET"]) if (!out[n]) { console.error(`缺少 ${n}`); process.exit(1); }
+            for (const n of ["BETTER_AUTH_SECRET", "KEY_ENCRYPTION_SECRET"]) if (!out[n]) { console.error(`Missing ${n}`); process.exit(1); }
             require("fs").writeFileSync(process.env.RUNNER_TEMP + "/secrets.json", JSON.stringify(out));
-            console.log("同步：" + Object.keys(out).join("、"));
+            console.log("Syncing: " + Object.keys(out).join(", "));
           '
           npx wrangler secret bulk "$RUNNER_TEMP/secrets.json"
           rm "$RUNNER_TEMP/secrets.json"

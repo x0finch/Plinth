@@ -1,6 +1,6 @@
 /**
- * 画布放在同源 iframe 里渲染：样式和主题与网页隔离（画布只有亮色），
- * 组件仍通过 portal 留在同一棵 React 树里，共用编辑器状态。
+ * The canvas renders in a same-origin iframe: styles and theme are isolated from the page (canvas is light only);
+ * components stay in the same React tree via a portal and share editor state.
  */
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -8,7 +8,7 @@ import css from './canvas.css?inline';
 
 const CanvasDoc = createContext<Document | null>(null);
 
-/** 画布所在的文档（读主题颜色、截图用） */
+/** The canvas document (for reading theme colors and screenshots) */
 export const useCanvasDocument = () => useContext(CanvasDoc) ?? document;
 
 const KEYS = ['key', 'code', 'shiftKey', 'ctrlKey', 'metaKey', 'altKey', 'repeat'] as const;
@@ -28,7 +28,7 @@ export function CanvasFrame({ children, className }: { children: ReactNode; clas
     setDoc(d);
   };
 
-  // 焦点在画布里时，快捷键（撤销、Esc）仍交给网页处理
+  // When focus is in the canvas, shortcuts (undo, Esc) are still handled by the page
   useEffect(() => {
     const win = doc?.defaultView;
     if (!win) return;
@@ -40,7 +40,7 @@ export function CanvasFrame({ children, className }: { children: ReactNode; clas
     return () => win.removeEventListener('keydown', forward);
   }, [doc]);
 
-  // 开发时样式热更新
+  // Hot-reload styles in development
   useEffect(() => {
     const el = doc?.getElementById('canvas-style');
     if (el) el.textContent = css;

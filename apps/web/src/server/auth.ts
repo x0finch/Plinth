@@ -1,6 +1,6 @@
 /**
- * 登录：Better Auth，邮箱验证码 + Google，支持先试用（匿名）后登录。
- * 免费版每次请求约 10 ms CPU：密码的慢哈希在用户设备上做（见 password.ts）；会话用签名 cookie 缓存，大多数请求不查库。
+ * Auth: Better Auth with email OTP + Google; supports trying first (anonymous) and signing in later.
+ * The free plan allows ~10 ms CPU per request: the slow password hash runs on the user's device (see password.ts); sessions are cached in a signed cookie so most requests skip the database.
  */
 import { betterAuth } from 'better-auth';
 import { env } from 'cloudflare:workers';
@@ -15,13 +15,13 @@ function create() {
     : undefined;
   return betterAuth({
     appName: 'Plinth',
-    // 不设 APP_URL 时按请求的网址推断（workers.dev 默认网址即可用）；绑定自己的域名后再设
+    // Without APP_URL the base URL is inferred from the request (the default workers.dev URL works); set it once a custom domain is bound
     baseURL: env.APP_URL || undefined,
     basePath: '/api/auth',
     secret: env.BETTER_AUTH_SECRET,
     database: env.DB,
     trustedOrigins: env.APP_URL ? [env.APP_URL] : [],
-    // 邮箱 + 密码：收到的“密码”是设备上派生的 64 位十六进制串；注册后要用验证码验证邮箱
+    // Email + password: the received "password" is a 64-char hex string derived on the device; email must be verified with an OTP after sign-up
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
@@ -38,19 +38,19 @@ function create() {
       cookieCache: { enabled: true, maxAge: 5 * 60 },
     },
     user: { deleteUser: { enabled: true } },
-    // 邮箱验证码登录没有名字：默认用邮箱前缀
+    // Email OTP sign-in has no name: default to the email local part
     databaseHooks: {
       user: { create: { before: async u => ({ data: { ...u, name: u.name || (u.email?.split('@')[0] ?? '') } }) } },
     },
-    // 限流交给 Cloudflare 的限流绑定，这里不再查库计数
+    // Rate limiting is handled by Cloudflare's rate-limit binding, not database counters
     rateLimit: { enabled: false },
-    // 表结构由迁移管理；关掉每次冷启动的结构自检（省 D1 读取和 CPU）
+    // The schema is managed by migrations; disable the schema check on every cold start (saves D1 reads and CPU)
     advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] }, database: { validateSchema: false } },
     plugins: schemaPlugins({ sendOtp: sendOtpMail, onLink: transferOwnership }),
   });
 }
 
 let instance: ReturnType<typeof create> | null = null;
-/** 每个隔离环境只初始化一次 */
+/** Initialized once per isolate */
 export const auth = () => (instance ??= create());
 export const googleEnabled = () => !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);

@@ -1,4 +1,4 @@
-/** 数据访问：直接用 D1 预编译语句，开销最小。 */
+/** Data access: plain D1 prepared statements for minimal overhead. */
 import { env } from 'cloudflare:workers';
 
 export type Role = 'owner' | 'editor' | 'commenter' | 'viewer';
@@ -9,7 +9,7 @@ const db = () => env.DB;
 const now = () => Date.now();
 export const newId = (prefix = '') => prefix + crypto.randomUUID().replace(/-/g, '').slice(0, 20);
 
-// ---------- 项目 ----------
+// ---------- Projects ----------
 
 export interface ProjectRow {
   id: string;
@@ -60,7 +60,7 @@ export async function getVersion(projectId: string, version?: number) {
   return q.first<{ version: number; content: string; summary: string | null; created_at: number }>();
 }
 
-/** 保存新版本：乐观并发，base 不是当前最新版本时返回 null（有人先存了） */
+/** Save a new version with optimistic concurrency: returns null when base is not the latest version (someone saved first) */
 export async function saveVersion(projectId: string, userId: string, base: number, content: string, summary: string, name?: string) {
   const t = now();
   const [upd] = await db().batch([
@@ -94,7 +94,7 @@ export const deleteProject = (id: string) => db().prepare('delete from project w
 export const setProjectModel = (id: string, modelConfigId: string | null) =>
   db().prepare('update project set model_config_id = ? where id = ?').bind(modelConfigId, id).run();
 
-// ---------- 成员、分享、邀请 ----------
+// ---------- Members, share links, invites ----------
 
 export async function listMembers(projectId: string) {
   const { results } = await db()
@@ -107,7 +107,7 @@ export async function listMembers(projectId: string) {
   return results;
 }
 
-/** 加入或升级成员角色（不降级） */
+/** Add a member or upgrade their role (never downgrade) */
 export async function upsertMember(projectId: string, userId: string, role: Role) {
   const cur = await getRole(projectId, userId);
   if (cur && ROLE_RANK[cur] >= ROLE_RANK[role]) return cur;
@@ -162,7 +162,7 @@ export async function listInvites(projectId: string) {
 
 export const deleteInvite = (projectId: string, id: string) => db().prepare('delete from invite where project_id = ? and id = ?').bind(projectId, id).run();
 
-/** 用户登录后：把发给这个邮箱的邀请兑现 */
+/** After sign-in: redeem invites sent to this email */
 export async function acceptInvites(userId: string, email: string) {
   const { results } = await db()
     .prepare('select id, project_id, role from invite where email = ? and accepted_at is null')
@@ -175,7 +175,7 @@ export async function acceptInvites(userId: string, email: string) {
   return results.length;
 }
 
-/** 匿名用户登录正式账号后，名下的东西都转过去 */
+/** When an anonymous user signs in to a real account, transfer everything they own */
 export async function transferOwnership(from: string, to: string) {
   await db().batch([
     db().prepare('update project set owner_id = ? where owner_id = ?').bind(to, from),
@@ -188,7 +188,7 @@ export async function transferOwnership(from: string, to: string) {
   ]);
 }
 
-// ---------- 评论 ----------
+// ---------- Comments ----------
 
 export interface CommentRow {
   id: string;
@@ -228,7 +228,7 @@ export const getComment = (projectId: string, id: string) =>
   db().prepare('select * from comment where project_id = ? and id = ?').bind(projectId, id).first<CommentRow>();
 export const deleteComment = (projectId: string, id: string) => db().prepare('delete from comment where project_id = ? and id = ?').bind(projectId, id).run();
 
-// ---------- 模型配置、用量 ----------
+// ---------- Model configs, usage ----------
 
 export interface ModelConfigRow {
   id: string;
@@ -278,7 +278,7 @@ export async function projectUsage(projectId: string) {
   return results;
 }
 
-// ---------- 对话记录 ----------
+// ---------- Chat history ----------
 
 export const getChat = (projectId: string, userId: string) =>
   db().prepare('select messages from chat_thread where project_id = ? and user_id = ?').bind(projectId, userId).first<{ messages: string }>();
@@ -289,9 +289,9 @@ export const putChat = (projectId: string, userId: string, messages: string) =>
     .bind(projectId, userId, messages, now())
     .run();
 
-// ---------- 账号 ----------
+// ---------- Account ----------
 
-/** 数据导出：账号信息 + 名下每个方案的最新版本 */
+/** Data export: account info + the latest version of each owned project */
 export async function exportUserData(userId: string) {
   const user = await db().prepare('select id, name, email, "createdAt" from "user" where id = ?').bind(userId).first();
   const { results: projects } = await db()

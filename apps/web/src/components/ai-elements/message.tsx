@@ -318,7 +318,7 @@ export const MessageBranchPage = ({
 
 export type MessageResponseProps = ComponentProps<typeof Streamdown>;
 
-// 只保留中日韩排版插件：代码高亮、公式、流程图对业主对话用不上，且体积很大
+// Keep only the CJK typography plugin: code highlighting, math and diagrams are unused in homeowner chats and large
 const streamdownPlugins = { cjk };
 
 export const MessageResponse = memo(

@@ -2,7 +2,7 @@ import { api } from './api';
 import { authClient } from './auth-client';
 import { queryClient } from './query';
 
-/** 先试用：没登录就以访客身份进来，建一个样例方案 */
+/** Try first: enter as a guest without signing in and create a sample plan */
 export async function startTrial(template: 'sample' | 'blank' = 'sample') {
   const s = await authClient.getSession();
   if (!s.data) {

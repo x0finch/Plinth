@@ -1,10 +1,10 @@
--- 方案：最新版本号指向 project_version
+-- Projects: the latest version number points into project_version
 create table project (
   id text primary key,
   name text not null,
   owner_id text not null references "user" (id) on delete cascade,
   head_version integer not null default 0,
-  -- 项目指定使用哪份模型配置（属于主人）；有编辑权限的人共用
+  -- Which model config the project uses (owned by the owner); shared by everyone with edit access
   model_config_id text references model_config (id) on delete set null,
   thumbnail text,
   created_at integer not null,
@@ -12,7 +12,7 @@ create table project (
 );
 create index project_owner_idx on project (owner_id, updated_at);
 
--- 每次保存一个完整版本，可查看、回退
+-- Each save stores a full version that can be viewed and restored
 create table project_version (
   project_id text not null references project (id) on delete cascade,
   version integer not null,
@@ -23,7 +23,7 @@ create table project_version (
   primary key (project_id, version)
 );
 
--- 成员与权限：owner / editor / commenter / viewer
+-- Members and permissions: owner / editor / commenter / viewer
 create table project_member (
   project_id text not null references project (id) on delete cascade,
   user_id text not null references "user" (id) on delete cascade,
@@ -33,7 +33,7 @@ create table project_member (
 );
 create index project_member_user_idx on project_member (user_id);
 
--- 分享链接：拿到链接的人按 role 加入，随时可收回
+-- Share links: anyone with the link joins with its role; revocable at any time
 create table share_link (
   token text primary key,
   project_id text not null references project (id) on delete cascade,
@@ -44,7 +44,7 @@ create table share_link (
 );
 create index share_link_project_idx on share_link (project_id);
 
--- 邀请：按邮箱，对方登录后自动加入
+-- Invites: by email; the invitee joins automatically after signing in
 create table invite (
   id text primary key,
   project_id text not null references project (id) on delete cascade,
@@ -56,7 +56,7 @@ create table invite (
 );
 create index invite_email_idx on invite (email);
 
--- 评论：挂在对象上（target_id），可回复、可解决
+-- Comments: attached to an object (target_id); can be replied to and resolved
 create table comment (
   id text primary key,
   project_id text not null references project (id) on delete cascade,
@@ -70,7 +70,7 @@ create table comment (
 );
 create index comment_project_idx on comment (project_id, created_at);
 
--- 用户自带的模型配置：密钥 AES-GCM 加密，只在服务端解密
+-- User-supplied model configs: keys are AES-GCM encrypted and decrypted only on the server
 create table model_config (
   id text primary key,
   user_id text not null references "user" (id) on delete cascade,
@@ -85,7 +85,7 @@ create table model_config (
 );
 create index model_config_user_idx on model_config (user_id);
 
--- 用量：按人、按项目记录
+-- Usage: recorded per user and per project
 create table usage (
   id integer primary key autoincrement,
   user_id text not null references "user" (id) on delete cascade,
@@ -98,7 +98,7 @@ create table usage (
 create index usage_project_idx on usage (project_id, created_at);
 create index usage_user_idx on usage (user_id, created_at);
 
--- 对话记录：每人每个项目一条
+-- Chat history: one row per user per project
 create table chat_thread (
   project_id text not null references project (id) on delete cascade,
   user_id text not null references "user" (id) on delete cascade,

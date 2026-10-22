@@ -1,6 +1,6 @@
 /**
- * agent 对话：TanStack AI。能力全部作为浏览器端工具（在打开方案的浏览器里执行），
- * 服务端只负责用项目配置的密钥调用大模型、转发流式回复、记用量。
+ * Agent chat via TanStack AI. All capabilities are client-side tools (executed in the browser that has the project open);
+ * the server only calls the LLM with the project's configured key, streams the reply, and records usage.
  */
 import { chat, chatParamsFromRequestBody, maxIterations, toolDefinition, toServerSentEventsResponse, type ChatMiddleware } from '@tanstack/ai';
 import { createAnthropicChat } from '@tanstack/ai-anthropic';
@@ -15,14 +15,14 @@ import type { ModelConfigRow } from './repo';
 
 export type { Autonomy };
 
-/** 用得少的能力按需加载，省 token */
+/** Rarely used capabilities are lazy-loaded to save tokens */
 const LAZY = new Set(['history_log', 'search_capabilities', 'constraint_remove', 'wall_update', 'space_merge', 'space_remove', 'list_constraints']);
 
 export function agentTools(autonomy: Autonomy) {
   return registry.list().map(c =>
     toolDefinition({
       name: c.name,
-      description: `${c.title}：${c.description}`,
+      description: `${c.title}: ${c.description}`,
       inputSchema: c.input,
       needsApproval: needsApproval(c, autonomy),
       lazy: LAZY.has(c.name),
@@ -66,7 +66,7 @@ export async function handleChat(request: Request, o: { config: ModelConfigRow; 
 
   const abortController = new AbortController();
   request.signal.addEventListener('abort', () => abortController.abort());
-  // 厂商在运行时才确定，类型上按任意适配器处理
+  // The provider is only known at runtime, so type the adapter loosely
   const options: any = {
     adapter: adapter(o.config, o.apiKey),
     messages: params.messages,

@@ -1,4 +1,4 @@
-/* 画布 iframe 的样式：只有亮色，和网页的深浅色无关 */
+/* Canvas iframe styles: light only, independent of the page color scheme */
 @import 'tailwindcss';
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";

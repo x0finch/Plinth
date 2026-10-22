@@ -1,4 +1,4 @@
-/** 只读的平面缩略图（介绍页、方案列表） */
+/** Read-only plan thumbnail (landing page, plan list) */
 import type { Project } from '@plinth/core';
 import { useMemo } from 'react';
 import { levelShapes } from '@/editor/plan-geometry';

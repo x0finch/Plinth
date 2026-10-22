@@ -1,17 +1,17 @@
 /**
- * 选中与改动的提示：对象往上跳一下再落回原位，不再用颜色高亮。
- * - 选中：先跳一下，之后每 3 秒轻轻再跳，直到取消选中
- * - 改动：从改动中心向外波纹扫过，只跳一轮；之后靠“对比改前”的虚线
- * - 手感按轻重：承重墙跳得低、落得沉，隔墙栏杆轻快，家具最轻
- * 跳动只是瞬间动作，静止时一定在真实位置；截图只拍静止帧。
- * 平面图从上往下看，“往上跳”表现为朝你抬起：轻微放大加投影。
+ * Selection and change feedback: objects hop up and land back instead of color highlighting.
+ * - Select: hop once, then a gentle hop every 3 s until deselected
+ * - Change: a ripple sweeps out from the change center, one round only; after that the "compare with before" dashes take over
+ * - Feel by weight: load-bearing walls hop low and land heavy, partitions and railings are light, furniture lightest
+ * Hops are transient; at rest objects are always at their true position. Screenshots capture still frames only.
+ * The plan is viewed from above, so a "hop" lifts toward you: slight scale-up plus shadow.
  */
 import type { Point, Project } from '@plinth/core';
 
 export type Weight = 'heavy' | 'light' | 'furniture' | 'floor';
 
 /**
- * lift：三维里跳多高，按屏幕像素算（镜头远近都一样明显）；scale：平面图放大倍数；ms：一跳的时长
+ * lift: 3D hop height in screen pixels (equally visible at any camera distance); scale: plan scale factor; ms: hop duration
  */
 export const PROFILE: Record<Weight, { lift: number; scale: number; ms: number }> = {
   heavy: { lift: 12, scale: 1.02, ms: 560 },
@@ -20,16 +20,16 @@ export const PROFILE: Record<Weight, { lift: number; scale: number; ms: number }
   floor: { lift: 10, scale: 1.015, ms: 560 },
 };
 
-/** 选中的东西被挡住时，镜头转过去用多久 */
+/** How long the camera takes to turn to a hidden selected object */
 export const REVEAL = { ms: 600 };
 
 const REPEAT_MS = 3000;
 const REPEAT_GAIN = 0.55;
-/** 波纹每米延迟、最长延迟 */
+/** Ripple delay per metre and maximum delay */
 const RIPPLE_MS_PER_M = 90;
 const RIPPLE_MAX_MS = 900;
 
-/** 0→1→0：起跳、落地后轻轻回弹一次，t≥1 时严格为 0 */
+/** 0→1→0: take off, land with one small rebound; exactly 0 for t≥1 */
 export function hopCurve(t: number) {
   if (t <= 0 || t >= 1) return 0;
   if (t < 0.72) return Math.sin((Math.PI * t) / 0.72);
@@ -40,7 +40,7 @@ export interface Hop { id: string; at: number; gain: number; weight: Weight }
 
 type Listener = (h: Hop) => void;
 
-/** 对象的轻重与位置；门窗算进所在的墙（三维里门窗是墙的一部分） */
+/** Object weight and position; doors/windows count as their wall (in 3D they are part of the wall) */
 export function describe(project: Project, id: string): { weight: Weight; at: Point; wall?: string } | null {
   for (const w of project.walls) {
     const mid: Point = [(w.start[0] + w.end[0]) / 2, (w.start[1] + w.end[1]) / 2];
@@ -64,7 +64,7 @@ export function describe(project: Project, id: string): { weight: Weight; at: Po
 }
 
 class Hops {
-  /** 每个对象最近的跳动，按 ID 存，三维每帧按 ID 查 */
+  /** Latest hop per object, keyed by ID; 3D looks it up by ID every frame */
   private recent = new Map<string, Hop[]>();
   private listeners = new Set<Listener>();
   private selected: string[] = [];
@@ -87,7 +87,7 @@ class Hops {
     if (!d) return;
     const h: Hop = { id, at, gain, weight: d.weight };
     this.push(h);
-    // 三维里门窗随墙一起跳
+    // In 3D, doors/windows hop with their wall
     if (d.wall) this.push({ ...h, id: d.wall, weight: describe(this.project, d.wall)?.weight ?? 'light' });
     this.listeners.forEach(l => l(h));
   }
@@ -97,7 +97,7 @@ class Hops {
     this.recent.set(h.id, [...(this.recent.get(h.id) ?? []).filter(x => x.at > done), h]);
   }
 
-  /** 选中变化：新选中的先跳一下，之后定时轻跳 */
+  /** Selection changed: newly selected objects hop once, then hop gently on a timer */
   select(ids: string[]) {
     const now = performance.now();
     for (const id of ids) if (!this.selected.includes(id)) this.emit(id, now, 1);
@@ -106,7 +106,7 @@ class Hops {
     this.timer = ids.length ? setInterval(() => this.selected.forEach(id => this.emit(id, performance.now(), REPEAT_GAIN)), REPEAT_MS) : null;
   }
 
-  /** 改动：从中心向外按距离依次跳一轮 */
+  /** Change: hop one round outward from the center, ordered by distance */
   ripple(ids: string[]) {
     if (!this.project || !ids.length) return;
     const items = ids.map(id => ({ id, d: describe(this.project!, id) })).filter(x => x.d);
@@ -119,12 +119,12 @@ class Hops {
     for (const x of items) this.emit(x.id, now + (Math.hypot(x.d!.at[0] - cx, x.d!.at[1] - cy) / far) * span, 1);
   }
 
-  /** 镜头转过去露出被挡住的对象后，再跳一下 */
+  /** Hop again after the camera turns to reveal a hidden object */
   poke(id: string) {
     this.emit(id, performance.now(), 1);
   }
 
-  /** 某对象此刻在屏幕上抬起多少像素（0 = 原位），三维每帧调用 */
+  /** How many screen pixels an object is lifted right now (0 = at rest); called by 3D every frame */
   lift(id: string, now: number) {
     let v = 0;
     for (const h of this.recent.get(id) ?? []) {

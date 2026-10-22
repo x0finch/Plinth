@@ -1,6 +1,6 @@
 /**
- * 和 agent 对话。能力清单里的每项能力都是浏览器端工具：agent 调用时在这里执行（走同一个事务和撤销），
- * 需要确认的操作弹出确认卡片。对话按人、按方案保存。
+ * Chat with the agent. Every capability in the list is a browser-side tool: agent calls run here (same transaction and undo);
+ * actions needing confirmation show a confirmation card. Chats are saved per user and per plan.
  */
 import type { Project } from '@plinth/core';
 import { toolDefinition } from '@tanstack/ai';
@@ -30,7 +30,7 @@ import { useEditor, useEditorStore } from './store';
 const SUGGESTIONS = ['这个方案一共多大？每层都有哪些房间？', '老人房一扩到 12 平方米', '在主卧北墙开一扇 1.5 米宽的窗', '帮我检查一下方案有没有问题'];
 const SUGGESTIONS_BLANK = ['一家四口，两层，要三间卧室、一个书房，院子朝南', '帮我在 12×10 米的地上排一个一层的小院'];
 
-/** 把一次能力调用说成一句话（确认卡片用） */
+/** Describe a capability call in one sentence (for the confirmation card) */
 function describeCall(name: string, args: unknown, project: Project) {
   const c = registry.get(name);
   if (c?.mode === 'edit') {
@@ -41,10 +41,10 @@ function describeCall(name: string, args: unknown, project: Project) {
   return `${c?.title ?? name}：${JSON.stringify(args)}`;
 }
 
-/** 去掉发给模型时没用的大字段（截图） */
+/** Strip large fields useless to the model (screenshots) */
 function forModel(r: Awaited<ReturnType<typeof registry.call>>) {
   const res = r.result as any;
-  if (res && typeof res === 'object' && typeof res.image === 'string') return { ...r, result: { ...res, image: '（已显示给业主）' } };
+  if (res && typeof res === 'object' && typeof res.image === 'string') return { ...r, result: { ...res, image: '(shown to the owner)' } };
   return r;
 }
 
@@ -165,7 +165,7 @@ export function ChatPanel() {
     body: { autonomy },
   });
 
-  // 读取历史对话
+  // Load chat history
   useEffect(() => {
     api<UIMessage[]>(`/projects/${projectId}/chat-thread`)
       .then(m => Array.isArray(m) && m.length && setMessages(m as any))
@@ -173,7 +173,7 @@ export function ChatPanel() {
       .finally(() => setLoaded(true));
   }, [projectId]);
 
-  // 一轮结束后保存对话
+  // Save the chat after each turn
   const prevStatus = useRef(status);
   useEffect(() => {
     if (loaded && editable && prevStatus.current !== 'ready' && status === 'ready' && messages.length) {
@@ -188,7 +188,7 @@ export function ChatPanel() {
     setInput('');
     void sendMessage(t, { body: { autonomy, context: context() } } as any);
   };
-  // 评论面板“交给 agent”
+  // "Hand to agent" from the comments panel
   const sendRef = useRef(send);
   sendRef.current = send;
   useEffect(() => {

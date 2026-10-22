@@ -6,7 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   "upload_source_maps": false,
-  // 页面由静态资源层直接返回（SPA 外壳），只有 /api/* 进 Worker，省 CPU
+  // Pages are served directly by the static assets layer (SPA shell); only /api/* hits the Worker, saving CPU
   "assets": { "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
   "d1_databases": [
     { "binding": "DB", "database_name": "plinth", "database_id": "026f7b9e-dea9-49d1-b023-f2082b51e44d", "migrations_dir": "migrations" }
@@ -16,6 +16,6 @@
     { "name": "RL_CHAT", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } },
     { "name": "RL_API", "namespace_id": "1003", "simple": { "limit": 300, "period": 60 } }
   ],
-  // 密钥和网址等设置由 GitHub CI 用 wrangler secret bulk 同步（见 .github/workflows/deploy.yml）
+  // Secrets and settings such as URLs are synced by GitHub CI via wrangler secret bulk (see .github/workflows/deploy.yml)
   "keep_vars": true
 }

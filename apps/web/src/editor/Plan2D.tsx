@@ -1,4 +1,4 @@
-/** 平面图：SVG，单位毫米。点选对象、缩放平移、选中和改动时跳一下、对比改前。 */
+/** Floor plan: SVG in millimetres. Picking, zoom/pan, hop on select and change, compare with before. */
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
 import { wallBody, wallLength, type Point } from '@plinth/core';
@@ -9,14 +9,14 @@ import { useEditor } from './store';
 
 const pts = (p: Point[]) => p.map(([x, y]) => `${x},${y}`).join(' ');
 
-/** 把 SVG 画成 PNG（截图、导出图片） */
+/** Render the SVG to PNG (screenshots, image export) */
 export async function svgToPng(svg: SVGSVGElement, width = 2000) {
   const vb = svg.viewBox.baseVal;
   const height = Math.round((width * vb.height) / vb.width);
   const clone = svg.cloneNode(true) as SVGSVGElement;
   clone.setAttribute('width', String(width));
   clone.setAttribute('height', String(height));
-  // 把用到的 CSS 变量落成具体颜色，离开页面也能显示
+  // Resolve used CSS variables to concrete colors so it renders outside the page
   const cs = svg.ownerDocument.defaultView!.getComputedStyle(svg);
   const vars = ['--background', '--card', '--muted', '--secondary', '--accent', '--foreground', '--muted-foreground', '--chart-1', '--chart-2', '--font-sans', '--font-mono'];
   clone.setAttribute('style', vars.map(v => `${v}:${cs.getPropertyValue(v)}`).join(';'));
@@ -38,7 +38,7 @@ const SPACE_FILL: Record<string, string> = {
   indoor: 'var(--card)', 'semi-outdoor': 'var(--muted)', outdoor: 'var(--secondary)', 'roof-terrace': 'var(--accent)', void: 'url(#hatch)',
 };
 
-/** 平面图从上往下看，“往上跳”画成朝你抬起：轻微放大加投影。墙的命中区平时透明，跳的时候填上墙色 */
+/** The plan is viewed from above, so a "hop" is drawn as lifting toward you: slight scale-up plus shadow. Wall hit areas are transparent, filled with wall color while hopping */
 const WALL_TOKEN: Record<string, string> = { bearing: '--foreground', partition: '--muted-foreground' };
 const LIFT = { transformBox: 'fill-box', transformOrigin: 'center' } as const;
 
@@ -69,7 +69,7 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
   const compare = useEditor(s => s.compare);
   const lastChange = useEditor(s => s.lastChange);
   const shapes = useMemo(() => levelShapes(project, view.level), [project, view.level]);
-  // 改前：只画这次动过的墙的原位置
+  // Before: draw only the original positions of walls that changed
   const before = useMemo(() => {
     if (!compare || !lastChange) return null;
     const changed = new Set(lastChange.changed);
@@ -84,7 +84,7 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
   const font = Math.max(220, Math.min(420, (x1 - x0) / 45));
 
   const sel = new Set(view.selection);
-  // 选中不变色，靠跳动；减少动态效果时才用前景色细描边
+  // Selection doesn't change color, it hops; with reduced motion use a thin foreground outline
   const reduced = useReducedMotion();
   const isOn = (id: string) => reduced && sel.has(id);
   const localRef = useRef<SVGSVGElement>(null);
@@ -100,7 +100,7 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
     [select, view.selection],
   );
 
-  // 换楼层时复位缩放
+  // Reset zoom when switching floors
   useEffect(() => {
     zoomRef.current?.resetTransform(0);
   }, [view.level]);
@@ -128,35 +128,35 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
             </pattern>
           </defs>
 
-          {/* 用地红线 */}
+          {/* Site boundary */}
           <polygon points={pts(project.site.boundary)} fill="none" stroke="var(--muted-foreground)" strokeDasharray="8 6" vectorEffect="non-scaling-stroke" />
 
-          {/* 空间 */}
+          {/* Spaces */}
           {shapes.spaces.map(({ s, d }) => (
             <path key={s.id} d={d} fill={SPACE_FILL[s.kind]} stroke={isOn(s.id) ? 'var(--foreground)' : 'none'} strokeWidth={isOn(s.id) ? 1.5 : 0}
               vectorEffect="non-scaling-stroke" onClick={pick(s.id)} className="cursor-pointer" data-id={s.id} style={LIFT} />
           ))}
 
-          {/* 家具 */}
+          {/* Furniture */}
           {view.layers.furniture && shapes.furniture.map(({ f, d }) => (
             <path key={f.id} d={d} fill="var(--background)" fillOpacity={0.6} stroke={isOn(f.id) ? 'var(--foreground)' : 'var(--muted-foreground)'}
               strokeWidth={isOn(f.id) ? 2 : 1} vectorEffect="non-scaling-stroke" onClick={pick(f.id)} className="cursor-pointer" data-id={f.id} style={LIFT} />
           ))}
 
-          {/* 墙体 */}
+          {/* Walls */}
           <path d={shapes.light} fill="var(--muted-foreground)" fillOpacity={0.5} pointerEvents="none" />
           <path d={shapes.solid} fill="var(--muted-foreground)" pointerEvents="none" />
           <path d={shapes.bearing} fill="var(--foreground)" pointerEvents="none" />
           {shapes.railings.map(({ w, d }) => (
             <path key={w.id} d={d} fill="none" stroke="var(--foreground)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" pointerEvents="none" />
           ))}
-          {/* 墙的命中区域；跳动时填上墙色 */}
+          {/* Wall hit areas; filled with wall color while hopping */}
           {shapes.walls.map(({ w, d }) => (
             <path key={w.id} d={d} fill="transparent" fillOpacity={0} stroke={isOn(w.id) ? 'var(--foreground)' : 'none'} strokeWidth={1.5}
               vectorEffect="non-scaling-stroke" onClick={pick(w.id)} className="cursor-pointer" data-id={w.id} style={LIFT} />
           ))}
 
-          {/* 门窗 */}
+          {/* Doors and windows */}
           {shapes.openings.map(o => (
             <g key={o.id} onClick={pick(o.id)} className="cursor-pointer" data-id={o.id} style={LIFT}>
               <polygon points={pts(o.outline)} fill={o.glassBlock ? 'url(#glassblock)' : 'transparent'}
@@ -171,16 +171,16 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
             </g>
           ))}
 
-          {/* 改前的墙：虚线 */}
+          {/* Walls before the change: dashed */}
           {before && (
             <g pointerEvents="none">
                <path d={before} fill="none" stroke="var(--foreground)" strokeWidth={1.2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
             </g>
           )}
 
-          {/* 标注：房间名 + 使用面积 */}
+          {/* Labels: room name + usable area */}
           {view.layers.labels && shapes.spaces.map(({ s, label, area }) => (
-            // 点房间名也能选中房间：房间里摆满家具时（尤其手机上）不容易点到空白处
+            // Clicking the room name also selects the room: hard to hit empty floor when it is full of furniture (especially on phones)
             <g key={s.id} textAnchor="middle" fontFamily="var(--font-sans)" onClick={pick(s.id)} className="cursor-pointer">
               <text x={label[0]} y={label[1]} fontSize={font} fill="var(--foreground)" fontWeight={500}
                 paintOrder="stroke" stroke="var(--background)" strokeWidth={font / 6}>{s.name}</text>
@@ -191,7 +191,7 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
             </g>
           ))}
 
-          {/* 尺寸：选中墙的长度 */}
+          {/* Dimension: length of the selected wall */}
           {view.layers.dimensions && selWall && (
             <text x={(selWall.w.start[0] + selWall.w.end[0]) / 2} y={(selWall.w.start[1] + selWall.w.end[1]) / 2 - selWall.w.thickness}
               fontSize={font * 0.85} textAnchor="middle" fill="var(--foreground)" fontFamily="var(--font-mono)" pointerEvents="none"

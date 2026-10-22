@@ -201,7 +201,7 @@ export type ReasoningContentProps = ComponentProps<
   children: string;
 };
 
-// 和 MessageResponse 一样只留中日韩排版：代码高亮、公式、流程图在这里用不上，且体积很大
+// Like MessageResponse, keep only the CJK plugin: code highlighting, math and diagrams are unused here and large
 const streamdownPlugins = { cjk };
 
 export const ReasoningContent = memo(

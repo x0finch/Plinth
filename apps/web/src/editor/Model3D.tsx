@@ -1,6 +1,6 @@
 /**
- * 三维白模：墙体按核心包切好的实体段画成盒子，空间画成楼板，家具画成简单体块。
- * 显示当前楼层及以下；点选对象与平面图同步。单位：数据是毫米，场景是米。
+ * 3D massing model: walls drawn as boxes from the solid segments cut by the core package, spaces as slabs, furniture as simple blocks.
+ * Shows the current floor and below; picking is synced with the plan. Units: data in millimetres, scene in metres.
  */
 import { Bounds, Edges, OrbitControls, useBounds } from '@react-three/drei';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
@@ -16,7 +16,7 @@ import { useEditor } from './store';
 const M = 0.001;
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
 
-/** 三维白模的颜色全部取自主题 */
+/** All 3D model colors come from the theme */
 const useColors = () =>
   useThemeColors({
     bg: '--muted', wall: '--card', slab: '--secondary', ground: '--accent', furn: '--chart-3',
@@ -24,8 +24,8 @@ const useColors = () =>
   }, useCanvasDocument());
 
 /**
- * 选中、改动不变色，而是往上跳一下再落回原位（见 canvas/hop.ts）。
- * restY 记下原位，截图前先放回原位。
+ * Selection and changes don't change color; objects hop up and land back (see canvas/hop.ts).
+ * restY records the rest position; objects are put back before screenshots.
  */
 function useHop<T extends THREE.Object3D>(id: string) {
   const ref = useRef<T>(null);
@@ -35,7 +35,7 @@ function useHop<T extends THREE.Object3D>(id: string) {
     const px = hops.lift(id, performance.now());
     o.position.y = o.userData.restY;
     if (!px) return;
-    // 跳的高度按屏幕像素换算：离镜头越远，抬得越高
+    // Hop height is in screen pixels: the farther from the camera, the higher the lift
     const dist = camera.position.distanceTo(o.getWorldPosition(tmp));
     const fov = (camera as THREE.PerspectiveCamera).fov ?? 40;
     o.position.y += (px * 2 * dist * Math.tan((fov * Math.PI) / 360)) / size.height;
@@ -45,8 +45,8 @@ function useHop<T extends THREE.Object3D>(id: string) {
 const tmp = new THREE.Vector3();
 
 /**
- * 选中的对象被墙挡住时（比如房间里的家具），镜头升高、对准它，让它露出来，再跳一下。
- * 本来就看得见时镜头不动。
+ * When the selected object is hidden by walls (e.g. furniture in a room), raise the camera, aim at it to reveal it, then hop.
+ * If it is already visible the camera stays put.
  */
 function Reveal({ ownerOf }: { ownerOf: (id: string) => string | undefined }) {
   const selection = useEditor(s => s.view.selection);
@@ -70,7 +70,7 @@ function Reveal({ ownerOf }: { ownerOf: (id: string) => string | undefined }) {
     const top = new THREE.Vector3(center.x, box.max.y, center.z);
     if ([center, top].some(p => visible(p, target))) return;
 
-    // 看不见：保持方位，镜头抬到接近俯视，对准它
+    // Hidden: keep the azimuth, raise the camera to near top-down and aim at it
     const orbit = controls as unknown as { target: THREE.Vector3 } | null;
     const fromTarget = orbit?.target.clone() ?? new THREE.Vector3();
     const offset = camera.position.clone().sub(fromTarget);
@@ -81,7 +81,7 @@ function Reveal({ ownerOf }: { ownerOf: (id: string) => string | undefined }) {
     anim.current = { t0: performance.now(), from: [camera.position.clone(), fromTarget], to: [toPos, toTarget], id };
   }, [selection]);
 
-  /** 从镜头到这一点，最先碰到的实体是不是目标自己（玻璃不算遮挡） */
+  /** Whether the first solid hit from the camera to this point is the target itself (glass does not occlude) */
   const visible = (p: THREE.Vector3, target: string) => {
     const ray = new THREE.Raycaster(camera.position, p.clone().sub(camera.position).normalize());
     const far = camera.position.distanceTo(p);
@@ -112,7 +112,7 @@ function Reveal({ ownerOf }: { ownerOf: (id: string) => string | undefined }) {
   return null;
 }
 
-/** 减少动态效果时，选中的对象用前景色细描边 */
+/** With reduced motion, the selected object gets a thin foreground-color outline */
 type Outline = { edge: string; sel?: string };
 const edgeProps = ({ edge, sel }: Outline) => ({ color: sel ?? edge, lineWidth: sel ? 2 : 1 });
 
@@ -185,7 +185,7 @@ function Capture() {
   const setCapture = useEditor(s => s.setCapture);
   useEffect(() => {
     setCapture(async () => {
-      // 只拍静止帧：跳动中的对象先放回原位
+      // Capture still frames only: put hopping objects back at rest first
       scene.traverse(o => {
         if (typeof o.userData.restY === 'number') o.position.y = o.userData.restY;
       });

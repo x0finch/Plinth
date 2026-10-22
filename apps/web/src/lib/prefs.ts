@@ -1,4 +1,4 @@
-/** 本机偏好（只影响当前浏览器）：agent 自主程度 */
+/** Local preferences (this browser only): agent autonomy level */
 import type { Autonomy } from '@/agent/policy';
 
 const KEY = 'plinth.autonomy';
