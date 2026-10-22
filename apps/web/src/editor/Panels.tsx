@@ -1,7 +1,11 @@
 /** 侧栏面板：选中对象的属性、面积、评论、版本。 */
 import { areaReport, checkConstraints, checkRules } from '@plinth/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckIcon, HistoryIcon, MessageSquareIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react';
+import { CheckIcon, EyeIcon, HistoryIcon, MessageSquareIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Card } from '@/components/ui/card';
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -71,16 +75,14 @@ export function PropsPanel() {
           {levelIssues.length === 0 ? (
             <p className="flex items-center gap-1.5 text-muted-foreground"><CheckIcon className="size-4" /> 没有发现问题</p>
           ) : (
-            <ul className="space-y-1.5">
+            <ItemGroup className="gap-1">
               {levelIssues.map((i, k) => (
-                <li key={k}>
-                  <button className="flex w-full items-start gap-1.5 text-left hover:underline" onClick={() => store.getState().focus(i.targets)}>
-                    <TriangleAlertIcon className={`mt-0.5 size-4 shrink-0 ${i.severity === 'error' ? 'text-destructive' : 'text-amber-600'}`} />
-                    <span>{i.message}</span>
-                  </button>
-                </li>
+                <Item key={k} size="xs" render={<button type="button" />} onClick={() => store.getState().focus(i.targets)} className="cursor-pointer text-left hover:bg-muted">
+                  <ItemMedia variant="icon"><TriangleAlertIcon className={i.severity === 'error' ? 'text-destructive' : 'text-chart-1'} /></ItemMedia>
+                  <ItemContent><ItemDescription className="text-foreground">{i.message}</ItemDescription></ItemContent>
+                </Item>
               ))}
-            </ul>
+            </ItemGroup>
           )}
         </div>
       </div>
@@ -116,12 +118,14 @@ export function PropsPanel() {
           <Row k="地面" v={project.library.materials[data.floor]?.name ?? data.floor} />
           <Separator className="my-2" />
           <p className="mb-1 text-xs text-muted-foreground">四周</p>
-          {data.walls.map((w: any) => (
-            <button key={w.id} className="flex w-full justify-between py-0.5 text-left text-sm hover:underline" onClick={() => store.getState().select([w.id])}>
-              <span>{w.direction} · {w.name}</span>
-              <span className="text-muted-foreground">{w.openings.length ? `${w.openings.length} 个门窗` : ''}</span>
-            </button>
-          ))}
+          <ItemGroup className="gap-0">
+            {data.walls.map((w: any) => (
+              <Item key={w.id} size="xs" render={<button type="button" />} onClick={() => store.getState().select([w.id])} className="cursor-pointer hover:bg-muted">
+                <ItemContent><ItemTitle>{w.direction} · {w.name}</ItemTitle></ItemContent>
+                {w.openings.length > 0 && <ItemActions className="text-xs text-muted-foreground">{w.openings.length} 个门窗</ItemActions>}
+              </Item>
+            ))}
+          </ItemGroup>
           {data.neighbors.length > 0 && (
             <>
               <p className="mt-2 mb-1 text-xs text-muted-foreground">相邻</p>
@@ -137,7 +141,7 @@ export function PropsPanel() {
           <Row k="厚度" v={`${data.thickness} mm`} />
           <Row k="两侧" v={data.spaces.map((s: any) => s.space).join(' / ') || '—'} />
           {data.openings.length > 0 && <Row k="门窗" v={data.openings.map((o: any) => KIND_ZH[o.kind]).join('、')} />}
-          {data.kind === 'bearing' && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">承重墙：改动需专业人员复核</p>}
+          {data.kind === 'bearing' && <p className="mt-2 text-xs text-muted-foreground">承重墙：改动需专业人员复核</p>}
         </div>
       )}
       {t === 'opening' && (
@@ -188,20 +192,21 @@ function ConstraintsList() {
       <div>
         <p className="mb-2 font-medium">约束</p>
         <p className="mb-2 text-xs text-muted-foreground">你说过的相对关系，改别处时会自动保持。</p>
-        <ul className="space-y-1.5">
+        <ItemGroup className="gap-1">
           {project.constraints.map(c => {
             const st = status.get(c.id);
             return (
-              <li key={c.id} className="flex items-start gap-2">
-                <button className="min-w-0 flex-1 text-left hover:underline" onClick={() => focus(c.targets)}>
-                  <span className={st?.ok ? '' : 'text-amber-700 dark:text-amber-400'}>{c.note ?? st?.message ?? CONSTRAINT_ZH[c.type]}</span>
-                  <span className="ml-1 text-xs text-muted-foreground">{CONSTRAINT_ZH[c.type]}{c.hard ? ' · 必须' : ''}{st?.ok ? '' : ' · 未满足'}</span>
-                </button>
-                {canEdit && <Button size="icon-xs" variant="ghost" aria-label="删除约束" onClick={() => call('constraint_remove', { constraint: c.id })}><Trash2Icon /></Button>}
-              </li>
+              <Item key={c.id} size="xs" variant="outline">
+                {!st?.ok && <ItemMedia variant="icon"><TriangleAlertIcon className="text-chart-1" /></ItemMedia>}
+                <ItemContent className="cursor-pointer" onClick={() => focus(c.targets)}>
+                  <ItemTitle>{c.note ?? st?.message ?? CONSTRAINT_ZH[c.type]}</ItemTitle>
+                  <ItemDescription>{CONSTRAINT_ZH[c.type]}{c.hard ? ' · 必须' : ''}{st?.ok ? '' : ' · 未满足'}</ItemDescription>
+                </ItemContent>
+                {canEdit && <ItemActions><Button size="icon-xs" variant="ghost" aria-label="删除约束" onClick={() => call('constraint_remove', { constraint: c.id })}><Trash2Icon /></Button></ItemActions>}
+              </Item>
             );
           })}
-        </ul>
+        </ItemGroup>
       </div>
     </>
   );
@@ -225,16 +230,16 @@ export function AreasPanel() {
               <p className="font-medium">{l.name}</p>
               <p className="text-xs text-muted-foreground">建筑 {fmtArea(l.gross)} · 室内使用 {fmtArea(inner)}</p>
             </div>
-            <ul className="mt-1">
-              {l.spaces.map(s => (
-                <li key={s.id}>
-                  <button className="flex w-full justify-between py-0.5 text-sm hover:underline" onClick={() => focus([s.id])}>
-                    <span>{s.name}{s.kind !== 'indoor' && <span className="text-muted-foreground">（{KIND_ZH[s.kind]}）</span>}</span>
-                    <span className="font-mono">{s.net.toFixed(1)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <Table className="mt-1">
+              <TableBody>
+                {l.spaces.map(s => (
+                  <TableRow key={s.id} className="cursor-pointer" onClick={() => focus([s.id])}>
+                    <TableCell className="py-1.5">{s.name}{s.kind !== 'indoor' && <span className="text-muted-foreground">（{KIND_ZH[s.kind]}）</span>}</TableCell>
+                    <TableCell className="py-1.5 text-right font-mono">{s.net.toFixed(1)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         );
       })}
@@ -283,13 +288,13 @@ export function CommentsPanel({ onAskAgent }: { onAskAgent?: (text: string) => v
   const STATUS: Record<CommentRow['status'], string> = { open: '待处理', 'pending-confirm': '待业主确认', resolved: '已解决' };
 
   const Thread = ({ c }: { c: CommentRow }) => (
-    <li className="rounded-lg border p-3 text-sm">
+    <Card size="sm" className="gap-1 px-3 text-sm">
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>{c.author ?? '某人'} · {fmtTime(c.created_at)}</span>
         <Badge variant={c.status === 'pending-confirm' ? 'default' : 'secondary'}>{STATUS[c.status]}</Badge>
       </div>
       {c.target_name && (
-        <button className="mt-1 text-xs font-medium hover:underline" onClick={() => c.target_id && focus([c.target_id])}>@{c.target_name}</button>
+        <Button variant="link" size="xs" className="h-auto justify-start p-0 text-foreground" onClick={() => c.target_id && focus([c.target_id])}>@{c.target_name}</Button>
       )}
       <p className="mt-1 whitespace-pre-wrap">{c.body}</p>
       {data.filter(r => r.parent_id === c.id).map(r => (
@@ -309,7 +314,7 @@ export function CommentsPanel({ onAskAgent }: { onAskAgent?: (text: string) => v
           )}
         </div>
       )}
-    </li>
+    </Card>
   );
 
   return (
@@ -324,11 +329,11 @@ export function CommentsPanel({ onAskAgent }: { onAskAgent?: (text: string) => v
             </EmptyHeader>
           </Empty>
         ) : (
-          <ul className="space-y-2">
+          <div className="space-y-2">
             {open.map(c => <Thread key={c.id} c={c} />)}
-            {done.length > 0 && <li className="pt-2 text-xs text-muted-foreground">已解决（{done.length}）</li>}
+            {done.length > 0 && <p className="pt-2 text-xs text-muted-foreground">已解决（{done.length}）</p>}
             {done.map(c => <Thread key={c.id} c={c} />)}
-          </ul>
+          </div>
         )}
       </div>
       {can(role, 'commenter') && (
@@ -367,30 +372,35 @@ export function VersionsPanel() {
   return (
     <div className="p-3">
       {viewing != null && (
-        <div className="mb-3 rounded-lg border bg-muted/50 p-3 text-sm">
-          <p>正在查看第 {viewing} 版（只读）。</p>
-          <div className="mt-2 flex gap-2">
-            {canEdit && <Button size="sm" onClick={() => restore(viewing)}>回退到这一版</Button>}
-            <Button size="sm" variant="outline" onClick={() => loadVersion(null)}>回到最新</Button>
-          </div>
-        </div>
+        <Alert className="mb-3">
+          <EyeIcon />
+          <AlertTitle>正在查看第 {viewing} 版（只读）</AlertTitle>
+          <AlertDescription>
+            <div className="mt-1 flex gap-2">
+              {canEdit && <Button size="sm" onClick={() => restore(viewing)}>回退到这一版</Button>}
+              <Button size="sm" variant="outline" onClick={() => loadVersion(null)}>回到最新</Button>
+            </div>
+          </AlertDescription>
+        </Alert>
       )}
-      <ul className="space-y-1">
+      <ItemGroup className="gap-1">
         {data.map(v => (
-          <li key={v.version}>
-            <button
-              className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted ${viewing === v.version ? 'bg-muted' : ''}`}
-              onClick={() => (v.version === version && viewing == null ? null : loadVersion(v.version === version ? null : v.version))}
-            >
-              <HistoryIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate">{v.summary ?? '保存'}</span>
-                <span className="text-xs text-muted-foreground">第 {v.version} 版 · {v.author || '某人'} · {fmtTime(v.created_at)}{v.version === version ? ' · 最新' : ''}</span>
-              </span>
-            </button>
-          </li>
+          <Item
+            key={v.version}
+            size="xs"
+            variant={viewing === v.version ? 'muted' : 'default'}
+            render={<button type="button" />}
+            className="cursor-pointer text-left hover:bg-muted"
+            onClick={() => (v.version === version && viewing == null ? null : loadVersion(v.version === version ? null : v.version))}
+          >
+            <ItemMedia variant="icon"><HistoryIcon className="text-muted-foreground" /></ItemMedia>
+            <ItemContent className="min-w-0">
+              <ItemTitle className="w-full truncate">{v.summary ?? '保存'}</ItemTitle>
+              <ItemDescription>第 {v.version} 版 · {v.author || '某人'} · {fmtTime(v.created_at)}{v.version === version ? ' · 最新' : ''}</ItemDescription>
+            </ItemContent>
+          </Item>
         ))}
-      </ul>
+      </ItemGroup>
     </div>
   );
 }

@@ -6,11 +6,12 @@ import { describe, type Project } from '@plinth/core';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowLeftIcon, BoxIcon, CloudCheckIcon, CloudIcon, DownloadIcon, EllipsisIcon, HistoryIcon, ImageIcon, LayoutPanelLeftIcon, LoaderIcon,
-  MessageSquareIcon, MessagesSquareIcon, Redo2Icon, RulerIcon, Share2Icon, SquareIcon, Undo2Icon, InfoIcon,
+  MessageSquareIcon, MessagesSquareIcon, Redo2Icon, RulerIcon, Share2Icon, SquareIcon, TriangleAlertIcon, Undo2Icon, InfoIcon,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -72,7 +73,7 @@ function SaveStatus() {
   const dirty = useEditor(s => s.dirty);
   const version = useEditor(s => s.version);
   const viewing = useEditor(s => s.readOnlyVersion);
-  if (viewing != null) return <span className="text-xs text-amber-700 dark:text-amber-400">查看第 {viewing} 版（只读）</span>;
+  if (viewing != null) return <span className="text-xs text-muted-foreground">查看第 {viewing} 版（只读）</span>;
   return (
     <span className="flex items-center gap-1 text-xs text-muted-foreground" aria-live="polite">
       {saving ? <LoaderIcon className="size-3.5 animate-spin" /> : dirty ? <CloudIcon className="size-3.5" /> : <CloudCheckIcon className="size-3.5" />}
@@ -86,11 +87,17 @@ function Conflict() {
   const resolve = useEditor(s => s.resolveConflict);
   if (!conflict) return null;
   return (
-    <div className="absolute inset-x-0 top-0 z-20 m-3 flex flex-wrap items-center gap-2 rounded-lg border bg-background p-3 text-sm shadow-sm">
-      <span className="flex-1">别人刚保存了第 {conflict.version} 版。要保留谁的修改？</span>
-      <Button size="sm" variant="outline" onClick={() => resolve('theirs')}>用他们的</Button>
-      <Button size="sm" onClick={() => resolve('mine')}>用我的覆盖</Button>
-    </div>
+    <Alert className="absolute inset-x-0 top-0 z-20 m-3 w-auto shadow-sm">
+      <TriangleAlertIcon />
+      <AlertTitle>别人刚保存了第 {conflict.version} 版</AlertTitle>
+      <AlertDescription>
+        要保留谁的修改？
+        <div className="mt-1 flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => resolve('theirs')}>用他们的</Button>
+          <Button size="sm" onClick={() => resolve('mine')}>用我的覆盖</Button>
+        </div>
+      </AlertDescription>
+    </Alert>
   );
 }
 
@@ -248,9 +255,9 @@ function Workspace() {
           {mobile && (
             <nav className="absolute inset-x-0 bottom-0 flex justify-around border-t bg-background/95 pb-[env(safe-area-inset-bottom)]">
               {TABS.slice(0, 4).map(t => (
-                <button key={t.id} className="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs" onClick={() => { setTab(t.id); setSheet(true); }}>
+                <Button key={t.id} variant="ghost" className="h-auto flex-1 flex-col gap-0.5 rounded-none py-2 text-xs font-normal" onClick={() => { setTab(t.id); setSheet(true); }}>
                   <t.icon className="size-5" />{t.label}
-                </button>
+                </Button>
               ))}
             </nav>
           )}

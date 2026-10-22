@@ -33,7 +33,8 @@ function create() {
     },
     // 限流交给 Cloudflare 的限流绑定，这里不再查库计数
     rateLimit: { enabled: false },
-    advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] } },
+    // 表结构由迁移管理；关掉每次冷启动的结构自检（省 D1 读取和 CPU）
+    advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] }, database: { validateSchema: false } },
     plugins: schemaPlugins({ sendOtp: sendOtpMail, onLink: transferOwnership }),
   });
 }

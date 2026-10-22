@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { api, ROLE_ZH, type Role } from '@/lib/api';
 import { useEditor, useEditorStore } from './store';
 
@@ -153,16 +154,25 @@ export function ShareDialog({ open, onOpenChange }: { open: boolean; onOpenChang
                   </SelectContent>
                 </Select>
               ) : (
-                <p className="text-sm text-muted-foreground">还没有模型配置。到 <Link to="/settings" className="underline">设置</Link> 添加你的密钥。</p>
+                <p className="text-sm text-muted-foreground">还没有模型配置。到 <Button variant="link" className="h-auto p-0" nativeButton={false} render={<Link to="/settings" />}>设置</Button> 添加你的密钥。</p>
               )}
               <p className="text-xs text-muted-foreground">密钥只保存在服务器上，分享出去的人看不到，只能通过 agent 使用。随时可以换掉或在设置里删除。</p>
               {usage.data && usage.data.length > 0 && (
-                <table className="w-full text-xs">
-                  <thead className="text-muted-foreground"><tr><th className="text-left font-normal">谁</th><th className="text-right font-normal">次数</th><th className="text-right font-normal">输入 token</th><th className="text-right font-normal">输出 token</th></tr></thead>
-                  <tbody className="font-mono">
-                    {usage.data.map(u => <tr key={u.user_id}><td className="font-sans">{u.name || '访客'}</td><td className="text-right">{u.calls}</td><td className="text-right">{u.input.toLocaleString()}</td><td className="text-right">{u.output.toLocaleString()}</td></tr>)}
-                  </tbody>
-                </table>
+                <Table className="text-xs">
+                  <TableHeader>
+                    <TableRow><TableHead>谁</TableHead><TableHead className="text-right">次数</TableHead><TableHead className="text-right">输入 token</TableHead><TableHead className="text-right">输出 token</TableHead></TableRow>
+                  </TableHeader>
+                  <TableBody className="font-mono">
+                    {usage.data.map(u => (
+                      <TableRow key={u.user_id}>
+                        <TableCell className="font-sans">{u.name || '访客'}</TableCell>
+                        <TableCell className="text-right">{u.calls}</TableCell>
+                        <TableCell className="text-right">{u.input.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">{u.output.toLocaleString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
             </section>
           </>

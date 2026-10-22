@@ -7,6 +7,7 @@ import sampleJson from '../../../../samples/wushi-10/project.json';
 import { PlanPreview } from '@/components/site/PlanPreview';
 import { SiteFooter, SiteHeader } from '@/components/site/SiteHeader';
 import { Button } from '@/components/ui/button';
+import { Card, CardDescription } from '@/components/ui/card';
 import { useMe } from '@/lib/query';
 import { startTrial } from '@/lib/trial';
 
@@ -60,13 +61,15 @@ function Landing() {
               </Button>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              无需注册即可试用。{me.data?.user && !me.data.user.isAnonymous ? <Link to="/projects" className="underline">进入我的方案</Link> : <><Link to="/login" className="underline">登录</Link>后方案会一直保存在你的账号里。</>}
+              无需注册即可试用。{me.data?.user && !me.data.user.isAnonymous ? <Button variant="link" className="h-auto p-0 text-xs" nativeButton={false} render={<Link to="/projects" />}>进入我的方案</Button> : <><Button variant="link" className="h-auto p-0 text-xs" nativeButton={false} render={<Link to="/login" />}>登录</Button>后方案会一直保存在你的账号里。</>}
             </p>
           </div>
-          <figure className="rounded-xl border bg-[var(--plan-bg)] p-3">
-            <PlanPreview project={sample} className="w-full" />
-            <figcaption className="px-1 pt-2 text-xs text-muted-foreground">样例：乌石合院一层，房间面积由方案数据实时算出</figcaption>
-          </figure>
+          <Card className="gap-2 p-3">
+            <figure>
+              <PlanPreview project={sample} className="w-full" />
+              <CardDescription className="px-1 pt-2 text-xs">样例：乌石合院一层，房间面积由方案数据实时算出</CardDescription>
+            </figure>
+          </Card>
         </section>
 
         <section className="grid gap-6 border-t py-12 md:grid-cols-3">

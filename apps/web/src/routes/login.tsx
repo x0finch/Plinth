@@ -74,7 +74,7 @@ function Login() {
             <Field>
               <FieldLabel htmlFor="code">验证码</FieldLabel>
               <Input id="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} required autoFocus value={code} onChange={e => setCode(e.target.value)} className="font-mono tracking-widest" />
-              <FieldDescription>已发到 {email}，10 分钟内有效。<button type="button" className="underline" onClick={() => setStep('email')}>换个邮箱</button></FieldDescription>
+              <FieldDescription>已发到 {email}，10 分钟内有效。<Button type="button" variant="link" className="h-auto p-0" onClick={() => setStep('email')}>换个邮箱</Button></FieldDescription>
             </Field>
             <Button type="submit" className="w-full" disabled={busy || code.length < 6}>{busy && <LoaderIcon className="animate-spin" />}登录</Button>
           </form>

@@ -7,7 +7,7 @@ import { toolDefinition } from '@tanstack/ai';
 import { clientTools } from '@tanstack/ai-client';
 import { fetchServerSentEvents, useChat, type UIMessage } from '@tanstack/ai-react';
 import { Link } from '@tanstack/react-router';
-import { ArrowUpIcon, CircleStopIcon, Columns2Icon, Undo2Icon, SparklesIcon, SettingsIcon } from 'lucide-react';
+import { ArrowUpIcon, CircleStopIcon, Columns2Icon, Undo2Icon, ShieldQuestionIcon, SparklesIcon, SettingsIcon, TriangleAlertIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from '@/components/ai-elements/conversation';
 import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message';
@@ -17,6 +17,7 @@ import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from '@/componen
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from '@/components/ui/input-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { registry } from '@/agent/registry';
@@ -78,7 +79,7 @@ function ChangeCard() {
   const added = last.areaChanges.filter(c => c.before == null);
   const removed = last.areaChanges.filter(c => c.after == null);
   return (
-    <div className="mx-3 mb-2 rounded-lg border bg-card p-3 text-sm">
+    <Card size="sm" className="mx-3 mb-2 gap-1 px-3 text-sm">
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium">{last.label}</span>
         <div className="flex gap-1">
@@ -102,11 +103,11 @@ function ChangeCard() {
         </ul>
       )}
       {last.warnings.length > 0 && (
-        <ul className="mt-2 space-y-0.5 text-xs text-amber-700 dark:text-amber-400">
-          {last.warnings.map((w, i) => <li key={i}>注意：{w.message}</li>)}
+        <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+          {last.warnings.map((w, i) => <li key={i} className="flex gap-1"><TriangleAlertIcon className="size-3.5 shrink-0 text-chart-1" />{w.message}</li>)}
         </ul>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -235,7 +236,7 @@ export function ChatPanel() {
           <AlertTitle>先配置大模型</AlertTitle>
           <AlertDescription>
             {role === 'owner' ? (
-              <span>大模型由你自带。到 <Link to="/settings" className="underline">设置</Link> 添加密钥，再在右上角“分享”里给这个方案选用。</span>
+              <span>大模型由你自带。到<Button variant="link" className="h-auto p-0" nativeButton={false} render={<Link to="/settings" />}>设置</Button>添加密钥，再在右上角“分享”里给这个方案选用。</span>
             ) : (
               <span>请方案主人给这个方案配置大模型。</span>
             )}
@@ -307,14 +308,17 @@ export function ChatPanel() {
 
       {interrupts.map((it: any) =>
         it.kind === 'tool-approval' ? (
-          <div key={it.id} className="mx-3 mb-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
-            <p className="font-medium">agent 想要：{registry.get(it.toolName)?.title ?? it.toolName}</p>
-            <p className="mt-1 text-muted-foreground">{describeCall(it.toolName, it.originalArgs, project)}</p>
-            <div className="mt-2 flex gap-2">
-              <Button size="sm" onClick={() => it.resolveInterrupt(true)}>同意</Button>
-              <Button size="sm" variant="outline" onClick={() => it.resolveInterrupt(false)}>不要</Button>
-            </div>
-          </div>
+          <Alert key={it.id} className="mx-3 mb-2 w-auto">
+            <ShieldQuestionIcon />
+            <AlertTitle>agent 想要：{registry.get(it.toolName)?.title ?? it.toolName}</AlertTitle>
+            <AlertDescription>
+              <p>{describeCall(it.toolName, it.originalArgs, project)}</p>
+              <div className="mt-2 flex gap-2">
+                <Button size="sm" onClick={() => it.resolveInterrupt(true)}>同意</Button>
+                <Button size="sm" variant="outline" onClick={() => it.resolveInterrupt(false)}>不要</Button>
+              </div>
+            </AlertDescription>
+          </Alert>
         ) : null,
       )}
 

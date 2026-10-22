@@ -7,17 +7,18 @@ import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
 import { projectBoxes, type Box, type Project, type Space } from '@plinth/core';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
+import { useThemeColors } from '@/lib/theme';
 import { useEditor } from './store';
 
 const M = 0.001;
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
 
-function useColors() {
-  const dark = typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-  return dark
-    ? { bg: '#1c1c1c', wall: '#d9d9d9', slab: '#bdbdbd', ground: '#2a2d2a', furn: '#9a9a9a', glass: '#9fb4c2', edge: '#555', hl: '#3f6fb8' }
-    : { bg: '#f4f4f2', wall: '#ffffff', slab: '#ececec', ground: '#e3e6df', furn: '#d6d6d6', glass: '#b9cdd8', edge: '#9a9a9a', hl: '#a9c6f5' };
-}
+/** 三维白模的颜色全部取自主题 */
+const useColors = () =>
+  useThemeColors({
+    bg: '--muted', wall: '--card', slab: '--secondary', ground: '--accent', furn: '--chart-3',
+    glass: '--chart-2', edge: '--muted-foreground', hl: '--chart-2', sky: '--background',
+  });
 
 function BoxMesh({ b, base, color, edge, opacity = 1, onPick }: { b: Box; base: number; color: string; edge: string; opacity?: number; onPick: (e: ThreeEvent<MouseEvent>) => void }) {
   return (
@@ -113,7 +114,7 @@ export function Model3D() {
       onPointerMissed={() => select([])}
       style={{ background: c.bg }}
     >
-      <hemisphereLight args={['#ffffff', '#8d8d86', 1.1]} />
+      <hemisphereLight args={[c.sky, c.edge, 1.1]} />
       <directionalLight position={[cx - 20, 40, cz + 25]} intensity={1.6} castShadow shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-40} shadow-camera-right={40} shadow-camera-top={40} shadow-camera-bottom={-40} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, project.site.groundLevel * M - 0.01, cz]} receiveShadow>
@@ -132,7 +133,7 @@ export function Model3D() {
               ))}
               {boxes.filter(b => b.level === l.id).map((b, i) => (
                 <BoxMesh key={`${b.id}-${i}`} b={b} base={elev.get(l.id) ?? 0} edge={c.edge} onPick={pick(b.id)}
-                  color={b.kind === 'glass' ? c.glass : hlWalls.has(b.id) ? c.hl : c.wall} opacity={b.kind === 'glass' ? 0.35 : 1} />
+                  color={b.kind === 'glass' ? c.glass : hlWalls.has(b.id) ? c.hl : c.wall} opacity={b.kind === 'glass' ? 0.25 : 1} />
               ))}
               {view.layers.furniture && project.furniture.filter(f => f.level === l.id).map(f => (
                 <mesh key={f.id} geometry={unitBox} castShadow onClick={pick(f.id)} userData={{ id: f.id }}

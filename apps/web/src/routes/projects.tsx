@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { EllipsisIcon, HouseIcon, LoaderIcon, PlusIcon } from 'lucide-react';
+import { EllipsisIcon, HouseIcon, LoaderIcon, PlusIcon, UserIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { SiteFooter, SiteHeader } from '@/components/site/SiteHeader';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia } from '@/components/ui/item';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
@@ -97,10 +99,11 @@ function Projects() {
       <SiteHeader />
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
         {user?.isAnonymous && (
-          <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm">
-            <span className="flex-1">你正在以访客身份试用。登录后这些方案会转到你的账号，换设备也能打开。</span>
-            <Button size="sm" nativeButton={false} render={<Link to="/login" search={{ redirect: '/projects' }} />}>登录保存</Button>
-          </div>
+          <Item variant="outline" className="mb-6">
+            <ItemMedia variant="icon"><UserIcon /></ItemMedia>
+            <ItemContent><ItemDescription className="text-foreground">你正在以访客身份试用。登录后这些方案会转到你的账号，换设备也能打开。</ItemDescription></ItemContent>
+            <ItemActions><Button size="sm" nativeButton={false} render={<Link to="/login" search={{ redirect: '/projects' }} />}>登录保存</Button></ItemActions>
+          </Item>
         )}
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-xl font-semibold">我的方案</h1>
@@ -120,15 +123,15 @@ function Projects() {
         ) : (
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {list.data.map(r => (
-              <li key={r.id} className="group relative overflow-hidden rounded-xl border">
+              <li key={r.id}><Card className="relative gap-0 overflow-hidden py-0">
                 <Link to="/p/$projectId" params={{ projectId: r.id }} className="block">
-                  <div className="flex aspect-[4/3] items-center justify-center bg-[var(--plan-bg)] p-3">
+                  <div className="flex aspect-[4/3] items-center justify-center bg-card p-3">
                     {r.thumbnail ? <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(r.thumbnail)}`} alt="" className="max-h-full max-w-full" /> : <HouseIcon className="size-8 text-muted-foreground" />}
                   </div>
-                  <div className="border-t px-3 py-2">
-                    <p className="truncate text-sm font-medium">{r.name}</p>
-                    <p className="text-xs text-muted-foreground">{r.role === 'owner' ? '我的' : `${r.owner_name || '别人'}分享 · ${ROLE_ZH[r.role]}`} · 第 {r.head_version} 版 · {fmtTime(r.updated_at)}</p>
-                  </div>
+                  <CardHeader className="border-t px-3 py-2">
+                    <CardTitle className="truncate text-sm">{r.name}</CardTitle>
+                    <CardDescription className="text-xs">{r.role === 'owner' ? '我的' : `${r.owner_name || '别人'}分享 · ${ROLE_ZH[r.role]}`} · 第 {r.head_version} 版 · {fmtTime(r.updated_at)}</CardDescription>
+                  </CardHeader>
                 </Link>
                 <DropdownMenu>
                   <DropdownMenuTrigger render={<Button variant="secondary" size="icon-sm" className="absolute top-2 right-2" aria-label="更多" />}><EllipsisIcon /></DropdownMenuTrigger>
@@ -141,7 +144,7 @@ function Projects() {
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </li>
+              </Card></li>
             ))}
           </ul>
         )}

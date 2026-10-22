@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { SiteFooter, SiteHeader } from '@/components/site/SiteHeader';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -42,7 +44,8 @@ function AddModel({ providers }: { providers: Models['providers'] }) {
     onError: e => toast.error(e.message),
   });
   return (
-    <form className="space-y-3 rounded-lg border p-4" onSubmit={e => { e.preventDefault(); add.mutate(); }}>
+    <Card className="p-4">
+    <form className="space-y-3" onSubmit={e => { e.preventDefault(); add.mutate(); }}>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field>
           <FieldLabel>厂商</FieldLabel>
@@ -74,6 +77,7 @@ function AddModel({ providers }: { providers: Models['providers'] }) {
       </Field>
       <Button type="submit" size="sm" disabled={add.isPending || !apiKey || !model}>{add.isPending && <LoaderIcon className="animate-spin" />}添加</Button>
     </form>
+    </Card>
   );
 }
 
@@ -112,15 +116,18 @@ function Settings() {
             <h2 className="font-medium">大模型</h2>
             <p className="mt-1 text-sm text-muted-foreground">agent 用你自己的大模型密钥。添加后在方案的“分享”里选用；分享给可编辑的家人后，他们也能用这个方案的模型和 agent 对话，用量会记在各自名下。</p>
           </div>
-          <ul className="space-y-2">
+          <ItemGroup className="gap-2">
             {models.data?.configs.map(c => (
-              <li key={c.id} className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm">
-                <KeyRoundIcon className="size-4 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate">{c.label}<span className="ml-2 text-xs text-muted-foreground">{models.data.providers[c.provider]?.name} · {c.model} · {c.key_hint}</span></span>
-                <Button size="icon-sm" variant="ghost" aria-label="删除" onClick={() => del.mutate(c.id)}><Trash2Icon /></Button>
-              </li>
+              <Item key={c.id} variant="outline" size="sm">
+                <ItemMedia variant="icon"><KeyRoundIcon /></ItemMedia>
+                <ItemContent className="min-w-0">
+                  <ItemTitle>{c.label}</ItemTitle>
+                  <ItemDescription>{models.data.providers[c.provider]?.name} · {c.model} · {c.key_hint}</ItemDescription>
+                </ItemContent>
+                <ItemActions><Button size="icon-sm" variant="ghost" aria-label="删除" onClick={() => del.mutate(c.id)}><Trash2Icon /></Button></ItemActions>
+              </Item>
             ))}
-          </ul>
+          </ItemGroup>
           {models.data && <AddModel providers={models.data.providers} />}
         </section>
 
