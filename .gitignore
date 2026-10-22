@@ -1,2 +1,5 @@
 node_modules/
 dist/
+
+# 端到端测试截图（不指定输出目录时写在这里）
+/apps/web/*.png
