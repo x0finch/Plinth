@@ -1,79 +1,81 @@
 # Plinth
 
-内置 Agent 的通用建筑设计平台：业主说需求、做决定，agent 是方案的作者——画墙开窗、排房间、算面积、自己检查。
-总体设计和路线图见 [#1](https://github.com/x0finch/Plinth/issues/1)，需求通过 GitHub issue 追踪。
+A general-purpose house design platform with a built-in agent: the homeowner states needs and makes decisions, and the agent authors the design — drawing walls and openings, laying out rooms, computing areas and checking its own work.
+Overall design and roadmap: [#1](https://github.com/x0finch/Plinth/issues/1). Requirements are tracked as GitHub issues.
 
-## 结构
+The product UI is in Chinese; everything in the repository is in English (see `CLAUDE.md`).
 
-| 目录 | 内容 |
+## Layout
+
+| Directory | Contents |
 | --- | --- |
-| `packages/core` | 纯 TypeScript 核心包，不依赖浏览器：数据规范、操作层（事务、撤销）、能力清单、规则检查、约束求解、面积、三维墙体分段 |
-| `apps/web` | 网站：TanStack Router 单页应用 + Cloudflare Worker（Hono），D1 存储，Better Auth 登录，TanStack AI 对话 |
-| `samples/wushi-10` | 测试样例：乌石合院方案十 |
+| `packages/core` | Pure TypeScript core, no browser dependencies: data schema, operation layer (transactions, undo), capability registry, rule checks, constraint solver, areas, 3D wall segmentation |
+| `apps/web` | Website: TanStack Router SPA + Cloudflare Worker (Hono), D1 storage, Better Auth sign-in, TanStack AI chat |
+| `samples/wushi-10` | Test sample: Wushi courtyard, scheme 10 |
 
-关键约定：
-- 所有修改（界面、agent、`window.artifact.call`）都调用同一张能力清单（`packages/core/src/builtins.ts` + `apps/web/src/agent/view-capabilities.ts`），走同一个事务和撤销。
-- agent 的工具就是能力清单，在打开方案的浏览器里执行；服务端只用项目配置的密钥转发大模型请求。
-- 页面由静态资源层直接返回，Worker 里只有 `/api/*`，不带 React（压缩后约 0.7 MB，适合免费版）。
+Key conventions:
+- Every mutation (UI, agent, `window.artifact.call`) calls the same capability registry (`packages/core/src/builtins.ts` + `apps/web/src/agent/view-capabilities.ts`) and goes through the same transaction and undo stack.
+- The agent's tools are the capability registry, executed in the browser that has the project open; the server only forwards model requests using the project's configured key.
+- Pages are served directly by the static asset layer; the Worker only handles `/api/*` and doesn't bundle React (about 0.7 MB compressed, fits the free plan).
 
-## 本地开发
+## Local development
 
 ```sh
 npm install
 cd apps/web
-cp .dev.vars.example .dev.vars        # 填 BETTER_AUTH_SECRET、KEY_ENCRYPTION_SECRET（openssl rand -base64 32）
+cp .dev.vars.example .dev.vars        # fill in BETTER_AUTH_SECRET and KEY_ENCRYPTION_SECRET (openssl rand -base64 32)
 npm run db:migrate:local
-npm run dev                            # http://localhost:3000；验证码打印在终端
+npm run dev                            # http://localhost:3000; OTP codes are printed to the terminal
 ```
 
-## 测试
+## Testing
 
 ```sh
-npm test                               # 核心包：面积对照、能力契约、约束（根目录）
+npm test                               # core: area reference values, capability contracts, constraints (repo root)
 cd apps/web
-npm run fake-llm &                     # 假大模型（OpenAI 兼容接口，脚本化工具调用）
+npm run fake-llm &                     # fake model (OpenAI-compatible API, scripted tool calls)
 npm run dev > dev.log &
-DEV_LOG=dev.log npm run e2e            # 端到端：agent 对话、确认、从零起步、分享、评论、版本、手机布局、邮箱密码登录（验证码从 dev.log 读）
+DEV_LOG=dev.log npm run e2e            # end to end: agent chat, approvals, starting from scratch, sharing, comments, versions, mobile layout, email/password sign-in (OTP codes read from dev.log)
 ```
 
-## 部署（Cloudflare Workers 免费版，GitHub Actions 自动部署）
+## Deployment (Cloudflare Workers free plan, via GitHub Actions)
 
-`.github/workflows/deploy.yml`：
-- 拉取请求和推送：类型检查、核心包测试、主题颜色检查、构建
-- 推送到 `main`：检查通过后迁移线上 D1 → 部署 → 把下面的密钥同步到 Worker
+`.github/workflows/deploy.yml`:
+- Pull requests and pushes: typecheck, core tests, theme color check, build.
+- Pushes to `main`: after the checks pass, migrate the remote D1 database → deploy → sync the secrets below to the Worker. Until the Cloudflare secrets are set, the deploy job is skipped with a warning.
 
-D1 数据库 `plinth` 已建好（ID 写在 `apps/web/wrangler.jsonc`），Token 要来自同一个 Cloudflare 账号。
+The D1 database `plinth` already exists (its ID is in `apps/web/wrangler.jsonc`); the token must belong to the same Cloudflare account.
 
-### 在 GitHub 上配置
+### GitHub configuration
 
-仓库 Settings → Secrets and variables → Actions：
+Repository Settings → Secrets and variables → Actions:
 
 **Secrets**
 
-| 名称 | 说明 |
+| Name | Notes |
 |---|---|
-| `CLOUDFLARE_API_TOKEN` | 必填。Cloudflare → My Profile → API Tokens → Create Token，用 “Edit Cloudflare Workers” 模板，再加上 Account → D1 → Edit |
-| `CLOUDFLARE_ACCOUNT_ID` | 必填。Cloudflare 后台 Workers & Pages 页右侧的 Account ID |
-| `BETTER_AUTH_SECRET` | 必填。登录会话签名，32 位以上随机串 |
-| `KEY_ENCRYPTION_SECRET` | 必填。加密用户的大模型密钥，24 位以上随机串。**设好后不要改**，改了已保存的模型密钥就解不开 |
-| `RESEND_API_KEY` | 邮箱登录需要。发验证码（resend.com，免费额度每天 100 封） |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 可选。回调地址：`<网址>/api/auth/callback/google` |
+| `CLOUDFLARE_API_TOKEN` | Required. Cloudflare → My Profile → API Tokens → Create Token, use the "Edit Cloudflare Workers" template and add Account → D1 → Edit |
+| `CLOUDFLARE_ACCOUNT_ID` | Required. Shown on the right of the Workers & Pages page in the Cloudflare dashboard |
+| `BETTER_AUTH_SECRET` | Required. Signs sign-in sessions; a random string of 32+ characters (`openssl rand -base64 32`) |
+| `KEY_ENCRYPTION_SECRET` | Required. Encrypts users' model API keys; a random string of 24+ characters. **Never change it once set** — saved model keys can no longer be decrypted |
+| `RESEND_API_KEY` | Needed for email sign-in. Sends OTP codes (resend.com; free tier: 100 emails/day) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional. Redirect URI: `<site URL>/api/auth/callback/google` |
 
 **Variables**
 
-| 名称 | 说明 |
+| Name | Notes |
 |---|---|
-| `MAIL_FROM` | 邮箱登录需要。发件人，如 `Plinth <noreply@你的域名>`，域名要先在 Resend 验证 |
-| `APP_URL` | 可选。绑定自己的域名时填，如 `https://plinth.example.com`；不填时按访问的网址推断 |
+| `MAIL_FROM` | Needed for email sign-in. Sender, e.g. `Plinth <noreply@your-domain>`; the domain must be verified in Resend |
+| `APP_URL` | Optional. Set it when using a custom domain, e.g. `https://plinth.example.com`; otherwise it's inferred from the request URL |
 
-### 登录方式
+### Sign-in methods
 
-- 验证码：输入邮箱收验证码，没有账号自动创建
-- 邮箱 + 密码：注册后用验证码验证邮箱；忘记密码用验证码重设（只用验证码登录过的账号也能这样设密码）
-- Google（可选）
+- OTP: enter an email and receive a code; an account is created if none exists.
+- Email + password: verify the email with an OTP after sign-up; reset a forgotten password with an OTP (accounts that only ever used OTP can set a password this way).
+- Google (optional).
 
-密码的慢哈希在用户设备上做（PBKDF2-SHA256 60 万轮，盐是 `plinth:` + 邮箱），服务器收到的是派生结果，再加随机盐做一次 SHA-256 存起来。免费版 Worker 每个请求只有 10 ms CPU，跑不动慢哈希；原始密码也因此从不离开设备。
+The slow password hash runs on the user's device (PBKDF2-SHA256, 600,000 iterations, salt `plinth:` + email). The server receives the derived value and stores a random salt + one SHA-256 of it. A free-plan Worker gets 10 ms CPU per request, too little for a slow hash; as a side effect the raw password never leaves the device.
 
-验证码邮件都走 Resend。不配 `RESEND_API_KEY` 时线上只能访客试用和 Google 登录；本地不配，验证码打印在终端。
+All OTP emails go through Resend. Without `RESEND_API_KEY`, production only offers guest trial and Google sign-in; locally the codes are printed to the terminal.
 
-配好后推送到 `main`，或在 Actions 页手动运行 `deploy`。第一次部署后网址是 `https://plinth.<你的子域>.workers.dev`。
+Once configured, push to `main` or run the `deploy` workflow manually from the Actions page. After the first deploy the site is at `https://plinth.<your-subdomain>.workers.dev`.
