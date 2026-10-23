@@ -1,8 +1,8 @@
 /**
  * The plan printed on a floor in 3D, drawn by the plan's own code (PlanDrawing), so on entering 3D the flat house is exactly the
- * plan and grows out of it. Two layers: paper (site boundary, room fills; and with it a sheet of the plan's background around the
- * drawing) fades out as the house rises; ink (walls, furniture, doors, labels) stays, the wall footprints hidden under the walls
- * once they stand. Both are unlit, so their colors are the plan's. Line widths are the plan's screen widths at the scale the plan
+ * plan and grows out of it. Two layers: paper (site boundary, room floors; and with it a sheet of the plan's background around the
+ * drawing) fades out first as the house rises, then ink (walls, furniture, doors, labels): the built house shows its own floors,
+ * furniture and walls. Both are unlit, so their colors are the plan's. Line widths are the plan's screen widths at the scale the plan
  * is shown, converted to millimetres.
  */
 import type { Project } from '@plinth/core';
@@ -28,9 +28,11 @@ const TEXTURE_PX = {
 
 /** How opaque the paper is while the house grows (g: 0 flat, 1 built): gone once the walls are a third of the way up */
 export const paperOpacity = (g: number) => 1 - THREE.MathUtils.smoothstep(g, 0, 0.3);
+/** The ink fades after the paper, gone before the walls are fully up */
+const inkOpacity = (g: number) => 1 - THREE.MathUtils.smoothstep(g, 0.3, 0.8);
 
 /** Render React SVG to markup, with theme variables replaced by their values (an SVG drawn as an image can't read them) */
-function markup(el: React.ReactElement, doc: Document) {
+export function markup(el: React.ReactElement, doc: Document) {
   const html = renderToStaticMarkup(el);
   const cs = doc.defaultView!.getComputedStyle(doc.documentElement);
   return html.replace(/var\((--[\w-]+)\)/g, (_, v: string) => cs.getPropertyValue(v).trim().replace(/"/g, "'"));
@@ -92,10 +94,14 @@ export function FloorDrawing({ project, level, current, furniture, labels, quali
 
   const paper = useRef<THREE.MeshBasicMaterial>(null);
   const paperMesh = useRef<THREE.Mesh>(null);
+  const ink = useRef<THREE.MeshBasicMaterial>(null);
+  const inkMesh = useRef<THREE.Mesh>(null);
   useFrame(() => {
-    const f = paperOpacity(growth.current.g);
+    const f = paperOpacity(growth.current.g), k = inkOpacity(growth.current.g);
     if (paper.current) paper.current.opacity = f;
     if (paperMesh.current) paperMesh.current.visible = f > 0;
+    if (ink.current) ink.current.opacity = k;
+    if (inkMesh.current) inkMesh.current.visible = k > 0;
   });
 
   if (!textures) return null;
@@ -106,9 +112,9 @@ export function FloorDrawing({ project, level, current, furniture, labels, quali
         <planeGeometry args={[frame.w * M, frame.h * M]} />
         <meshBasicMaterial ref={paper} map={textures.paper} transparent depthWrite={false} toneMapped={false} fog={false} />
       </mesh>
-      <mesh position={[center[0], 0.006, center[1]]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} userData={{ noEdges: true }} renderOrder={3}>
+      <mesh ref={inkMesh} position={[center[0], 0.006, center[1]]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} userData={{ noEdges: true }} renderOrder={3}>
         <planeGeometry args={[frame.w * M, frame.h * M]} />
-        <meshBasicMaterial map={textures.ink} transparent depthWrite={false} toneMapped={false} fog={false} />
+        <meshBasicMaterial ref={ink} map={textures.ink} transparent depthWrite={false} toneMapped={false} fog={false} />
       </mesh>
     </group>
   );

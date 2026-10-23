@@ -1,6 +1,6 @@
 /**
- * Draws the 3D view through a post-processing chain: the scene, then SketchUp-style edges (see EdgePass), then the output
- * conversion.
+ * Draws the 3D view through a post-processing chain: the scene, SketchUp-style edges when the model style has them (see
+ * EdgePass), then the output conversion.
  */
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
@@ -37,29 +37,31 @@ export function detectQuality(win: Window, gl: WebGLRenderingContext | WebGL2Ren
  * Takes over rendering from react-three-fiber; `draw` renders one frame the same way, for screenshots. Edges show once the house
  * has grown out of the plan (`growth`: 0 flat, 1 built), so the flat start still looks exactly like the plan.
  */
-export function Renderer({ draw, edgeColor, growth }: {
-  draw: React.RefObject<(() => void) | null>; edgeColor: string; growth: React.RefObject<{ g: number }>;
+export function Renderer({ draw, edges: withEdges, edgeColor, growth }: {
+  draw: React.RefObject<(() => void) | null>; edges: boolean; edgeColor: string; growth: React.RefObject<{ g: number }>;
 }) {
   const { gl, scene, camera, size } = useThree();
   const { composer, edges } = useMemo(() => {
     const c = new EffectComposer(gl);
     c.addPass(new RenderPass(scene, camera));
-    const e = new EdgePass(scene, camera, size.width, size.height);
-    c.addPass(e);
+    const e = withEdges ? new EdgePass(scene, camera, size.width, size.height) : null;
+    if (e) c.addPass(e);
     c.addPass(new OutputPass());
     return { composer: c, edges: e };
-  }, [gl, scene, camera]);
+  }, [gl, scene, camera, withEdges]);
   useEffect(() => () => composer.dispose(), [composer]);
   useEffect(() => {
     composer.setPixelRatio(gl.getPixelRatio());
     composer.setSize(size.width, size.height);
   }, [composer, size, gl]);
-  useEffect(() => void edges.uniforms.edgeColor.value.set(edgeColor), [edges, edgeColor]);
+  useEffect(() => void edges?.uniforms.edgeColor.value.set(edgeColor), [edges, edgeColor]);
 
   const render = () => {
-    edges.uniforms.strength.value = THREE.MathUtils.smoothstep(growth.current.g, 0.2, 0.7);
-    // About two CSS pixels wide, like SketchUp's default profiles
-    edges.uniforms.profile.value = 1.5 * gl.getPixelRatio();
+    if (edges) {
+      edges.uniforms.strength.value = THREE.MathUtils.smoothstep(growth.current.g, 0.2, 0.7);
+      // About two CSS pixels wide, like SketchUp's default profiles
+      edges.uniforms.profile.value = 1.5 * gl.getPixelRatio();
+    }
     composer.render();
   };
   draw.current = render;

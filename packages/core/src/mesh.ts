@@ -5,14 +5,15 @@
 import { wallDir, wallLength } from './geometry.js';
 import type { Id, Project, Wall } from './schema.js';
 
-/** Thickness of a glass-block infill (mm) */
+/** Thickness of a glass-block infill and of a window's pane (mm) */
 const GLASS_BLOCK = 80;
+const PANE = 30;
 
 export interface Box {
   /** Owning object */
   id: Id;
   level: Id;
-  kind: 'wall' | 'sill' | 'lintel' | 'railing' | 'parapet' | 'fence' | 'glass-block';
+  kind: 'wall' | 'sill' | 'lintel' | 'railing' | 'parapet' | 'fence' | 'glass' | 'glass-block';
   /** Bottom-face centre (plan coordinates, mm) */
   center: [number, number];
   /** Height of the bottom face above this level's floor */
@@ -42,7 +43,7 @@ export function wallBoxes(p: Project, w: Wall): Box[] {
   const box = (a: number, b: number, z: number, h: number, k: Box['kind']): Box => {
     const mid = (a + b) / 2;
     return {
-      id: w.id, level: w.level, kind: k, angle, thickness: k === 'glass-block' ? Math.min(GLASS_BLOCK, w.thickness) : w.thickness,
+      id: w.id, level: w.level, kind: k, angle, thickness: k === 'glass-block' ? Math.min(GLASS_BLOCK, w.thickness) : k === 'glass' ? Math.min(PANE, w.thickness) : w.thickness,
       center: [w.start[0] + d[0] * mid, w.start[1] + d[1] * mid], z, length: b - a, height: h,
     };
   };
@@ -55,8 +56,9 @@ export function wallBoxes(p: Project, w: Wall): Box[] {
     const top = Math.min(H, o.sill + o.height);
     if (o.sill > 0) out.push(box(a, b, 0, o.sill, kind === 'wall' ? 'sill' : kind));
     if (top < H) out.push(box(a, b, top, H - top, kind === 'wall' ? 'lintel' : kind));
-    // Openings stay open, like in the plan; only a glass-block window fills its opening
+    // Windows and sliding doors are glazed (a pane, or a glass-block infill); doors, gates and plain openings stay open
     if (o.glazing === 'glass-block') out.push(box(a, b, o.sill, top - o.sill, 'glass-block'));
+    else if (o.kind === 'window' || o.kind === 'sliding-door') out.push(box(a, b, o.sill, top - o.sill, 'glass'));
     t = Math.max(t, b);
   }
   if (t < L + ext) out.push(box(t, L + ext, 0, H, kind));

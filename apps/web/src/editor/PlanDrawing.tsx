@@ -1,18 +1,19 @@
 /**
  * The plan's drawing, shared by the plan view and the 3D floors (so 3D grows out of exactly the plan): paper (the site's white
- * plinth, room fills), ink (walls, furniture, doors and windows) and labels. Drawn like SketchUp's plan view, the model seen
- * from above through a section cut: walls cut solid black, everything below the cut white with thin black edges, the plinth
- * outlined like a profile. Coordinates in millimetres. Interaction (picking) is optional.
+ * plinth, room floors in their material), ink (walls, furniture, doors and windows) and labels. The model seen from above
+ * through a section cut: walls cut solid black, floors in their material (see floor-materials.tsx), furniture and fittings white
+ * with thin black edges, the plinth outlined. Coordinates in millimetres. Interaction (picking) is optional.
  */
 import type { Project } from '@plinth/core';
+import { floorFill, FloorPatternDefs } from './floor-materials';
+import { modelStyle } from './model-style';
 import { isGroundLevel, plinthRect, type LevelShapes } from './plan-geometry';
 
 const pts = (p: [number, number][]) => p.map(([x, y]) => `${x},${y}`).join(' ');
 
-/** White like the model's floors seen from above, whatever the room; a void is hatched */
-const SPACE_FILL: Record<string, string> = {
-  indoor: 'var(--card)', 'semi-outdoor': 'var(--card)', outdoor: 'var(--card)', 'roof-terrace': 'var(--card)', void: 'url(#hatch)',
-};
+/** A room's floor: its material (or white, as the model style says); a void is hatched */
+const spaceFill = (kind: string, material: string) =>
+  kind === 'void' ? 'url(#hatch)' : modelStyle().floors === 'material' ? floorFill(material) : 'var(--card)';
 
 /**
  * Stroke props for a line `width` screen pixels wide (dashes too). The plan keeps them that wide at any zoom (non-scaling strokes);
@@ -32,6 +33,7 @@ const hit = (pick: Pick | undefined, id: string) => (pick ? { onClick: pick(id),
 export function PlanDefs() {
   return (
     <defs>
+      <FloorPatternDefs />
       <pattern id="hatch" width="200" height="200" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
         <line x1="0" y1="0" x2="0" y2="200" stroke="var(--muted-foreground)" strokeWidth="20" />
       </pattern>
@@ -56,7 +58,7 @@ export function PlanPaper({ project, level, shapes, line, pick }: { project: Pro
           <polygon points={pts(project.site.boundary)} fill="none" stroke="var(--chart-3)" {...line(0.8, [6, 4])} />
         </>
       )}
-      {shapes.spaces.map(({ s, d }) => <path key={s.id} d={d} fill={SPACE_FILL[s.kind]} {...hit(pick, s.id)} />)}
+      {shapes.spaces.map(({ s, d }) => <path key={s.id} d={d} fill={spaceFill(s.kind, s.floor)} {...hit(pick, s.id)} />)}
     </>
   );
 }
