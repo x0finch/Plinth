@@ -5,19 +5,21 @@ import { dragCall, draggable } from './plan-drag';
 
 const p: Project = migrate(sampleJson);
 const wall = (name: string) => p.walls.find(w => w.name === name)!;
+/** A north-south wall between two rooms of the sample (data, so in the project's language) */
+const EAST_WALL = '老人房二东墙'; // i18n-ok: sample data name
 /** Snapping distance used below: 100 mm (about 8 px at a typical zoom) */
 const TOL = 100;
 
 describe('dragging in the plan', () => {
   it('walls, openings and furniture can be dragged; rooms and elements cannot', () => {
-    expect(draggable(p, wall('老人房二东墙').id)).toBe(true);
+    expect(draggable(p, wall(EAST_WALL).id)).toBe(true);
     expect(draggable(p, p.furniture[0].id)).toBe(true);
     expect(draggable(p, p.spaces[0].id)).toBe(false);
     expect(draggable(p, 'e-stair')).toBe(false);
   });
 
   it('a wall moves perpendicular to itself in 50 mm steps', () => {
-    const w = wall('老人房二东墙');
+    const w = wall(EAST_WALL);
     // North-south wall: only the x part of the drag counts
     const r = dragCall(p, w.id, [-487, 300], TOL)!;
     expect(r.name).toBe('wall_move');
@@ -27,7 +29,7 @@ describe('dragging in the plan', () => {
   });
 
   it('a wall snaps to the line of a parallel wall nearby, and shows a guide', () => {
-    const w = wall('老人房二东墙');
+    const w = wall(EAST_WALL);
     const other = p.walls.find(o => o.id !== w.id && o.level === 'L1' && o.start[0] === o.end[0] && Math.abs(o.start[0] - w.start[0]) > 300)!;
     const want = other.start[0] - w.start[0];
     const r = dragCall(p, w.id, [want + 60, 0], TOL)!;
