@@ -94,7 +94,7 @@
     --floor-grass: oklch(0.70 0.12 135);
     --floor-grass-blade: oklch(0.62 0.13 140);
     --floor-grass-blade-2: oklch(0.78 0.11 130);
-    /* Furniture materials in 3D (see editor/model3d/furniture-models.ts) */
+    /* Materials of the looks in 3D (see editor/model3d/looks.ts) */
     --furn-fabric: oklch(0.80 0.018 75);
     --furn-cushion: oklch(0.86 0.016 75);
     --furn-linen: oklch(0.97 0.004 85);
