@@ -72,6 +72,9 @@ function ObjectProps({ info }: { info: ObjectInfo }) {
       {info.type === 'opening' && <OpeningProps info={info} />}
       {info.type === 'furniture' && <FurnitureProps info={info} />}
       {info.type === 'element' && <ElementProps info={info} />}
+      {canEdit && (info.type === 'wall' || info.type === 'opening' || info.type === 'furniture') && (
+        <p className="text-xs text-muted-foreground">{m.panels_drag_hint()}</p>
+      )}
       {canEdit && (
         <div className="flex flex-wrap gap-2 pt-1">
           {info.type === 'furniture' && (

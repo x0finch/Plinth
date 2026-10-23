@@ -207,6 +207,7 @@
   "panels_type_opening": "Door/window",
   "panels_type_furniture": "Furniture",
   "panels_type_element": "Element",
+  "panels_drag_hint": "Drag it in the plan to move it; it snaps to nearby walls",
   "panels_row_levels": "Levels",
   "panels_name": "Name",
   "panels_row_kind": "Type",

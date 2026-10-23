@@ -71,6 +71,8 @@ export interface EditorState {
 
 export interface EditorActions {
   call(name: string, input: unknown, actor?: Actor): Promise<CallResult>;
+  /** The project as it would be after this call, from a scratch copy (nothing is committed); null if the call fails */
+  preview(name: string, input: unknown): Promise<Project | null>;
   setView(patch: Partial<ViewState>): ViewState;
   fitView(): void;
   setLeave3D(fn: (() => Promise<void>) | null): void;
@@ -177,6 +179,12 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
           }));
         }
         return r;
+      },
+
+      async preview(name, input) {
+        const scratch = new Session(session.project);
+        const r = await registry.call(name, input, { session: scratch, actor: { kind: 'user' }, host: { view: get().viewHost(), comments: commentsHost(get().projectId) } });
+        return r.ok ? scratch.project : null;
       },
 
       setView(patch) {
