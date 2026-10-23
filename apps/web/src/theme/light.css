@@ -53,13 +53,37 @@
     --shadow-xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 8px 10px -1px hsl(0 0% 0% / 0.18);
     --shadow-2xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.45);
     --tracking-normal: 0em;
-    /* 3D canvas, like SketchUp's default style: a light sky fading to a pale horizon, white faces shaded by a warm white sun
-       and sky light, black edges. The plan sits on the horizon color. */
-    --canvas-backdrop: oklch(0.95 0 0);
+    /* 3D canvas (the default model style): white walls shaded by a warm white sun and sky light on a light gray backdrop;
+       the plan sits on the same backdrop. The sky is for styles that show one. */
+    --canvas-backdrop: oklch(0.91 0.004 100);
     --canvas-sky: oklch(0.87 0.035 235);
-    --canvas-sun: oklch(0.99 0.012 85);
-    --canvas-skylight: oklch(0.80 0.015 85);
+    --canvas-sun: oklch(0.99 0.006 85);
+    --canvas-skylight: oklch(0.84 0.008 85);
     --canvas-ground: oklch(0.93 0.014 115);
     /* Shadows cast on the ground in 3D */
     --canvas-shadow: oklch(0.45 0.012 85);
+    /* Glass: barely tinted, so it reads as clear */
+    --canvas-glass: oklch(0.90 0.03 225);
+    --canvas-frame: oklch(0.40 0.005 250);
+    /* Floor materials (see editor/floor-materials.tsx): base color and its seams, grout or speckles */
+    --floor-oak: oklch(0.84 0.05 78);
+    --floor-oak-seam: oklch(0.70 0.06 70);
+    --floor-teak: oklch(0.64 0.08 58);
+    --floor-teak-seam: oklch(0.50 0.07 50);
+    --floor-tile: oklch(0.95 0.01 85);
+    --floor-tile-grout: oklch(0.84 0.01 85);
+    --floor-antislip: oklch(0.84 0.006 240);
+    --floor-antislip-grout: oklch(0.72 0.006 240);
+    --floor-redtile: oklch(0.64 0.12 40);
+    --floor-redtile-grout: oklch(0.82 0.03 60);
+    --floor-paver: oklch(0.74 0.02 70);
+    --floor-paver-joint: oklch(0.62 0.02 70);
+    --floor-terrazzo: oklch(0.92 0.008 90);
+    --floor-terrazzo-chip: oklch(0.70 0.01 90);
+    --floor-terrazzo-chip-2: oklch(0.78 0.04 60);
+    --floor-gravel: oklch(0.80 0.012 80);
+    --floor-gravel-stone: oklch(0.68 0.012 80);
+    --floor-gravel-stone-2: oklch(0.90 0.008 80);
+    --floor-cement: oklch(0.87 0.004 90);
+    --floor-cement-mottle: oklch(0.84 0.004 90);
 }

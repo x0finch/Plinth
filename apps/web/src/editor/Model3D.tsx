@@ -14,7 +14,9 @@ import { useCanvasDocument } from '@/canvas/CanvasFrame';
 import { hops, REVEAL } from '@/canvas/hop';
 import { useThemeColors } from '@/lib/theme';
 import { FloorDrawing, PlanSheet } from './model3d/FloorDrawing';
+import { useFloorTexture } from './model3d/floor-textures';
 import { detectQuality, isTouchDevice, Renderer, type Quality } from './model3d/Renderer';
+import { modelStyle } from './model-style';
 import { planFrame, plinthRect } from './plan-geometry';
 import { useEditor, useEditorStore } from './store';
 
@@ -44,6 +46,7 @@ const useColors = () =>
   useThemeColors({
     backdrop: '--canvas-backdrop', sun: '--canvas-sun', skylight: '--canvas-skylight', wall: '--card', furn: '--muted', grate: '--muted-foreground',
     page: '--canvas-backdrop', sky: '--canvas-sky', edge: '--foreground', shadow: '--canvas-shadow', sel: '--chart-2', changed: '--chart-1',
+    glass: '--canvas-glass', frame: '--canvas-frame',
   }, useCanvasDocument());
 
 /** Selected objects are tinted with the selection color and outlined; just-changed objects get a tint that fades out */
@@ -163,14 +166,14 @@ type Outline = { sel?: string };
 /**
  * A wall as one solid: the elevation of its pieces (piers, sills, lintels; see wallBoxes) merged into one outline with the
  * openings as holes, extruded through the wall's thickness. Drawn as separate boxes, the faces where pieces meet would flicker
- * through the wall face as dotted edges; SketchUp's walls are one solid too. A glass-block infill stays its own box.
+ * through the wall face as dotted edges. Glass (a pane, a glass-block infill) is drawn on its own (see Glazing).
  */
 function WallMesh({ w, project, base, color, ...o }: Outline & { w: Wall; project: Project; base: number; color: string }) {
   const ref = useFeedback<THREE.Mesh>(w.id, color, !!o.sel);
   const geo = useMemo(() => {
     const d = wallDir(w);
     // Each piece as a rectangle in elevation: along the wall from its start, and height
-    const rects = wallBoxes(project, w).filter(b => b.kind !== 'glass-block').map(b => {
+    const rects = wallBoxes(project, w).filter(b => b.kind !== 'glass-block' && b.kind !== 'glass').map(b => {
       const u = (b.center[0] - w.start[0]) * d[0] + (b.center[1] - w.start[1]) * d[1];
       return { outer: rect(u - b.length / 2, b.z, u + b.length / 2, b.z + b.height).outer };
     });
@@ -196,28 +199,10 @@ function WallMesh({ w, project, base, color, ...o }: Outline & { w: Wall; projec
   );
 }
 
-function BoxMesh({ b, base, color, ...o }: Outline & { b: Box; base: number; color: string }) {
-  const y = (base + b.z + b.height / 2) * M;
-  const ref = useFeedback<THREE.Mesh>(b.id, color, !!o.sel);
-  return (
-    <mesh
-      ref={ref}
-      geometry={unitBox}
-      position={[b.center[0] * M, y, b.center[1] * M]}
-      rotation={[0, -b.angle, 0]}
-      scale={[b.length * M, b.height * M, b.thickness * M]}
-      castShadow
-      receiveShadow
-      userData={{ id: b.id, restY: y }}
-    >
-      <meshStandardMaterial color={color} roughness={0.9} />
-      {o.sel && <Edges threshold={20} color={o.sel} lineWidth={2} />}
-    </mesh>
-  );
-}
-
 function Slab({ s, y, thickness, color, ...o }: Outline & { s: Space; y: number; thickness: number; color: string }) {
   const ref = useFeedback<THREE.Mesh>(s.id, color, !!o.sel);
+  // The floor's material, as on the plan (white with a style that draws plain floors)
+  const map = useFloorTexture(useCanvasDocument(), modelStyle().floors === 'material' ? s.floor : null);
   const geo = useMemo(() => {
     const shapes = s.shape.map(p => {
       const sh = new THREE.Shape(p.outer.map(([x, z]) => new THREE.Vector2(x * M, -z * M)));
@@ -230,9 +215,40 @@ function Slab({ s, y, thickness, color, ...o }: Outline & { s: Space; y: number;
   }, [s.shape, thickness]);
   return (
     <mesh ref={ref} geometry={geo} position={[0, (y - thickness) * M, 0]} receiveShadow userData={{ id: s.id, restY: (y - thickness) * M }}>
-      <meshStandardMaterial color={color} roughness={1} />
+      {/* Remounted when the texture arrives: a material compiles once for having a map or not */}
+      <meshStandardMaterial key={map ? 'map' : 'plain'} color={color} map={map} roughness={1} />
       {o.sel && <Edges threshold={20} color={o.sel} lineWidth={2} />}
     </mesh>
+  );
+}
+
+/**
+ * Glass that lets the light in: a window or sliding door is a clear pane in a thin dark frame, a glass-block infill frosted white.
+ * Neither casts a shadow, so sunlight falls through the opening onto the floor and walls inside.
+ */
+const FRAME = { width: 40, depth: 50 };
+function Glazing({ b, base, c, ...o }: Outline & { b: Box; base: number; c: { glass: string; frame: string; wall: string } }) {
+  const y = (base + b.z + b.height / 2) * M;
+  const block = b.kind === 'glass-block';
+  const ref = useFeedback<THREE.Mesh>(b.id, block ? c.wall : c.glass, !!o.sel);
+  const { width: fw, depth: fd } = FRAME;
+  // Frame bars from the pane's centre: x, y, length, height
+  const bars: [number, number, number, number][] = block ? [] : [
+    [0, b.height / 2 - fw / 2, b.length, fw], [0, -b.height / 2 + fw / 2, b.length, fw],
+    [b.length / 2 - fw / 2, 0, fw, b.height], [-b.length / 2 + fw / 2, 0, fw, b.height],
+  ];
+  return (
+    <group position={[b.center[0] * M, y, b.center[1] * M]} rotation={[0, -b.angle, 0]}>
+      <mesh ref={ref} geometry={unitBox} scale={[b.length * M, b.height * M, b.thickness * M]} userData={{ id: b.id, restY: 0, noEdges: true }}>
+        <meshStandardMaterial color={block ? c.wall : c.glass} transparent opacity={block ? 0.8 : 0.18} roughness={block ? 0.9 : 0.05}
+          depthWrite={false} />
+      </mesh>
+      {bars.map(([x, yy, len, h], i) => (
+        <mesh key={i} geometry={unitBox} position={[x * M, yy * M, 0]} scale={[len * M, h * M, fd * M]} castShadow raycast={() => null}>
+          <meshStandardMaterial color={c.frame} roughness={0.6} />
+        </mesh>
+      ))}
+    </group>
   );
 }
 
@@ -294,8 +310,8 @@ type Pose = { pos: THREE.Vector3; target: THREE.Vector3 };
 const FOV = 40;
 /** How much of the view the framed model fills (in its tighter direction) */
 const FILL = 0.86;
-/** Default viewing direction: from the south-east, looking down at about 35° */
-const BIRD = new THREE.Vector3(0.9, 0.8, 1.1).normalize();
+/** Default viewing direction: from the south-east, looking down at about 45°, steep enough to see into the rooms */
+const BIRD = new THREE.Vector3(0.9, 1.4, 1.1).normalize();
 /** The last 3D camera per project, so coming back from the plan returns to it */
 const lastPose = new Map<string, Pose>();
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
@@ -562,6 +578,7 @@ export function Model3D() {
   const view = useEditor(s => s.view);
   const projectId = useEditor(s => s.projectId);
   const c = useColors();
+  const style = modelStyle();
   const doc = useCanvasDocument();
   // Decided once the WebGL context exists (the GPU model is part of it); a touch device that can't keep up drops to 'low'
   const [quality, setQuality] = useState<Quality | null>(null);
@@ -644,7 +661,7 @@ export function Model3D() {
           // so the model sits off-center and clicks miss. Fill the wrapper instead.
           onCreated={({ gl, scene }) => {
             Object.assign(gl.domElement.style, { width: '100%', height: '100%' });
-            scene.background = skyTexture(c.sky, c.backdrop);
+            scene.background = style.sky ? skyTexture(c.sky, c.backdrop) : new THREE.Color(c.backdrop);
             setQuality(detectQuality(doc.defaultView!, gl.getContext()));
           }}
         >
@@ -652,10 +669,10 @@ export function Model3D() {
           <fog attach="fog" args={[c.backdrop, radius * 4, radius * 12]} />
           {/* A warm white sun and sky: lit faces are white, shadows a soft warm gray (three.js divides diffuse light by π,
               hence the strong intensities) */}
-          <hemisphereLight args={[c.skylight, c.wall, 2.2]} />
+          <hemisphereLight args={[c.skylight, c.wall, 1.9]} />
           <primitive object={sunTarget} position={center} />
           {/* Remounted when the quality changes: a shadow map keeps its size once created */}
-          <directionalLight key={q} color={c.sun} intensity={3.6} target={sunTarget} castShadow
+          <directionalLight key={q} color={c.sun} intensity={2.2} target={sunTarget} castShadow
             position={[center.x - radius * 1.2, center.y + radius * 2, center.z + radius * 0.9]}
             shadow-mapSize={q === 'high' ? [2048, 2048] : [1024, 1024]} shadow-radius={q === 'high' ? 6 : 3} shadow-bias={-0.0004} shadow-normalBias={0.02}
             shadow-camera-left={-radius * 1.4} shadow-camera-right={radius * 1.4} shadow-camera-top={radius * 1.4} shadow-camera-bottom={-radius * 1.4}
@@ -687,9 +704,8 @@ export function Model3D() {
                     {project.walls.filter(w => w.level === l.id).map(w => (
                       <WallMesh key={w.id} w={w} project={project} base={elev.get(l.id) ?? 0} sel={sel.has(w.id) ? c.sel : undefined} color={c.wall} />
                     ))}
-                    {boxes.filter(b => b.level === l.id && b.kind === 'glass-block').map((b, i) => (
-                      // Openings are left open; a glass-block infill is part of the white model like the walls
-                      <BoxMesh key={`${b.id}-${i}`} b={b} base={elev.get(l.id) ?? 0} sel={sel.has(b.id) ? c.sel : undefined} color={c.wall} />
+                    {boxes.filter(b => b.level === l.id && (b.kind === 'glass' || b.kind === 'glass-block')).map((b, i) => (
+                      <Glazing key={`${b.id}-${i}`} b={b} base={elev.get(l.id) ?? 0} sel={sel.has(b.id) ? c.sel : undefined} c={c} />
                     ))}
                     {solids.filter(s => s.level === l.id).map((s, i) => (
                       <SolidMesh key={`${s.id}-${i}`} s={s} base={elev.get(l.id) ?? 0} sel={sel.has(s.id) ? c.sel : undefined}
@@ -713,7 +729,7 @@ export function Model3D() {
           <SafariPinch />
           <Picker />
           <Reveal ownerOf={ownerOf} />
-          <Renderer draw={draw} edgeColor={c.edge} growth={growth} />
+          <Renderer draw={draw} edges={style.edges} edgeColor={c.edge} growth={growth} />
           {/* A phone that wasn't recognized as low-end but can't keep up drops to the light setup, for good */}
           {touch && q === 'high' && <PerformanceMonitor bounds={() => [25, 50]} onDecline={() => setQuality('low')} />}
           <Wake on={[view.selection, view.highlight]} />
