@@ -1,10 +1,9 @@
 /** Data access: plain D1 prepared statements for minimal overhead. */
 import { env } from 'cloudflare:workers';
 import { m } from '@/lib/i18n';
+import type { CommentRow, CommentStatus } from '@/shared/comments';
+import { ROLE_RANK, type Role } from '@/shared/roles';
 
-export type Role = 'owner' | 'editor' | 'commenter' | 'viewer';
-export const ROLE_RANK: Record<Role, number> = { viewer: 0, commenter: 1, editor: 2, owner: 3 };
-export const atLeast = (role: Role | null, min: Role) => !!role && ROLE_RANK[role] >= ROLE_RANK[min];
 
 const db = () => env.DB;
 const now = () => Date.now();
@@ -191,18 +190,6 @@ export async function transferOwnership(from: string, to: string) {
 
 // ---------- Comments ----------
 
-export interface CommentRow {
-  id: string;
-  target_id: string | null;
-  target_name: string | null;
-  parent_id: string | null;
-  author_id: string | null;
-  author: string | null;
-  body: string;
-  status: 'open' | 'resolved' | 'pending-confirm';
-  created_at: number;
-}
-
 export async function listComments(projectId: string) {
   const { results } = await db()
     .prepare(
@@ -214,7 +201,7 @@ export async function listComments(projectId: string) {
   return results;
 }
 
-export async function addComment(projectId: string, userId: string, c: { targetId?: string | null; targetName?: string | null; parentId?: string | null; body: string; status?: CommentRow['status'] }) {
+export async function addComment(projectId: string, userId: string, c: { targetId?: string | null; targetName?: string | null; parentId?: string | null; body: string; status?: CommentStatus }) {
   const id = newId('m');
   await db()
     .prepare('insert into comment (id, project_id, target_id, target_name, parent_id, author_id, body, status, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -223,7 +210,7 @@ export async function addComment(projectId: string, userId: string, c: { targetI
   return id;
 }
 
-export const setCommentStatus = (projectId: string, id: string, status: CommentRow['status']) =>
+export const setCommentStatus = (projectId: string, id: string, status: CommentStatus) =>
   db().prepare('update comment set status = ? where project_id = ? and id = ?').bind(status, projectId, id).run();
 export const getComment = (projectId: string, id: string) =>
   db().prepare('select * from comment where project_id = ? and id = ?').bind(projectId, id).first<CommentRow>();

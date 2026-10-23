@@ -72,7 +72,8 @@ export interface Level {
   roof?: boolean;
 }
 
-export type WallKind = 'bearing' | 'partition' | 'fence' | 'parapet' | 'railing';
+export const WALL_KINDS = ['bearing', 'partition', 'fence', 'parapet', 'railing'] as const;
+export type WallKind = (typeof WALL_KINDS)[number];
 
 export interface Wall {
   id: Id;
@@ -89,7 +90,8 @@ export interface Wall {
   extras?: Extras;
 }
 
-export type OpeningKind = 'door' | 'sliding-door' | 'gate' | 'window' | 'opening';
+export const OPENING_KINDS = ['door', 'sliding-door', 'gate', 'window', 'opening'] as const;
+export type OpeningKind = (typeof OPENING_KINDS)[number];
 
 export interface Opening {
   id: Id;
@@ -107,7 +109,8 @@ export interface Opening {
   extras?: Extras;
 }
 
-export type SpaceKind = 'indoor' | 'semi-outdoor' | 'outdoor' | 'roof-terrace' | 'void';
+export const SPACE_KINDS = ['indoor', 'semi-outdoor', 'outdoor', 'roof-terrace', 'void'] as const;
+export type SpaceKind = (typeof SPACE_KINDS)[number];
 
 export interface Space {
   id: Id;
@@ -151,10 +154,13 @@ export interface Furniture {
   extras?: Extras;
 }
 
+export const CONSTRAINT_TYPES = ['align', 'center', 'size-target', 'spacing', 'reference', 'rule'] as const;
+export type ConstraintType = (typeof CONSTRAINT_TYPES)[number];
+
 /** Constraints: placeholder in v1; solving is roadmap step 3 */
 export interface Constraint {
   id: Id;
-  type: 'align' | 'center' | 'size-target' | 'spacing' | 'reference' | 'rule';
+  type: ConstraintType;
   targets: Id[];
   params: Record<string, unknown>;
   hard: boolean;

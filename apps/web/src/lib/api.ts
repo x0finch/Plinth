@@ -1,4 +1,5 @@
 /** Thin client wrapper for /api: shared JSON handling and error messages */
+import type { Role } from '@/shared/roles';
 import { m } from './i18n';
 
 export class ApiError extends Error {
@@ -21,11 +22,8 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   return data as T;
 }
 
-export type Role = 'owner' | 'editor' | 'commenter' | 'viewer';
 const ROLE_LABEL: Record<Role, () => string> = { owner: m.role_owner, editor: m.role_editor, commenter: m.role_commenter, viewer: m.role_viewer };
 export const roleLabel = (r: Role) => ROLE_LABEL[r]();
-export const ROLE_RANK: Record<Role, number> = { viewer: 0, commenter: 1, editor: 2, owner: 3 };
-export const can = (role: Role | undefined, min: Role) => !!role && ROLE_RANK[role] >= ROLE_RANK[min];
 
 export interface Me {
   user: { id: string; name: string; email: string; isAnonymous?: boolean | null; image?: string | null } | null;

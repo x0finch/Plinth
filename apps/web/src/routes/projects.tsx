@@ -15,7 +15,8 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { api, roleLabel, type Role } from '@/lib/api';
+import { api, roleLabel } from '@/lib/api';
+import type { Role } from '@/shared/roles';
 import { m } from '@/lib/i18n';
 import { fmtTime, useMe } from '@/lib/query';
 

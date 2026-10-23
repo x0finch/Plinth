@@ -1,5 +1,5 @@
 /** Side panels: selected object properties, areas, comments, versions. */
-import { areaReport, checkConstraints, checkRules, findObject } from '@plinth/core';
+import { areaReport, checkConstraints, checkRules, findObject, type ConstraintType, type OpeningKind, type SpaceKind, type WallKind } from '@plinth/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckIcon, EyeIcon, HistoryIcon, MessageSquareIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -15,16 +15,24 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { registry } from '@/agent/registry';
-import { api, can } from '@/lib/api';
+import { api } from '@/lib/api';
+import type { CommentRow, CommentStatus } from '@/shared/comments';
+import { can } from '@/shared/roles';
 import { fmtArea, fmtTime } from '@/lib/query';
 import { m } from '@/lib/i18n';
 import { useEditor, useEditorStore } from './store';
 
-const KIND_LABEL: Record<string, () => string> = {
+/** Typed per kind list, so a kind added to the schema without a label is a compile error */
+const WALL_KIND_LABEL: Record<WallKind, () => string> = {
   bearing: m.panels_kind_bearing, partition: m.panels_kind_partition, fence: m.panels_kind_fence, parapet: m.panels_kind_parapet, railing: m.panels_kind_railing,
+};
+const SPACE_KIND_LABEL: Record<SpaceKind, () => string> = {
   indoor: m.panels_kind_indoor, 'semi-outdoor': m.panels_kind_semi_outdoor, outdoor: m.panels_kind_outdoor, 'roof-terrace': m.panels_kind_roof_terrace, void: m.panels_kind_void,
+};
+const OPENING_KIND_LABEL: Record<OpeningKind, () => string> = {
   door: m.panels_kind_door, 'sliding-door': m.panels_kind_sliding_door, gate: m.panels_kind_gate, window: m.panels_kind_window, opening: m.panels_kind_opening,
 };
+const KIND_LABEL: Record<string, () => string> = { ...WALL_KIND_LABEL, ...SPACE_KIND_LABEL, ...OPENING_KIND_LABEL };
 const kindLabel = (k: string) => KIND_LABEL[k]?.() ?? k;
 
 const TYPE_LABEL: Record<string, () => string> = { space: m.panels_type_space, wall: m.panels_type_wall, opening: m.panels_type_opening, furniture: m.panels_type_furniture };
@@ -178,11 +186,11 @@ export function PropsPanel() {
   );
 }
 
-const CONSTRAINT_LABEL: Record<string, () => string> = {
+const CONSTRAINT_LABEL: Record<ConstraintType, () => string> = {
   align: m.panels_constraint_align, center: m.panels_constraint_center, spacing: m.panels_constraint_spacing,
   'size-target': m.panels_constraint_size_target, reference: m.panels_constraint_reference, rule: m.panels_constraint_rule,
 };
-const constraintLabel = (t: string) => CONSTRAINT_LABEL[t]?.() ?? t;
+const constraintLabel = (t: ConstraintType) => CONSTRAINT_LABEL[t]?.() ?? t;
 
 function ConstraintsList() {
   const project = useEditor(s => s.project);
@@ -253,11 +261,6 @@ export function AreasPanel() {
   );
 }
 
-interface CommentRow {
-  id: string; target_id: string | null; target_name: string | null; parent_id: string | null; author: string | null; author_id: string | null;
-  body: string; status: 'open' | 'resolved' | 'pending-confirm'; created_at: number;
-}
-
 export function CommentsPanel({ onAskAgent }: { onAskAgent?: (text: string) => void }) {
   const projectId = useEditor(s => s.projectId);
   const role = useEditor(s => s.role);
@@ -278,7 +281,7 @@ export function CommentsPanel({ onAskAgent }: { onAskAgent?: (text: string) => v
     onError: e => toast.error(e.message),
   });
   const setStatus = useMutation({
-    mutationFn: (v: { id: string; status: CommentRow['status'] }) => api(`/projects/${projectId}/comments/${v.id}`, { method: 'PATCH', json: { status: v.status } }),
+    mutationFn: (v: { id: string; status: CommentStatus }) => api(`/projects/${projectId}/comments/${v.id}`, { method: 'PATCH', json: { status: v.status } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['comments', projectId] }),
   });
   useEffect(() => {
@@ -289,7 +292,7 @@ export function CommentsPanel({ onAskAgent }: { onAskAgent?: (text: string) => v
   const roots = data.filter(c => !c.parent_id);
   const open = roots.filter(c => c.status !== 'resolved');
   const done = roots.filter(c => c.status === 'resolved');
-  const STATUS: Record<CommentRow['status'], () => string> = { open: m.panels_status_open, 'pending-confirm': m.panels_status_pending_confirm, resolved: m.panels_status_resolved };
+  const STATUS: Record<CommentStatus, () => string> = { open: m.panels_status_open, 'pending-confirm': m.panels_status_pending_confirm, resolved: m.panels_status_resolved };
 
   const Thread = ({ c }: { c: CommentRow }) => (
     <Card size="sm" className="gap-1 px-3 text-sm">

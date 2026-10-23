@@ -10,12 +10,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { api, roleLabel, type Role } from '@/lib/api';
+import { api, roleLabel } from '@/lib/api';
+import { SHARE_ROLES, type Role, type ShareRole } from '@/shared/roles';
 import { m } from '@/lib/i18n';
 import { useEditor, useEditorStore } from './store';
 
-type ShareRole = Exclude<Role, 'owner'>;
-const SHARE_ROLES: ShareRole[] = ['viewer', 'commenter', 'editor'];
 const ROLE_HINT: Record<ShareRole, () => string> = { viewer: m.share_hint_viewer, commenter: m.share_hint_commenter, editor: m.share_hint_editor };
 
 interface Sharing {

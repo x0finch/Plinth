@@ -12,7 +12,8 @@ import { decryptSecret, encryptSecret, keyHint } from './crypto';
 import { getLocale, m } from '@/lib/i18n';
 import { PROVIDERS, localizedProviders } from './providers';
 import * as repo from './repo';
-import { atLeast, type Role } from './repo';
+import { COMMENT_STATUSES } from '@/shared/comments';
+import { can, SHARE_ROLES, type Role } from '@/shared/roles';
 
 type User = { id: string; name: string; email: string; isAnonymous?: boolean | null; image?: string | null };
 type Vars = { user: User | null };
@@ -58,7 +59,7 @@ const requireUser = (c: C) => {
 async function requireRole(c: C, projectId: string, min: Role) {
   const u = c.get('user');
   const role = await repo.getRole(projectId, u?.id ?? null);
-  if (!atLeast(role, min)) throw new HTTPException(role ? 403 : 404, { message: role ? m.server_err_forbidden() : m.server_err_project_not_accessible() });
+  if (!can(role, min)) throw new HTTPException(role ? 403 : 404, { message: role ? m.server_err_forbidden() : m.server_err_project_not_accessible() });
   return { user: u!, role: role! };
 }
 
@@ -202,7 +203,7 @@ api.get('/projects/:id/versions/:v', async c => {
 
 // ---------- Members, share links, invites ----------
 
-const zShareRole = z.enum(['editor', 'commenter', 'viewer']);
+const zShareRole = z.enum(SHARE_ROLES);
 
 api.get('/projects/:id/sharing', async c => {
   const id = c.req.param('id');
@@ -296,7 +297,7 @@ api.post('/projects/:id/comments', async c => {
 api.patch('/projects/:id/comments/:cid', async c => {
   const id = c.req.param('id');
   await requireRole(c, id, 'commenter');
-  const b = await body(c, z.object({ status: z.enum(['open', 'resolved', 'pending-confirm']) }));
+  const b = await body(c, z.object({ status: z.enum(COMMENT_STATUSES) }));
   await repo.setCommentStatus(id, c.req.param('cid'), b.status);
   return c.json({ ok: true });
 });

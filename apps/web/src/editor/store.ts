@@ -7,7 +7,8 @@ import { createContext, useContext } from 'react';
 import { createStore, useStore } from 'zustand';
 import { registry } from '@/agent/registry';
 import type { CommentsHost, ViewHost, ViewState } from '@/agent/view-capabilities';
-import { api, ApiError, can, type Role } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
+import { can, type Role } from '@/shared/roles';
 import { m } from '@/lib/i18n';
 
 export interface LastChange {

@@ -13,7 +13,7 @@ import { TxError } from './session.js';
 import { text } from './i18n.js';
 import { directionOf, NAME_SEPARATOR, names, REF_SEPARATOR } from './names.js';
 import { findObject, projectIndex, type IndexEntry, type ObjectKind } from './project-index.js';
-import type { Furniture, Id, Level, Opening, Point, Polygon, Project, Space, Wall } from './schema.js';
+import { OPENING_KINDS, SPACE_KINDS, WALL_KINDS, type Furniture, type Id, type Level, type Opening, type Point, type Polygon, type Project, type Space, type Wall } from './schema.js';
 
 // ---------- Reference resolution: ID or readable name ----------
 
@@ -68,9 +68,9 @@ const zRef = (what: string) => z.string().describe(`ID or name of the ${what} (n
 const zPoint = z.tuple([z.number(), z.number()]).describe('[x, y] in mm; x points east, y points south');
 const zRect = z.tuple([z.number(), z.number(), z.number(), z.number()]).describe('[x, y, width (east-west), depth (north-south)] in mm; x, y is the north-west corner');
 const zDirection = z.enum(['north', 'south', 'east', 'west']).describe('Direction: north / south / east / west');
-const zWallKind = z.enum(['bearing', 'partition', 'fence', 'parapet', 'railing']);
-const zSpaceKind = z.enum(['indoor', 'semi-outdoor', 'outdoor', 'roof-terrace', 'void']);
-const zOpeningKind = z.enum(['door', 'sliding-door', 'gate', 'window', 'opening']);
+const zWallKind = z.enum(WALL_KINDS);
+const zSpaceKind = z.enum(SPACE_KINDS);
+const zOpeningKind = z.enum(OPENING_KINDS);
 
 const DIR_VEC: Record<z.infer<typeof zDirection>, Point> = { north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0] };
 const OPENING_DEFAULTS: Record<Opening['kind'], { width: number; height: number; sill: number }> = {
@@ -725,7 +725,7 @@ export const constraintAdd = edit({
     'With hard=true, violating operations are rejected. source: user if the owner said it, agent if you inferred it.',
   ].join(''),
   input: z.object({
-    type: z.enum(SUPPORTED_CONSTRAINTS as [string, ...string[]]),
+    type: z.enum(SUPPORTED_CONSTRAINTS),
     targets: z.array(z.string()).min(1).describe('Object IDs or names'),
     params: z.record(z.string(), z.unknown()).default({}),
     hard: z.boolean().default(false), source: z.enum(['user', 'agent', 'default']).default('user'),
@@ -735,7 +735,7 @@ export const constraintAdd = edit({
   apply: (p, i) => {
     const targets = i.targets.map(t => findAny(p, t));
     const c = {
-      id: nextId(p, 'c-'), type: i.type as any, targets, params: i.params, hard: i.hard, source: i.source,
+      id: nextId(p, 'c-'), type: i.type, targets, params: i.params, hard: i.hard, source: i.source,
       weight: i.source === 'user' ? 3 : i.source === 'agent' ? 2 : 1, ...(i.note ? { note: i.note } : {}),
     };
     p.constraints.push(c);

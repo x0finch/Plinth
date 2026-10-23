@@ -7,7 +7,7 @@ import { dot, parallel, project as projectPoint, scale, sub, TOL, wallNormal } f
 import { moveWall, sideOf, spaceNetArea, spaceWalls, wallSpaceSpan } from './topology.js';
 import { text } from './i18n.js';
 import { findObject } from './project-index.js';
-import type { Constraint, Id, Point, Project, Space, Wall } from './schema.js';
+import type { Constraint, ConstraintType, Id, Point, Project, Space, Wall } from './schema.js';
 
 export interface ConstraintStatus {
   id: Id;
@@ -209,7 +209,7 @@ export function pruneConstraints(p: Project) {
   if (p.constraints.some(c => !c.targets.every(t => ids.has(t)))) p.constraints = p.constraints.filter(c => c.targets.every(t => ids.has(t)));
 }
 
-export const SUPPORTED_CONSTRAINTS = Object.keys(HANDLERS) as Constraint['type'][];
+export const SUPPORTED_CONSTRAINTS = Object.keys(HANDLERS) as [ConstraintType, ...ConstraintType[]];
 
 export function checkConstraints(p: Project): ConstraintStatus[] {
   return p.constraints.map(c => {
