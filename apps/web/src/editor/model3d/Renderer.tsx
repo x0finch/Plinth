@@ -4,6 +4,7 @@
  */
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
+import type * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
@@ -40,6 +41,19 @@ export function Renderer({ quality, draw }: { quality: Quality; draw: React.RefO
     c.addPass(new RenderPass(scene, camera));
     if (quality === 'high') {
       const ao = new GTAOPass(scene, camera, size.width, size.height);
+      // The pass hides points and lines while it samples the scene's depth; also hide flat overlays marked noAO (the floor
+      // drawings), which would otherwise occlude like solid sheets floating over the ground
+      const hide = (ao as unknown as { _overrideVisibility(): void; _visibilityCache: THREE.Object3D[] });
+      const base = hide._overrideVisibility.bind(ao);
+      hide._overrideVisibility = () => {
+        base();
+        scene.traverse(o => {
+          if (o.userData.noAO && o.visible) {
+            o.visible = false;
+            hide._visibilityCache.push(o);
+          }
+        });
+      };
       ao.updateGtaoMaterial({ radius: 0.5, distanceExponent: 1.5, thickness: 1, scale: 1 });
       ao.blendIntensity = 0.9;
       c.addPass(ao);

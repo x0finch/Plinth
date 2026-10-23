@@ -27,7 +27,7 @@ const unitBox = new THREE.BoxGeometry(1, 1, 1);
 const useColors = () =>
   useThemeColors({
     backdrop: '--canvas-backdrop', sun: '--canvas-sun', skylight: '--canvas-skylight', wall: '--card', furn: '--muted',
-    glass: '--canvas-glass', frame: '--foreground', page: '--canvas-backdrop', sel: '--chart-2', changed: '--chart-1',
+    glass: '--canvas-glass', frame: '--foreground', page: '--canvas-backdrop', shadow: '--canvas-shadow', sel: '--chart-2', changed: '--chart-1',
   }, useCanvasDocument());
 
 /** Selected objects are tinted with the selection color and outlined; just-changed objects get a tint that fades out */
@@ -609,9 +609,10 @@ export function Model3D() {
             shadow-mapSize={q === 'high' ? [2048, 2048] : [1024, 1024]} shadow-radius={q === 'high' ? 6 : 3} shadow-bias={-0.0004} shadow-normalBias={0.02}
             shadow-camera-left={-radius * 1.4} shadow-camera-right={radius * 1.4} shadow-camera-top={radius * 1.4} shadow-camera-bottom={-radius * 1.4}
             shadow-camera-near={0.5} shadow-camera-far={radius * 6} />
+          {/* The ground only catches shadows: lit, it would read as a lighter board under the plinth; this way the backdrop shows */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, ground - PLINTH - 0.001, cz]} receiveShadow>
             <planeGeometry args={[Math.max(span, radius) * 40, Math.max(span, radius) * 40]} />
-            <meshStandardMaterial color={c.backdrop} roughness={1} />
+            <shadowMaterial color={c.shadow} opacity={0.35} transparent fog={false} />
           </mesh>
           <mesh position={[plinth.center[0], ground - PLINTH / 2 - 0.002, plinth.center[1]]} receiveShadow castShadow>
             <boxGeometry args={plinth.size} />

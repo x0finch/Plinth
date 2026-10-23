@@ -90,11 +90,11 @@ export function FloorDrawing({ project, level, furniture, labels, quality, growt
   const center: [number, number] = [(frame.x + frame.w / 2) * M, (frame.y + frame.h / 2) * M];
   return (
     <group>
-      <mesh ref={paperMesh} position={[center[0], 0.005, center[1]]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} renderOrder={2}>
+      <mesh ref={paperMesh} position={[center[0], 0.005, center[1]]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} userData={{ noAO: true }} renderOrder={2}>
         <planeGeometry args={[frame.w * M, frame.h * M]} />
         <meshBasicMaterial ref={paper} map={textures.paper} transparent depthWrite={false} toneMapped={false} fog={false} />
       </mesh>
-      <mesh position={[center[0], 0.006, center[1]]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} renderOrder={3}>
+      <mesh position={[center[0], 0.006, center[1]]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} userData={{ noAO: true }} renderOrder={3}>
         <planeGeometry args={[frame.w * M, frame.h * M]} />
         <meshBasicMaterial map={textures.ink} transparent depthWrite={false} toneMapped={false} fog={false} />
       </mesh>
@@ -115,7 +115,7 @@ export function PlanSheet({ center, size, color, growth }: { center: [number, nu
     if (mesh.current) mesh.current.visible = f > 0;
   });
   return (
-    <mesh ref={mesh} position={[center[0], 0.004, center[1]]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} renderOrder={1}>
+    <mesh ref={mesh} position={[center[0], 0.004, center[1]]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} userData={{ noAO: true }} renderOrder={1}>
       <planeGeometry args={[size, size]} />
       <meshBasicMaterial ref={material} color={color} transparent depthWrite={false} toneMapped={false} fog={false} />
     </mesh>
