@@ -1,4 +1,5 @@
 import { text } from './i18n.js';
+import { upgradeLegacyStairs } from './legacy/stairs.js';
 import { SCHEMA, SCHEMA_VERSION, type Project } from './schema.js';
 
 /**
@@ -8,6 +9,8 @@ import { SCHEMA, SCHEMA_VERSION, type Project } from './schema.js';
 const MIGRATIONS: Record<number, (doc: any) => any> = {
   // v2 adds the project language; all data before it was written in Chinese
   1: doc => ({ ...doc, language: doc.language ?? 'zh' }),
+  // v3: the legacy page's stair becomes proper U-shaped stairs, one per storey
+  2: doc => upgradeLegacyStairs(doc),
 };
 
 export class SchemaError extends Error {}

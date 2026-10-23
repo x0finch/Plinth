@@ -6,7 +6,7 @@
  */
 import { Edges, OrbitControls, PerformanceMonitor } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { findObject, projectBoxes, type Box, type Project, type Space } from '@plinth/core';
+import { findObject, projectBoxes, projectElements, type Box, type Project, type Solid, type Space } from '@plinth/core';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { m } from '@/lib/i18n';
@@ -26,7 +26,7 @@ const unitBox = new THREE.BoxGeometry(1, 1, 1);
 /** All 3D model colors come from the theme */
 const useColors = () =>
   useThemeColors({
-    backdrop: '--canvas-backdrop', sun: '--canvas-sun', skylight: '--canvas-skylight', wall: '--card', furn: '--muted',
+    backdrop: '--canvas-backdrop', sun: '--canvas-sun', skylight: '--canvas-skylight', wall: '--card', furn: '--muted', grate: '--muted-foreground',
     page: '--canvas-backdrop', shadow: '--canvas-shadow', sel: '--chart-2', changed: '--chart-1',
   }, useCanvasDocument());
 
@@ -179,6 +179,24 @@ function Slab({ s, y, thickness, color, ...o }: Outline & { s: Space; y: number;
   return (
     <mesh ref={ref} geometry={geo} position={[0, (y - thickness) * M, 0]} receiveShadow userData={{ id: s.id, restY: (y - thickness) * M }}>
       <meshStandardMaterial color={color} roughness={1} />
+      {o.sel && <Edges threshold={20} color={o.sel} lineWidth={2} />}
+    </mesh>
+  );
+}
+
+/** A piece of an element (a stair step, a pond's rim or water): its plan outline extruded */
+function SolidMesh({ s, base, color, ...o }: Outline & { s: Solid; base: number; color: string }) {
+  const y = (base + s.z) * M;
+  const ref = useFeedback<THREE.Mesh>(s.id, color, !!o.sel);
+  const geo = useMemo(() => {
+    const g = new THREE.ExtrudeGeometry(new THREE.Shape(s.outline.map(([x, z]) => new THREE.Vector2(x * M, -z * M))), { depth: s.height * M, bevelEnabled: false });
+    g.rotateX(-Math.PI / 2);
+    return g;
+  }, [s.outline, s.height]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return (
+    <mesh ref={ref} geometry={geo} position={[0, y, 0]} castShadow={s.kind === 'structure'} receiveShadow userData={{ id: s.id, restY: y }}>
+      <meshStandardMaterial color={color} roughness={0.9} />
       {o.sel && <Edges threshold={20} color={o.sel} lineWidth={2} />}
     </mesh>
   );
@@ -504,6 +522,7 @@ export function Model3D() {
   const shown = project.levels.filter(l => !view.layers.cutaway || !current || l.elevation <= current.elevation);
   const elev = new Map(project.levels.map(l => [l.id, l.elevation]));
   const boxes = useMemo(() => projectBoxes(project), [project]);
+  const solids = useMemo(() => projectElements(project).flatMap(g => g.solids), [project]);
   const ownerOf = (id: string) => findObject(project, id, 'opening')?.wall?.id;
   // A door or window is part of its wall in 3D, so selecting it marks the wall
   const sel = new Set(view.selection.map(id => ownerOf(id) ?? id));
@@ -616,6 +635,10 @@ export function Model3D() {
                     {boxes.filter(b => b.level === l.id).map((b, i) => (
                       // Openings are left open; a glass-block infill is part of the white model like the walls
                       <BoxMesh key={`${b.id}-${i}`} b={b} base={elev.get(l.id) ?? 0} sel={sel.has(b.id) ? c.sel : undefined} color={c.wall} />
+                    ))}
+                    {solids.filter(s => s.level === l.id).map((s, i) => (
+                      <SolidMesh key={`${s.id}-${i}`} s={s} base={elev.get(l.id) ?? 0} sel={sel.has(s.id) ? c.sel : undefined}
+                        color={s.kind === 'water' ? c.furn : s.kind === 'grate' ? c.grate : c.wall} />
                     ))}
                     {view.layers.furniture && project.furniture.filter(f => f.level === l.id).map(f => (
                       <Furniture key={f.id} f={f} base={elev.get(l.id) ?? 0} color={c.furn} sel={sel.has(f.id) ? c.sel : undefined} />

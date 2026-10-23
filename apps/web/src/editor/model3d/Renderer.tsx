@@ -42,13 +42,14 @@ export function Renderer({ quality, draw }: { quality: Quality; draw: React.RefO
     if (quality === 'high') {
       const ao = new GTAOPass(scene, camera, size.width, size.height);
       // The pass hides points and lines while it samples the scene's depth; also hide flat overlays marked noAO (the floor
-      // drawings), which would otherwise occlude like solid sheets floating over the ground
+      // drawings), which would otherwise occlude like solid sheets floating over the ground, and wide lines (the selection's
+      // edges): they are meshes, and drawn with the pass's normal material they become large dark quads
       const hide = (ao as unknown as { _overrideVisibility(): void; _visibilityCache: THREE.Object3D[] });
       const base = hide._overrideVisibility.bind(ao);
       hide._overrideVisibility = () => {
         base();
         scene.traverse(o => {
-          if (o.userData.noAO && o.visible) {
+          if ((o.userData.noAO || (o as { isLineSegments2?: boolean }).isLineSegments2) && o.visible) {
             o.visible = false;
             hide._visibilityCache.push(o);
           }

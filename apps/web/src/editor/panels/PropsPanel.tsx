@@ -15,7 +15,7 @@ import { ConstraintsList } from './ConstraintsList';
 type Info<T extends ObjectInfo['type']> = Extract<ObjectInfo, { type: T }>;
 
 const TYPE_LABEL: Partial<Record<ObjectInfo['type'], () => string>> = {
-  space: m.panels_type_space, wall: m.panels_type_wall, opening: m.panels_type_opening, furniture: m.panels_type_furniture,
+  space: m.panels_type_space, wall: m.panels_type_wall, opening: m.panels_type_opening, furniture: m.panels_type_furniture, element: m.panels_type_element,
 };
 
 export function PropsPanel() {
@@ -71,6 +71,7 @@ function ObjectProps({ info }: { info: ObjectInfo }) {
       {info.type === 'wall' && <WallProps info={info} />}
       {info.type === 'opening' && <OpeningProps info={info} />}
       {info.type === 'furniture' && <FurnitureProps info={info} />}
+      {info.type === 'element' && <ElementProps info={info} />}
       {canEdit && (
         <div className="flex flex-wrap gap-2 pt-1">
           {info.type === 'furniture' && (
@@ -156,6 +157,17 @@ function OpeningProps({ info }: { info: Info<'opening'> }) {
       {info.sill > 0 && <Row k={m.panels_row_sill()} v={`${info.sill} mm`} />}
       <Row k={m.panels_row_host_wall()} v={info.wall.name} />
       <Row k={m.panels_row_connects()} v={info.connects.map(s => s.name).join(' ↔ ') || '—'} />
+    </div>
+  );
+}
+
+function ElementProps({ info }: { info: Info<'element'> }) {
+  const project = useEditor(s => s.project);
+  const levelName = (id?: string) => project.levels.find(l => l.id === id)?.name ?? id;
+  return (
+    <div>
+      <Row k={m.panels_row_kind()} v={project.library.elements[info.type]?.name ?? info.type} />
+      <Row k={m.panels_row_levels()} v={info.topLevel ? `${levelName(info.level)} → ${levelName(info.topLevel)}` : levelName(info.level)} />
     </div>
   );
 }

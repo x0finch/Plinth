@@ -10,6 +10,7 @@ export * from './session.js';
 export * from './capability.js';
 export * from './builtins.js';
 export * from './mesh.js';
+export * from './elements.js';
 export { fromLegacy, type LegacyExport } from './legacy/fromLegacy.js';
 export * from './catalog.js';
 export * from './factory.js';
