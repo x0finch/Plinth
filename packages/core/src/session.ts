@@ -1,11 +1,11 @@
 /**
- * Editing session: every change is a transaction. The pipeline is fixed: validate → apply → re-solve constraints → check rules → log;
+ * Editing session: every change is a transaction. The pipeline is fixed: validate → apply → drop dangling constraints → re-solve constraints → check rules → log;
  * if any step fails the whole transaction rolls back. Undo / redo is based on immer patches.
  */
 import { applyPatches, current, enablePatches, produceWithPatches, setAutoFreeze, type Patch } from 'immer';
 import { derived } from './derived.js';
 import { issueKey, type Issue } from './rules.js';
-import { solveConstraints, type ConstraintReport } from './constraints.js';
+import { pruneConstraints, solveConstraints, type ConstraintReport } from './constraints.js';
 import type { Id, Project } from './schema.js';
 import { text } from './i18n.js';
 
@@ -123,11 +123,12 @@ export class Session {
     for (const fn of this.listeners) fn(this.project);
   }
 
-  /** Replace the whole project (load a new version) and clear history */
+  /** Replace the whole project (load a new version) and clear history and the operation log */
   load(p: Project) {
     this.project = p;
     this.past = [];
     this.future = [];
+    this.log.length = 0;
     this.emit();
   }
 
@@ -147,6 +148,8 @@ export class Session {
     try {
       [next, patches, inverse] = produceWithPatches(before, draft => {
         result = recipe(draft as Project);
+        // Constraints on objects the recipe deleted go with them, so capabilities don't each have to clean up
+        pruneConstraints(draft as Project);
         constraints = solveConstraints(draft as Project, touchedGeometry(before, current(draft) as Project));
         if (constraints.violatedHard.length) {
           throw new TxError('constraint-violated', text('err_constraint_violated', 'Hard constraint violated: {constraints}', { constraints: joinMessages(constraints.violatedHard.map(c => c.message)) }));
