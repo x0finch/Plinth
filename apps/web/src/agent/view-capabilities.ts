@@ -5,6 +5,7 @@
 import { defineRead, findObject, type CapabilityContext } from '@plinth/core';
 import { z } from 'zod';
 import { m } from '@/lib/i18n';
+import { COMMENT_STATUSES, type CommentRow, type CommentStatus } from '@/shared/comments';
 
 export interface ViewState {
   mode: '2d' | '3d';
@@ -74,8 +75,8 @@ export const viewScreenshot = defineRead({
 
 /** Comments: comments in a project are attached to objects; the agent can read them, reply, and mark them pending-confirm or resolved */
 export interface CommentsHost {
-  list(): Promise<{ id: string; target_id: string | null; target_name: string | null; parent_id: string | null; author: string | null; body: string; status: string }[]>;
-  reply(parentId: string, body: string, status?: 'open' | 'pending-confirm' | 'resolved'): Promise<void>;
+  list(): Promise<CommentRow[]>;
+  reply(parentId: string, body: string, status?: CommentStatus): Promise<void>;
 }
 
 const comments = (ctx: CapabilityContext) => {
@@ -98,7 +99,7 @@ export const commentsList = defineRead({
 export const commentReply = defineRead({
   name: 'comment_reply', title: 'Reply to comment', kind: 'relation', permission: 'reversible', runtime: 'browser',
   description: 'Reply to a comment and set its status: use resolved when the change is done; when the homeowner must decide, spell out the options and use pending-confirm (awaiting the homeowner\'s confirmation). Write the reply in the language the comment thread uses.',
-  input: z.object({ comment: z.string().describe('Comment ID'), body: z.string(), status: z.enum(['open', 'pending-confirm', 'resolved']) }),
+  input: z.object({ comment: z.string().describe('Comment ID'), body: z.string(), status: z.enum(COMMENT_STATUSES) }),
   run: async (i, ctx) => {
     await comments(ctx).reply(i.comment, i.body, i.status);
     return { ok: true };

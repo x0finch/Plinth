@@ -22,7 +22,8 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } fro
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { registry } from '@/agent/registry';
 import type { AgentContext } from '@/agent/prompt';
-import { api, can } from '@/lib/api';
+import { api } from '@/lib/api';
+import { can } from '@/shared/roles';
 import { m } from '@/lib/i18n';
 import { AUTONOMIES, autonomyHint, autonomyLabel, getAutonomy, setAutonomy } from '@/lib/prefs';
 import { needsApproval, type Autonomy } from '@/agent/policy';
