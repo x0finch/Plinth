@@ -12,11 +12,12 @@ import {
 import { TxError } from './session.js';
 import { text } from './i18n.js';
 import { directionOf, NAME_SEPARATOR, names, REF_SEPARATOR } from './names.js';
-import type { Element, Furniture, Id, Level, Opening, Point, Polygon, Project, Space, Wall } from './schema.js';
+import { findObject, projectIndex, type IndexEntry, type ObjectKind } from './project-index.js';
+import type { Furniture, Id, Level, Opening, Point, Polygon, Project, Space, Wall } from './schema.js';
 
 // ---------- Reference resolution: ID or readable name ----------
 
-type Kind = 'level' | 'wall' | 'space' | 'opening' | 'furniture' | 'element' | 'constraint';
+type Kind = ObjectKind;
 
 const KIND_EN: Record<Kind, string> = { level: 'level', wall: 'wall', space: 'space', opening: 'opening', furniture: 'furniture', element: 'element', constraint: 'constraint' };
 const kindText = (k: Kind) => text(`err_kind_${k}`, KIND_EN[k]);
@@ -24,21 +25,9 @@ const kindText = (k: Kind) => text(`err_kind_${k}`, KIND_EN[k]);
 const listText = (items: string[]) => items.join(text('list_separator', ', '));
 const refItem = (name: string, id: string | undefined) => text('err_ref_item', '{name} ({id})', { name, id: id ?? '' });
 
-function pool(p: Project, kind: Kind): { id: Id; name: string; level?: Id }[] {
-  switch (kind) {
-    case 'level': return p.levels;
-    case 'wall': return p.walls;
-    case 'space': return p.spaces;
-    case 'furniture': return p.furniture;
-    case 'element': return p.elements;
-    case 'constraint': return p.constraints.map(c => ({ id: c.id, name: c.note ?? c.id }));
-    case 'opening': return p.walls.flatMap(w => w.openings.map(o => ({ id: o.id, name: o.name, level: w.level })));
-  }
-}
-
 /** Find an object by ID or name; names may carry a level prefix, e.g. “二层·主卧” or “Level 2·Bedroom” (also `:` / `：`) */
-export function resolve(p: Project, kind: Kind, ref: string, level?: string): { id: Id; name: string; level?: Id } {
-  const all = pool(p, kind);
+export function resolve<K extends Kind>(p: Project, kind: K, ref: string, level?: string): IndexEntry<K> {
+  const all = projectIndex(p).of(kind);
   const byId = all.find(o => o.id === ref);
   if (byId) return byId;
   let name = ref, lv = level ? resolveLevel(p, level).id : undefined;
@@ -65,16 +54,12 @@ export function resolveLevel(p: Project, ref: string): Level {
   return l;
 }
 
-const getWall = (p: Project, ref: string) => p.walls.find(w => w.id === resolve(p, 'wall', ref).id)!;
-const getSpace = (p: Project, ref: string) => p.spaces.find(s => s.id === resolve(p, 'space', ref).id)!;
-const getFurniture = (p: Project, ref: string) => p.furniture.find(f => f.id === resolve(p, 'furniture', ref).id)!;
+const getWall = (p: Project, ref: string) => resolve(p, 'wall', ref).obj;
+const getSpace = (p: Project, ref: string) => resolve(p, 'space', ref).obj;
+const getFurniture = (p: Project, ref: string) => resolve(p, 'furniture', ref).obj;
 function getOpening(p: Project, ref: string) {
-  const id = resolve(p, 'opening', ref).id;
-  for (const w of p.walls) {
-    const o = w.openings.find(x => x.id === id);
-    if (o) return { w, o };
-  }
-  throw new TxError('not-found', text('err_not_found', 'Cannot find {kind} “{ref}”', { kind: kindText('opening'), ref }));
+  const e = resolve(p, 'opening', ref);
+  return { w: e.wall!, o: e.obj };
 }
 
 // ---------- Input fragments ----------
@@ -151,25 +136,18 @@ function openingInfo(p: Project, w: Wall, o: Opening) {
   };
 }
 
-function objectInfo(p: Project, ref: string) {
-  const id = ref;
-  const w = p.walls.find(x => x.id === id);
-  if (w) return wallInfo(p, w);
-  const s = p.spaces.find(x => x.id === id);
-  if (s) return spaceInfo(p, s);
-  for (const ww of p.walls) {
-    const o = ww.openings.find(x => x.id === id);
-    if (o) return openingInfo(p, ww, o);
+function objectInfo(p: Project, id: Id) {
+  const e = findObject(p, id);
+  switch (e?.kind) {
+    case 'wall': return wallInfo(p, e.obj);
+    case 'space': return spaceInfo(p, e.obj);
+    case 'opening': return openingInfo(p, e.wall!, e.obj);
+    case 'furniture': return { ...e.obj, type: 'furniture', label: p.library.furniture[e.obj.type]?.name };
+    case 'element': return { ...e.obj, type: 'element' };
+    case 'level': return { ...e.obj, type: 'level', gross: r2(grossArea(p, e.id)) };
+    case 'constraint': return { ...e.obj, type: 'constraint' };
+    default: return null;
   }
-  const f = p.furniture.find(x => x.id === id);
-  if (f) return { ...f, type: 'furniture', label: p.library.furniture[f.type]?.name };
-  const e = p.elements.find(x => x.id === id);
-  if (e) return { ...e, type: 'element' };
-  const l = p.levels.find(x => x.id === id);
-  if (l) return { ...l, type: 'level', gross: r2(grossArea(p, l.id)) };
-  const c = p.constraints.find(x => x.id === id);
-  if (c) return { ...c, type: 'constraint' };
-  return null;
 }
 
 /** Find an object of any type by name or ID */
@@ -323,7 +301,7 @@ export const findObjects = read({
     const p = session.project;
     const lv = level ? resolveLevel(p, level).id : undefined;
     const kinds: Kind[] = type ? [type] : ['space', 'wall', 'opening', 'furniture', 'element', 'level', 'constraint'];
-    return kinds.flatMap(k => pool(p, k).map(o => ({ id: o.id, name: o.name, type: k, level: o.level })))
+    return kinds.flatMap(k => projectIndex(p).of(k).map(o => ({ id: o.id, name: o.name, type: k, level: o.level })))
       .filter(o => (!lv || o.level === lv) && (!query || o.name.includes(query) || o.id === query))
       .slice(0, limit);
   },

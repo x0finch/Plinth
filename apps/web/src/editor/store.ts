@@ -2,7 +2,7 @@
  * Editor state, one per open plan. Data lives in the core package Session and all changes go through the capability list;
  * this only handles view state, autosave, conflicts and the before/after comparison.
  */
-import { capabilityTitle, mutates, Session, type Actor, type CallResult, type Project, type TxResult } from '@plinth/core';
+import { capabilityTitle, findObject, mutates, Session, type Actor, type CallResult, type Project, type TxResult } from '@plinth/core';
 import { createContext, useContext } from 'react';
 import { createStore, useStore } from 'zustand';
 import { registry } from '@/agent/registry';
@@ -71,16 +71,7 @@ export interface InitialProject {
 const firstLevel = (p: Project) => p.levels.find(l => !l.roof)?.id ?? p.levels[0]?.id ?? 'L1';
 
 /** Floor the object is on */
-export function levelOf(p: Project, id: string): string | undefined {
-  return (
-    p.walls.find(w => w.id === id)?.level ??
-    p.spaces.find(s => s.id === id)?.level ??
-    p.furniture.find(f => f.id === id)?.level ??
-    p.elements.find(e => e.id === id)?.level ??
-    p.walls.find(w => w.openings.some(o => o.id === id))?.level ??
-    p.levels.find(l => l.id === id)?.id
-  );
-}
+export const levelOf = (p: Project, id: string): string | undefined => findObject(p, id)?.level;
 
 export function createEditorStore(init: InitialProject, opts: { level?: string; mode?: '2d' | '3d'; focus?: string[] } = {}) {
   const session = new Session(init.content);

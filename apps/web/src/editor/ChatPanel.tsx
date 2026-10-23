@@ -2,7 +2,7 @@
  * Chat with the agent. Every capability in the list is a browser-side tool: agent calls run here (same transaction and undo);
  * actions needing confirmation show a confirmation card. Chats are saved per user and per plan.
  */
-import { capabilityTitle, type Project } from '@plinth/core';
+import { capabilityTitle, findObject, type Project } from '@plinth/core';
 import { toolDefinition } from '@tanstack/ai';
 import { clientTools } from '@tanstack/ai-client';
 import { fetchServerSentEvents, useChat, type UIMessage } from '@tanstack/ai-react';
@@ -152,15 +152,15 @@ export function ChatPanel() {
   const context = (): AgentContext => {
     const s = store.getState();
     const p = s.project;
-    const typeOf = (id: string) => (p.walls.some(w => w.id === id) ? 'wall' : p.spaces.some(x => x.id === id) ? 'space' : p.furniture.some(f => f.id === id) ? 'furniture' : 'opening');
-    const nameOf = (id: string) => p.walls.find(w => w.id === id)?.name ?? p.spaces.find(x => x.id === id)?.name ?? p.furniture.find(f => f.id === id)?.name
-      ?? p.walls.flatMap(w => w.openings).find(o => o.id === id)?.name ?? id;
     return {
       projectName: p.name,
       role: s.role,
       uiLanguage: document.documentElement.lang,
       view: { mode: s.view.mode, level: p.levels.find(l => l.id === s.view.level)?.name ?? s.view.level },
-      selection: s.view.selection.map(id => ({ id, name: nameOf(id), type: typeOf(id) })),
+      selection: s.view.selection.map(id => {
+        const o = findObject(p, id);
+        return { id, name: o?.name ?? id, type: o?.kind ?? 'unknown' };
+      }),
       levels: p.levels.map(l => ({ id: l.id, name: l.name, spaces: p.spaces.filter(x => x.level === l.id).map(x => x.name) })),
       brief: p.brief,
       constraints: p.constraints.length,
@@ -205,10 +205,7 @@ export function ChatPanel() {
     return () => window.removeEventListener('plinth:ask', on);
   }, []);
 
-  const selection = view.selection
-    .map(id => project.walls.find(w => w.id === id)?.name ?? project.spaces.find(x => x.id === id)?.name ?? project.furniture.find(f => f.id === id)?.name
-      ?? project.walls.flatMap(w => w.openings).find(o => o.id === id)?.name)
-    .filter(Boolean);
+  const selection = view.selection.map(id => findObject(project, id)?.name).filter(Boolean);
 
   const results = new Map<string, any>();
   for (const msg of messages) for (const p of msg.parts as any[]) if (p.type === 'tool-result') results.set(p.toolCallId, p);
