@@ -1,6 +1,6 @@
 /** Shapes the plan draws: derived from project data, cached per floor. */
 import {
-  add, difference, netArea, scale, union, wallBody, wallDir, wallNormal, pointAt,
+  add, difference, furnitureFootprint, netArea, ringArea, scale, union, wallBody, wallDir, wallNormal, pointAt,
   type Furniture, type Opening, type Point, type Polygon, type Project, type Space, type Wall,
 } from '@plinth/core';
 import polylabel from 'polylabel';
@@ -77,12 +77,6 @@ function openingShape(w: Wall, o: Opening): OpeningShape {
   };
 }
 
-function furnitureOutline(f: Furniture): Point[] {
-  const r = (f.rotation * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r);
-  const hw = f.size.w / 2, hd = f.size.d / 2;
-  return ([[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]] as Point[]).map(([x, y]) => [f.position[0] + x * c - y * s, f.position[1] + x * s + y * c]);
-}
-
 const cache = new WeakMap<Project, Map<string, LevelShapes>>();
 
 export function levelShapes(p: Project, level: string): LevelShapes {
@@ -101,7 +95,7 @@ export function levelShapes(p: Project, level: string): LevelShapes {
   const spaces = p.spaces
     .filter(s => s.level === level)
     .map(s => {
-      const big = [...s.shape].sort((a, b) => polyArea(b) - polyArea(a))[0];
+      const big = [...s.shape].sort((a, b) => ringArea(b.outer) - ringArea(a.outer))[0];
       const lp = polylabel([big.outer, ...(big.holes ?? [])], 50);
       return { s, d: polyPath(s.shape), label: [lp[0], lp[1]] as Point, area: s.kind === 'void' ? 0 : netArea(s, p.walls) };
     });
@@ -118,19 +112,8 @@ export function levelShapes(p: Project, level: string): LevelShapes {
     railings: walls.filter(w => w.kind === 'railing').map(w => ({ w, d: polyPath([wallBody(w)]) })),
     walls: walls.map(w => ({ w, d: polyPath([wallBody(w)]) })),
     openings: walls.flatMap(w => w.openings.map(o => openingShape(w, o))),
-    furniture: p.furniture.filter(f => f.level === level).map(f => ({ f, d: polyPath([{ outer: furnitureOutline(f) }]) })),
+    furniture: p.furniture.filter(f => f.level === level).map(f => ({ f, d: polyPath([furnitureFootprint(f)]) })),
   };
   m.set(level, shapes);
   return shapes;
 }
-
-function polyArea(p: Polygon) {
-  let s = 0;
-  const r = p.outer;
-  for (let i = 0; i < r.length; i++) {
-    const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length];
-    s += x1 * y2 - x2 * y1;
-  }
-  return Math.abs(s) / 2;
-}
-

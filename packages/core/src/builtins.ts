@@ -2,13 +2,13 @@
 import { z } from 'zod';
 import { defineEdit, defineRead, Registry, type Capability, type CapabilityContext } from './capability.js';
 import { areaReport, grossArea, netArea } from './area.js';
-import { area, pointInPolygon, rect, union } from './geometry.js';
+import {
+  add, area, bbox, cross, dot, MIN_SHARED_EDGE, MIN_WALL_LENGTH, openingCenter, PARALLEL_EPS, pointInPolygon, rect, round, scale, sub, TOL, union,
+  wallDir, wallLength, wallNormal,
+} from './geometry.js';
 import { checkRules } from './rules.js';
 import { checkConstraints, solveAreaMove, SUPPORTED_CONSTRAINTS } from './constraints.js';
-import {
-  add, autoWallName, moveWall, nextId, openingCenter, openingSpaces, project as projectPoint, round, sharedLength,
-  sideOf, spaceNeighbors, spaceWalls, uniqueName, wallDir, wallLength, wallNormal, scale, sub, dot, TOL,
-} from './topology.js';
+import { autoWallName, moveWall, nextId, openingSpaces, sharedLength, sideOf, spaceNeighbors, spaceWalls, uniqueName, wallSpaceSpan } from './topology.js';
 import { TxError } from './session.js';
 import { text } from './i18n.js';
 import { directionOf, NAME_SEPARATOR, names, REF_SEPARATOR } from './names.js';
@@ -94,14 +94,13 @@ const toPolygon = (input: { rect?: number[]; polygon?: Point[] }): Polygon => {
   throw new TxError('invalid-input', text('err_shape_required', 'Needs rect or polygon'));
 };
 
-const r1 = (n: number) => Math.round(n * 10) / 10;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 // ---------- Summary output ----------
 
 function wallInfo(p: Project, w: Wall) {
   const sides = p.spaces
-    .filter(s => s.level === w.level && sharedLength(w, s) > 100)
+    .filter(s => s.level === w.level && sharedLength(w, s) > MIN_SHARED_EDGE)
     .map(s => ({ space: s.name, id: s.id, side: sideOf(w, s) === 1 ? 'right' : 'left' }));
   return {
     id: w.id, name: w.name, type: 'wall', level: w.level, kind: w.kind,
@@ -117,11 +116,11 @@ function spaceInfo(p: Project, s: Space) {
     const toWall = scale(wallNormal(b.wall), -b.side);
     return { id: b.wall.id, name: b.wall.name, direction: vocab.direction[directionOf(toWall)], length: Math.round(b.length), kind: b.wall.kind, openings: b.wall.openings.map(o => o.name) };
   });
-  const xs = s.shape.flatMap(q => q.outer.map(v => v[0])), ys = s.shape.flatMap(q => q.outer.map(v => v[1]));
+  const [x0, y0, x1, y1] = bbox(s.shape);
   return {
     id: s.id, name: s.name, type: 'space', level: s.level, kind: s.kind, floor: s.floor,
     netArea: r2(netArea(s, p.walls)), axisArea: r2(area(s.shape) / 1e6),
-    bounds: { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), depth: Math.max(...ys) - Math.min(...ys) },
+    bounds: { x: x0, y: y0, width: x1 - x0, depth: y1 - y0 },
     shape: s.shape,
     walls,
     neighbors: spaceNeighbors(p, s).map(n => ({ id: n.space.id, name: n.space.name, via: n.via.map(w => w.name) })),
@@ -168,7 +167,7 @@ function findAny(p: Project, ref: string): Id {
 // ---------- Edit helpers ----------
 
 function addWall(p: Project, level: Id, start: Point, end: Point, o: { thickness?: number; kind?: Wall['kind']; height?: number; name?: string } = {}): Wall {
-  if (Math.hypot(end[0] - start[0], end[1] - start[1]) < 50) throw new TxError('invalid-input', text('err_wall_too_short', 'Wall too short (under 50 mm)'));
+  if (Math.hypot(end[0] - start[0], end[1] - start[1]) < MIN_WALL_LENGTH) throw new TxError('invalid-input', text('err_wall_too_short', 'Wall too short (under 50 mm)'));
   const w: Wall = {
     id: nextId(p, `${level}-w`), name: '', level, start: round(start), end: round(end),
     thickness: o.thickness ?? (o.kind === 'bearing' ? 240 : o.kind === 'railing' ? 60 : 120),
@@ -198,16 +197,8 @@ function addOpening(p: Project, w: Wall, kind: Opening['kind'], o: { at?: number
 
 /** Midpoint, along the wall, of the segment where a space meets the wall */
 function centerOnSpace(w: Wall, s: Space): number | null {
-  const d = wallDir(w), L = wallLength(w);
-  let lo = Infinity, hi = -Infinity;
-  for (const poly of s.shape) for (let i = 0; i < poly.outer.length; i++) {
-    const a = poly.outer[i], b = poly.outer[(i + 1) % poly.outer.length];
-    const pa = projectPoint(w, a), pb = projectPoint(w, b);
-    if (pa.dist > TOL || pb.dist > TOL || Math.abs(d[0] * (b[1] - a[1]) - d[1] * (b[0] - a[0])) > 10) continue;
-    lo = Math.min(lo, Math.max(0, Math.min(pa.at, pb.at)));
-    hi = Math.max(hi, Math.min(L, Math.max(pa.at, pb.at)));
-  }
-  return hi > lo ? (lo + hi) / 2 : null;
+  const span = wallSpaceSpan(w, s);
+  return span ? (span[0] + span[1]) / 2 : null;
 }
 
 /** Add walls along each polygon edge, skipping parts already covered by walls */
@@ -217,15 +208,15 @@ function wallsAround(p: Project, level: Id, poly: Polygon, thickness: number, ki
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i], b = ring[(i + 1) % ring.length];
     const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (L < 50) continue;
+    if (L < MIN_WALL_LENGTH) continue;
     const dir: Point = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
     // Intervals covered by existing collinear walls
     const covered: [number, number][] = [];
     for (const w of p.walls) {
       if (w.level !== level) continue;
       const wd = wallDir(w);
-      if (Math.abs(wd[0] * dir[1] - wd[1] * dir[0]) > 1e-6) continue;
-      const off = Math.abs((w.start[0] - a[0]) * dir[1] - (w.start[1] - a[1]) * dir[0]);
+      if (Math.abs(cross(wd, dir)) > PARALLEL_EPS) continue;
+      const off = Math.abs(cross(sub(w.start, a), dir));
       if (off > TOL) continue;
       const t1 = dot(sub(w.start, a), dir), t2 = dot(sub(w.end, a), dir);
       covered.push([Math.max(0, Math.min(t1, t2)), Math.min(L, Math.max(t1, t2))]);
@@ -238,7 +229,7 @@ function wallsAround(p: Project, level: Id, poly: Polygon, thickness: number, ki
       t = Math.max(t, hi);
     }
     if (t < L - TOL) gaps.push([t, L]);
-    for (const [lo, hi] of gaps) if (hi - lo >= 50) out.push(addWall(p, level, add(a, scale(dir, lo)), add(a, scale(dir, hi)), { thickness, kind }));
+    for (const [lo, hi] of gaps) if (hi - lo >= MIN_WALL_LENGTH) out.push(addWall(p, level, add(a, scale(dir, lo)), add(a, scale(dir, hi)), { thickness, kind }));
   }
   return out;
 }
@@ -572,7 +563,7 @@ export const spaceRemove = edit({
     if (i.walls) {
       for (const b of spaceWalls(p, s)) {
         if (b.wall.kind === 'bearing') continue;
-        const shared = p.spaces.some(o => o.id !== s.id && o.level === s.level && sharedLength(b.wall, o) > 100);
+        const shared = p.spaces.some(o => o.id !== s.id && o.level === s.level && sharedLength(b.wall, o) > MIN_SHARED_EDGE);
         if (!shared) removed.push(b.wall.id);
       }
       p.walls = p.walls.filter(w => !removed.includes(w.id));
@@ -592,7 +583,7 @@ export const spaceMerge = edit({
     const ss = i.spaces.map(r => getSpace(p, r));
     const level = ss[0].level;
     if (ss.some(s => s.level !== level)) throw new TxError('invalid-input', text('err_merge_other_level', 'Only spaces on the same level can be merged'));
-    const between = p.walls.filter(w => w.level === level && ss.filter(s => sharedLength(w, s) > 100).length >= 2);
+    const between = p.walls.filter(w => w.level === level && ss.filter(s => sharedLength(w, s) > MIN_SHARED_EDGE).length >= 2);
     if (between.some(w => w.kind === 'bearing')) throw new TxError('structural', text('err_merge_bearing_wall', 'There is a bearing wall between them: removing it affects structural safety and needs professional review'));
     p.walls = p.walls.filter(w => !between.includes(w));
     const keep = ss[0];
@@ -636,8 +627,8 @@ export const furnitureAdd = edit({
     if (!level) throw new TxError('invalid-input', text('err_level_or_space', 'Needs level or space'));
     let pos = i.position;
     if (!pos && s) {
-      const xs = s.shape.flatMap(q => q.outer.map(v => v[0])), ys = s.shape.flatMap(q => q.outer.map(v => v[1]));
-      pos = [Math.round((Math.min(...xs) + Math.max(...xs)) / 2), Math.round((Math.min(...ys) + Math.max(...ys)) / 2)];
+      const [x0, y0, x1, y1] = bbox(s.shape);
+      pos = round([(x0 + x1) / 2, (y0 + y1) / 2]);
     }
     if (!pos) throw new TxError('invalid-input', text('err_position_or_space', 'Needs position or space'));
     const def = p.library.furniture[i.type];

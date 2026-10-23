@@ -2,7 +2,7 @@
  * Generates 3D blocks from the data: each wall is cut at its openings into solid segments (sills below openings, lintels above, piers between them),
  * each a box aligned with the wall. The renderer only draws boxes, and glTF export uses the same result.
  */
-import { wallDir, wallLength } from './topology.js';
+import { wallDir, wallLength } from './geometry.js';
 import type { Id, Project, Wall } from './schema.js';
 
 export interface Box {

@@ -1,42 +1,12 @@
 /** Geometric relations between walls, spaces and openings: adjacency, location, linked moves. */
 import pc from 'polygon-clipping';
-import { area, difference, pointInPolygon, toPc, union, wallBody } from './geometry.js';
-import { names, type Direction } from './names.js';
+import { netArea } from './area.js';
+import {
+  add, area, cross, dot, MIN_SHARED_EDGE, onWall, openingCenter, PARALLEL_EPS, pointAt, pointInPolygon, project, round, scale, sub, toPc, TOL,
+  union, wallDir, wallLength, wallNormal,
+} from './geometry.js';
+import { directionOf, names } from './names.js';
 import type { Id, Opening, Point, Polygon, Project, ProjectLanguage, Space, Wall } from './schema.js';
-
-export const TOL = 5;
-
-export const sub = (a: Point, b: Point): Point => [a[0] - b[0], a[1] - b[1]];
-export const add = (a: Point, b: Point): Point => [a[0] + b[0], a[1] + b[1]];
-export const scale = (a: Point, k: number): Point => [a[0] * k, a[1] * k];
-export const dot = (a: Point, b: Point) => a[0] * b[0] + a[1] * b[1];
-export const cross = (a: Point, b: Point) => a[0] * b[1] - a[1] * b[0];
-export const len = (a: Point) => Math.hypot(a[0], a[1]);
-export const round = (p: Point): Point => [Math.round(p[0]), Math.round(p[1])];
-
-export const wallLength = (w: Wall) => len(sub(w.end, w.start));
-export const wallDir = (w: Wall): Point => scale(sub(w.end, w.start), 1 / wallLength(w));
-/** Normal: the right-hand side looking from start → end (plan north up, y south) */
-export const wallNormal = (w: Wall): Point => {
-  const [dx, dy] = wallDir(w);
-  return [-dy, dx];
-};
-
-export const pointAt = (w: Wall, at: number): Point => add(w.start, scale(wallDir(w), at));
-export const openingCenter = (w: Wall, o: Opening) => pointAt(w, o.at);
-
-/** Distance from a point to a segment and its projection parameter (distance along the wall) */
-export function project(w: Wall, p: Point): { dist: number; at: number } {
-  const d = wallDir(w), v = sub(p, w.start);
-  const at = dot(v, d);
-  return { dist: Math.abs(cross(d, v)), at };
-}
-
-/** Whether a point lies on the wall centreline (endpoints included) */
-export function onWall(w: Wall, p: Point, tol = TOL) {
-  const { dist, at } = project(w, p);
-  return dist <= tol && at >= -tol && at <= wallLength(w) + tol;
-}
 
 /** Intersection of two lines (null when parallel) */
 export function intersectLines(p1: Point, d1: Point, p2: Point, d2: Point): Point | null {
@@ -49,18 +19,27 @@ export function intersectLines(p1: Point, d1: Point, p2: Point, d2: Point): Poin
 const edges = (p: Polygon): [Point, Point][] =>
   [p.outer, ...(p.holes ?? [])].flatMap(r => r.map((a, i) => [a, r[(i + 1) % r.length]] as [Point, Point]));
 
-/** Length where a wall coincides with a space boundary */
-export function sharedLength(w: Wall, s: Space, tol = TOL): number {
+/** Intervals (distance along the wall, clamped to it) where the wall centreline runs along the space boundary */
+export function wallSpaceSegments(w: Wall, s: Space, tol = TOL): [number, number][] {
   const d = wallDir(w), L = wallLength(w);
-  let total = 0;
+  const out: [number, number][] = [];
   for (const poly of s.shape) for (const [a, b] of edges(poly)) {
     const pa = project(w, a), pb = project(w, b);
     if (pa.dist > tol || pb.dist > tol) continue;
     if (Math.abs(cross(d, sub(b, a))) > tol * 2) continue;
     const lo = Math.max(0, Math.min(pa.at, pb.at)), hi = Math.min(L, Math.max(pa.at, pb.at));
-    if (hi > lo) total += hi - lo;
+    if (hi > lo) out.push([lo, hi]);
   }
-  return total;
+  return out;
+}
+
+/** Length where a wall coincides with a space boundary */
+export const sharedLength = (w: Wall, s: Space, tol = TOL) => wallSpaceSegments(w, s, tol).reduce((n, [lo, hi]) => n + hi - lo, 0);
+
+/** Overall extent along the wall of where it meets the space, from the first shared point to the last; null if they don't meet */
+export function wallSpaceSpan(w: Wall, s: Space): [number, number] | null {
+  const segs = wallSpaceSegments(w, s);
+  return segs.length ? [Math.min(...segs.map(x => x[0])), Math.max(...segs.map(x => x[1]))] : null;
 }
 
 export const centroid = (s: Space): Point => {
@@ -85,7 +64,7 @@ export function spaceWalls(p: Project, s: Space): SpaceBoundary[] {
   return p.walls
     .filter(w => w.level === s.level)
     .map(w => ({ wall: w, length: sharedLength(w, s) }))
-    .filter(b => b.length > 100)
+    .filter(b => b.length > MIN_SHARED_EDGE)
     .map(b => ({ ...b, side: sideOf(b.wall, s) }));
 }
 
@@ -95,7 +74,7 @@ export function spaceNeighbors(p: Project, s: Space): { space: Space; via: Wall[
   const out: { space: Space; via: Wall[] }[] = [];
   for (const o of p.spaces) {
     if (o.id === s.id || o.level !== s.level) continue;
-    const via = mine.filter(b => sharedLength(b.wall, o) > 100).map(b => b.wall);
+    const via = mine.filter(b => sharedLength(b.wall, o) > MIN_SHARED_EDGE).map(b => b.wall);
     if (via.length) out.push({ space: o, via });
   }
   return out;
@@ -107,8 +86,6 @@ export function openingSpaces(p: Project, w: Wall, o: Opening): Space[] {
   return [1, -1].map(k => p.spaces.find(s => s.level === w.level && s.shape.some(poly => pointInPolygon(add(c, scale(n, k * off)), poly))))
     .filter((s): s is Space => !!s);
 }
-
-const DIRS: Record<string, Direction> = { '0,-1': 'north', '0,1': 'south', '1,0': 'east', '-1,0': 'west' };
 
 /** Name a wall after the spaces on its sides (consistent with legacy import): the indoor space with the longest shared edge wins. Names follow the project language. */
 export function autoWallName(p: Project, w: Wall): string {
@@ -129,7 +106,8 @@ export function autoWallName(p: Project, w: Wall): string {
   if (!best) return vocab.levelWall(w.level, word);
   // Which direction the wall lies from the space: the direction from the space toward the wall
   const n = scale(wallNormal(w), -sideOf(w, best.s));
-  const dir = DIRS[`${Math.round(n[0])},${Math.round(n[1])}`] ?? null;
+  // Only walls within about 30° of an axis get a direction in their name
+  const dir = Math.min(Math.abs(n[0]), Math.abs(n[1])) < 0.5 ? directionOf(n) : null;
   if ((w.kind === 'bearing' || w.kind === 'partition') && indoorSides.size === 1 && [...indoorSides.values()][0] > 1) return vocab.exteriorWall(dir);
   return vocab.spaceWall(best.s.name, dir, word);
 }
@@ -169,7 +147,7 @@ export function moveWall(p: Project, wallId: Id, v: Point) {
   // This wall's endpoints: if resting on a non-parallel wall, slide along that wall
   const slide = (pt: Point): Point => {
     const moved = add(pt, v);
-    const host = others.find(o => Math.abs(cross(wallDir(o), d)) > 1e-6 && onWall(o, pt));
+    const host = others.find(o => Math.abs(cross(wallDir(o), d)) > PARALLEL_EPS && onWall(o, pt));
     if (!host) return moved;
     return intersectLines(moved, d, host.start, wallDir(host)) ?? moved;
   };
@@ -179,7 +157,7 @@ export function moveWall(p: Project, wallId: Id, v: Point) {
   // Other walls with endpoints on this wall: stretch to the new wall line
   for (const o of others) {
     const od = wallDir(o);
-    if (Math.abs(cross(od, d)) < 1e-6) continue;
+    if (Math.abs(cross(od, d)) < PARALLEL_EPS) continue;
     for (const key of ['start', 'end'] as const) {
       if (!onWall(oldWall, o[key])) continue;
       const hit = intersectLines(o.start, od, w.start, d);
@@ -212,11 +190,8 @@ export function moveWall(p: Project, wallId: Id, v: Point) {
   }
 }
 
-/** Usable area of a space (m²), consistent with area.ts */
-export function spaceNetArea(p: Project, s: Space) {
-  const bodies = p.walls.filter(w => w.level === s.level && w.kind !== 'railing').map(wallBody);
-  return area(difference(s.shape, bodies)) / 1e6;
-}
+/** Usable area of a space (m²); see area.ts */
+export const spaceNetArea = (p: Project, s: Space) => netArea(s, p.walls);
 
 /** Overlap area of two polygon sets (mm²) */
 export function overlapArea(a: Polygon[], b: Polygon[]) {
