@@ -123,11 +123,12 @@ export class Session {
     for (const fn of this.listeners) fn(this.project);
   }
 
-  /** Replace the whole project (load a new version) and clear history */
+  /** Replace the whole project (load a new version) and clear history and the operation log */
   load(p: Project) {
     this.project = p;
     this.past = [];
     this.future = [];
+    this.log.length = 0;
     this.emit();
   }
 

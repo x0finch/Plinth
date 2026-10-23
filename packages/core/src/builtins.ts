@@ -175,13 +175,11 @@ function objectInfo(p: Project, ref: string) {
 /** Find an object of any type by name or ID */
 function findAny(p: Project, ref: string): Id {
   const kinds: Kind[] = ['space', 'wall', 'opening', 'furniture', 'element', 'level', 'constraint'];
-  const errors: string[] = [];
   for (const k of kinds) {
     try {
       return resolve(p, k, ref).id;
     } catch (e) {
       if (e instanceof TxError && e.code === 'ambiguous-ref') throw e;
-      errors.push(k);
     }
   }
   throw new TxError('not-found', text('err_object_not_found', 'Cannot find “{ref}”. Try searching with find_objects first', { ref }));
@@ -619,7 +617,7 @@ export const spaceMerge = edit({
     p.walls = p.walls.filter(w => !between.includes(w));
     const keep = ss[0];
     keep.shape = union(ss.flatMap(s => s.shape));
-    if (i.name) keep.name = i.name;
+    if (i.name) keep.name = uniqueName(p.spaces.filter(x => x.level === level && !ss.includes(x)).map(x => x.name), i.name, p.language);
     p.spaces = p.spaces.filter(s => s === keep || !ss.includes(s));
     renameWalls(p, level);
     return { id: keep.id, removedWalls: between.map(w => w.id) };
