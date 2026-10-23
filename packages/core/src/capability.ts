@@ -59,9 +59,18 @@ export const mutates = (c: Capability) => c.mode !== 'read';
 /** Capability title in the UI language (`title` itself is the English title, also used for the LLM) */
 export const capabilityTitle = (c: { name: string; title: string }) => text(`cap_${c.name}`, c.title);
 
-export const defineEdit = <I extends z.ZodType, R>(c: Omit<EditCapability<I, R>, 'mode'>): EditCapability<I, R> => ({ ...c, mode: 'edit' });
-export const defineRead = <I extends z.ZodType, R>(c: Omit<ReadCapability<I, R>, 'mode'>): ReadCapability<I, R> => ({ ...c, mode: 'read' });
-export const defineSession = <I extends z.ZodType, R>(c: Omit<SessionCapability<I, R>, 'mode'>): SessionCapability<I, R> => ({ ...c, mode: 'session' });
+/** kind, permission and runtime may be left out when they are the defaults */
+type Definition<C> = Omit<C, 'mode' | 'kind' | 'permission' | 'runtime'> & Partial<Pick<C & Base<z.ZodType>, 'kind' | 'permission' | 'runtime'>>;
+
+/** Edit capability; defaults: kind edit, permission reversible, runtime any */
+export const defineEdit = <I extends z.ZodType, R>(c: Definition<EditCapability<I, R>>): EditCapability<I, R> =>
+  ({ kind: 'edit', permission: 'reversible', runtime: 'any', ...c, mode: 'edit' });
+/** Read capability; defaults: kind query, permission read, runtime any */
+export const defineRead = <I extends z.ZodType, R>(c: Definition<ReadCapability<I, R>>): ReadCapability<I, R> =>
+  ({ kind: 'query', permission: 'read', runtime: 'any', ...c, mode: 'read' });
+/** Session operation (undo, redo); defaults like an edit: kind edit, permission reversible, runtime any */
+export const defineSession = <I extends z.ZodType, R>(c: Definition<SessionCapability<I, R>>): SessionCapability<I, R> =>
+  ({ kind: 'edit', permission: 'reversible', runtime: 'any', ...c, mode: 'session' });
 
 export interface CallResult {
   ok: boolean;
