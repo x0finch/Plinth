@@ -254,6 +254,33 @@ function Glazing({ b, base, c, ...o }: Outline & { b: Box; base: number; c: { gl
   );
 }
 
+/** Where a tile's name sits: the middle of its front (south) edge, just above its floor (metres) */
+interface TileTag { id: string; name: string; pick: string; at: THREE.Vector3 }
+
+/**
+ * Names for spaces marked nameOnly (the gallery's tiles), as one HTML layer over the canvas: each frame this places every tag
+ * at its tile's front edge on screen, scaled with distance like a tag lying there (readable zoomed in, small when zoomed out).
+ */
+function TagProjector({ tags, els }: { tags: TileTag[]; els: React.RefObject<Map<string, HTMLElement>> }) {
+  const v = new THREE.Vector3();
+  useFrame(({ camera, size }) => {
+    const fov = (camera as THREE.PerspectiveCamera).fov ?? 40;
+    for (const t of tags) {
+      const el = els.current.get(t.id);
+      if (!el) continue;
+      v.copy(t.at).project(camera);
+      if (v.z > 1) {
+        el.style.visibility = 'hidden';
+        continue;
+      }
+      const scale = Math.min(1.6, 28 / (2 * Math.tan((fov * Math.PI) / 360) * camera.position.distanceTo(t.at)));
+      el.style.visibility = 'visible';
+      el.style.transform = `translate(${((v.x + 1) / 2) * size.width}px, ${((1 - v.y) / 2) * size.height}px) translate(-50%, -50%) scale(${scale})`;
+    }
+  });
+  return null;
+}
+
 /** A piece of an element (a stair step, a pond's rim or water): its plan outline extruded */
 function SolidMesh({ s, base, color, ...o }: Outline & { s: Solid; base: number; color: string }) {
   const y = (base + s.z) * M;
@@ -578,6 +605,17 @@ function Picker() {
 export function Model3D() {
   const project = useEditor(s => s.project);
   const view = useEditor(s => s.view);
+  const select = useEditor(s => s.select);
+  const tagEls = useRef(new Map<string, HTMLElement>());
+  const tags = useMemo<TileTag[]>(() => {
+    const elevation = new Map(project.levels.map(l => [l.id, l.elevation]));
+    return project.spaces.filter(s => s.extras?.nameOnly).map(s => {
+      const pts = s.shape.flatMap(p => p.outer);
+      const x = (Math.min(...pts.map(q => q[0])) + Math.max(...pts.map(q => q[0]))) / 2, front = Math.max(...pts.map(q => q[1]));
+      const pick = typeof s.extras?.subject === 'string' ? s.extras.subject : s.id;
+      return { id: s.id, name: s.name, pick, at: new THREE.Vector3(x * M, ((elevation.get(s.level) ?? 0) + 20) * M, front * M) };
+    });
+  }, [project]);
   const projectId = useEditor(s => s.projectId);
   const c = useColors();
   const style = modelStyle();
@@ -667,8 +705,6 @@ export function Model3D() {
             setQuality(detectQuality(doc.defaultView!, gl.getContext()));
           }}
         >
-          {/* The ground fades into the backdrop in the distance, so it has no visible edge */}
-          <fog attach="fog" args={[c.backdrop, radius * 4, radius * 12]} />
           {/* A warm white sun and sky: lit faces are white, shadows a soft warm gray (three.js divides diffuse light by π,
               hence the strong intensities) */}
           <hemisphereLight args={[c.skylight, c.wall, 2.4]} />
@@ -732,6 +768,7 @@ export function Model3D() {
           <CameraRig box={box} levels={levels} current={current?.id ?? ''} growing={growing} drawings={drawings} growth={growth} projectId={projectId} />
           <SafariPinch />
           <Picker />
+          {tags.length > 0 && <TagProjector tags={tags} els={tagEls} />}
           <Reveal ownerOf={ownerOf} />
           <Renderer draw={draw} edges={style.edges} edgeColor={c.edge} growth={growth} />
           {/* A phone that wasn't recognized as low-end but can't keep up drops to the light setup, for good */}
@@ -740,6 +777,17 @@ export function Model3D() {
           <Capture draw={draw} />
         </Canvas>
       </TintColors.Provider>
+      {/* Tile names (the gallery): tapping one selects what its tile shows, easier to hit on a phone than a small piece */}
+      {tags.length > 0 && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          {tags.map(t => (
+            <span key={t.id} ref={el => void (el ? tagEls.current.set(t.id, el) : tagEls.current.delete(t.id))} onClick={() => select([t.pick])}
+              className="pointer-events-auto invisible absolute top-0 left-0 cursor-pointer whitespace-nowrap rounded-sm bg-background/85 px-1 text-[11px] leading-4 text-foreground">
+              {t.name}
+            </span>
+          ))}
+        </div>
+      )}
       <p className="pointer-events-none absolute bottom-2 left-3 text-xs text-muted-foreground max-md:hidden">{m.model3d_hint()}</p>
     </div>
   );

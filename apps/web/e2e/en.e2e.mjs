@@ -74,13 +74,16 @@ check(await langSection.isVisible(), 'Settings has a "Language" section');
 check((await langSection.innerText()).includes('English'), 'language selector shows "English"');
 check(await page.getByRole('heading', { name: 'Settings', exact: true }).first().isVisible(), 'Settings page title is English');
 
-// Style gallery, from Settings: the specimens named in English, and picking one shows its properties
+// Style gallery, from Settings: 3D only, the specimens named in English, and picking one shows its properties
 await page.locator('a[href="/gallery"]').click();
 await page.waitForURL(/\/gallery/);
 check(await page.getByRole('heading', { name: 'Style gallery', exact: true }).isVisible(), 'the style gallery opens from Settings');
+check(!(await page.getByRole('button', { name: 'Plan', exact: true }).isVisible()) && !(await page.getByText('Level 2', { exact: true }).isVisible()),
+  'the gallery is 3D only: no switch to the plan, no level buttons');
 const gallery = page.frameLocator('iframe[title="Canvas"]');
-await gallery.getByText('Light oak flooring', { exact: true }).first().click();
-const picked3 = await page.locator('aside h3').innerText({ timeout: 5000 }).catch(() => '');
+// Its 3D view names each tile; tapping a name selects what the tile shows
+await gallery.getByText('Light oak flooring', { exact: true }).first().click({ timeout: 30000 });
+const picked3 = await page.locator('main h3').innerText({ timeout: 5000 }).catch(() => '');
 check(picked3 === 'Light oak flooring', `clicking a specimen shows its name in the details (${picked3})`);
 await page.screenshot({ path: `${OUT}/en-gallery.png` });
 

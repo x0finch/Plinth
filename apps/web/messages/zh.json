@@ -595,7 +595,6 @@
   "model3d_whole": "显示整栋",
   "model3d_hint": "拖动旋转视角，双指或滚轮缩放，按住 Shift 拖动或右键拖动平移",
   "gallery_title": "样式画板",
-  "gallery_intro": "默认模型样式下每种物体的样子：墙、门窗、地面材质、家具、构件和空间类型。点一下可以看名称和参数。",
   "gallery_stair": "两跑楼梯",
   "gallery_pond": "水池",
   "gallery_drain": "排水沟",
