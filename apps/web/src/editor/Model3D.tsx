@@ -213,8 +213,10 @@ function Slab({ s, y, thickness, color, ...o }: Outline & { s: Space; y: number;
     g.rotateX(-Math.PI / 2);
     return g;
   }, [s.shape, thickness]);
+  // Two millimetres up: the walls of the floor below end exactly at this floor's level, and their tops would flicker through it
+  const bottom = (y + 2 - thickness) * M;
   return (
-    <mesh ref={ref} geometry={geo} position={[0, (y - thickness) * M, 0]} receiveShadow userData={{ id: s.id, restY: (y - thickness) * M }}>
+    <mesh ref={ref} geometry={geo} position={[0, bottom, 0]} receiveShadow userData={{ id: s.id, restY: bottom }}>
       {/* Remounted when the texture arrives: a material compiles once for having a map or not */}
       <meshStandardMaterial key={map ? 'map' : 'plain'} color={color} map={map} roughness={1} />
       {o.sel && <Edges threshold={20} color={o.sel} lineWidth={2} />}
@@ -669,12 +671,14 @@ export function Model3D() {
           <fog attach="fog" args={[c.backdrop, radius * 4, radius * 12]} />
           {/* A warm white sun and sky: lit faces are white, shadows a soft warm gray (three.js divides diffuse light by π,
               hence the strong intensities) */}
-          <hemisphereLight args={[c.skylight, c.wall, 1.9]} />
+          <hemisphereLight args={[c.skylight, c.wall, 2.4]} />
           <primitive object={sunTarget} position={center} />
-          {/* Remounted when the quality changes: a shadow map keeps its size once created */}
-          <directionalLight key={q} color={c.sun} intensity={2.2} target={sunTarget} castShadow
+          {/* Remounted when the quality changes: a shadow map keeps its size once created. The normal bias is about two
+              shadow-map texels: less, and large flat floors shadow themselves in a fine pattern that the soft filter blurs into an
+              even darkening (one terrace darker than another of the same material) */}
+          <directionalLight key={q} color={c.sun} intensity={1.4} target={sunTarget} castShadow
             position={[center.x - radius * 1.2, center.y + radius * 2, center.z + radius * 0.9]}
-            shadow-mapSize={q === 'high' ? [2048, 2048] : [1024, 1024]} shadow-radius={q === 'high' ? 6 : 3} shadow-bias={-0.0004} shadow-normalBias={0.02}
+            shadow-mapSize={q === 'high' ? [2048, 2048] : [1024, 1024]} shadow-radius={q === 'high' ? 6 : 3} shadow-bias={-0.0004} shadow-normalBias={(radius * 2.8 / (q === 'high' ? 2048 : 1024)) * 2}
             shadow-camera-left={-radius * 1.4} shadow-camera-right={radius * 1.4} shadow-camera-top={radius * 1.4} shadow-camera-bottom={-radius * 1.4}
             shadow-camera-near={0.5} shadow-camera-far={radius * 6} />
           {/* The ground only catches shadows: lit, it would read as a lighter board under the plinth; this way the backdrop shows */}
