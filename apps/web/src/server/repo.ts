@@ -60,21 +60,51 @@ export async function getVersion(projectId: string, version?: number) {
   return q.first<{ version: number; content: string; summary: string | null; created_at: number }>();
 }
 
-/** Save a new version with optimistic concurrency: returns null when base is not the latest version (someone saved first) */
-export async function saveVersion(projectId: string, userId: string, base: number, content: string, summary: string, name?: string) {
+/** Autosaves by the same author are merged into one version while they keep coming within this long of the first one */
+export const SQUASH_WINDOW = 10 * 60_000;
+
+/**
+ * Save a new version with optimistic concurrency: returns null when base is not the latest version (someone saved first).
+ * When the latest version is the same author's own recent autosave, it is replaced instead of kept: the new row gets the next
+ * version number (so concurrent editors still see a conflict) and the previous row is deleted, with its summary carried over.
+ * Version 1 (the starting point) and the version before a checkpoint (a restore) are always kept.
+ */
+export async function saveVersion(
+  projectId: string, userId: string, base: number, content: string, summary: string,
+  o: { name?: string; checkpoint?: boolean } = {},
+) {
   const t = now();
+  const prev = o.checkpoint || base <= 1 ? null : await db()
+    .prepare('select author_id, summary, created_at, started_at from project_version where project_id = ? and version = ?')
+    .bind(projectId, base)
+    .first<{ author_id: string | null; summary: string | null; created_at: number; started_at: number | null }>();
+  const startedAt = prev?.started_at ?? prev?.created_at;
+  const squash = !!prev && prev.author_id === userId && startedAt != null && t - startedAt < SQUASH_WINDOW;
+  const merged = squash ? joinSummaries(prev.summary, summary) : summary;
   const [upd] = await db().batch([
     db()
       .prepare('update project set head_version = head_version + 1, updated_at = ?, name = coalesce(?, name) where id = ? and head_version = ?')
-      .bind(t, name ?? null, projectId, base),
+      .bind(t, o.name ?? null, projectId, base),
     db()
       .prepare(
-        `insert into project_version (project_id, version, content, author_id, summary, created_at)
-         select id, head_version, ?, ?, ?, ? from project where id = ? and head_version = ? and updated_at = ?`,
+        `insert into project_version (project_id, version, content, author_id, summary, created_at, started_at)
+         select id, head_version, ?, ?, ?, ?, ? from project where id = ? and head_version = ? and updated_at = ?`,
       )
-      .bind(content, userId, summary, t, projectId, base + 1, t),
+      .bind(content, userId, merged, t, squash ? startedAt : null, projectId, base + 1, t),
+    // Only when the insert above happened (no conflict)
+    ...(squash
+      ? [db()
+          .prepare('delete from project_version where project_id = ? and version = ? and exists (select 1 from project_version where project_id = ? and version = ? and created_at = ?)')
+          .bind(projectId, base, projectId, base + 1, t)]
+      : []),
   ]);
   return upd.meta.changes ? base + 1 : null;
+}
+
+/** "A; B" of two version summaries, each a list of changes, kept within the summary length limit */
+function joinSummaries(a: string | null, b: string) {
+  const joined = a ? `${a}${m.store_summary_separator()}${b}` : b;
+  return joined.length > 200 ? `${joined.slice(0, 199)}…` : joined;
 }
 
 export async function listVersions(projectId: string) {

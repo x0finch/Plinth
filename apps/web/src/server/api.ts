@@ -132,9 +132,13 @@ project.put('/', minRole('editor'), async c => {
   const user = c.var.user!;
   const raw = await c.req.text();
   if (raw.length > MAX_CONTENT) throw new HTTPException(413, { message: m.server_err_project_too_large() });
-  const b = z.object({ base: z.number().int(), summary: z.string().max(200).default(() => m.server_version_saved()), content: z.unknown() }).parse(JSON.parse(raw));
+  const b = z.object({
+    base: z.number().int(), summary: z.string().max(200).default(() => m.server_version_saved()), content: z.unknown(),
+    /** A deliberate save (e.g. restoring a version) that must not absorb the version before it */
+    checkpoint: z.boolean().optional(),
+  }).parse(JSON.parse(raw));
   const content = checkContent(b.content);
-  const version = await repo.saveVersion(id, user.id, b.base, JSON.stringify(content), b.summary, content.name);
+  const version = await repo.saveVersion(id, user.id, b.base, JSON.stringify(content), b.summary, { name: content.name, checkpoint: b.checkpoint });
   if (!version) {
     const head = await repo.getVersion(id);
     return c.json({ error: m.server_err_save_conflict(), conflict: true, version: head?.version, content: head && JSON.parse(head.content) }, 409);

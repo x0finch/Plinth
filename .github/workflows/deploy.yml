@@ -33,7 +33,7 @@ jobs:
       - run: npx tsc --noEmit -p apps/web
       - run: npm test -w @plinth/web
 
-  # The API permission matrix against a local Worker + D1 (no browser, no model)
+  # API checks against a local Worker + D1 (no browser, no model): permission matrix, version history
   api:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -56,6 +56,9 @@ jobs:
       - name: API permission matrix
         working-directory: apps/web
         run: node e2e/permissions.e2e.mjs
+      - name: Version history (autosave merging)
+        working-directory: apps/web
+        run: node e2e/versions.e2e.mjs
       - name: Worker log
         if: failure()
         working-directory: apps/web

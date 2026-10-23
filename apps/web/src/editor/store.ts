@@ -52,7 +52,8 @@ export interface EditorActions {
   focus(ids: string[], highlight?: boolean): ViewState;
   undo(): void;
   redo(): void;
-  save(force?: boolean): Promise<void>;
+  /** Save if dirty. checkpoint: a deliberate save (restore) that the server must keep apart from the autosave before it */
+  save(opts?: { force?: boolean; checkpoint?: boolean }): Promise<void>;
   resolveConflict(keep: 'mine' | 'theirs'): Promise<void>;
   setCompare(on: boolean): void;
   setCapture(fn: EditorState['capture']): void;
@@ -173,7 +174,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
         if (e) set(s => ({ pendingLabels: [...s.pendingLabels, m.store_redo_label({ label: e.label })], view: { ...s.view, highlight: e.changed } }));
       },
 
-      async save(force = false) {
+      async save({ force = false, checkpoint = false } = {}) {
         const s = get();
         if (!s.dirty || s.saving || s.conflict || !s.canEdit()) return;
         set({ saving: true });
@@ -183,7 +184,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
         try {
           const r = await api<{ version: number }>(`/projects/${s.projectId}`, {
             method: 'PUT',
-            json: { base: s.version, summary, content: snapshot },
+            json: { base: s.version, summary, content: snapshot, ...(checkpoint ? { checkpoint } : {}) },
           });
           set(cur => ({
             version: r.version, saving: false, savedAt: Date.now(),
@@ -244,7 +245,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
         await get().loadVersion(null);
         session.load(r.content);
         set({ dirty: true, pendingLabels: [m.panels_restore_label({ version })], lastChange: null });
-        await get().save();
+        await get().save({ checkpoint: true });
       },
 
       askAgent(text) {
