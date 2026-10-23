@@ -11,7 +11,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import * as THREE from 'three';
 import { useCanvasDocument } from '@/canvas/CanvasFrame';
-import { levelShapes, PLAN_PAD, type LevelShapes } from '../plan-geometry';
+import { levelShapes, planFrame } from '../plan-geometry';
 import { PlanDefs, PlanInk, PlanLabels, PlanPaper, scaledLine } from '../PlanDrawing';
 import type { Quality } from './Renderer';
 
@@ -21,12 +21,6 @@ const MAX_PX = { high: 4096, low: 2048 };
 
 /** How opaque the paper is while the house grows (g: 0 flat, 1 built): gone once the walls are a third of the way up */
 export const paperOpacity = (g: number) => 1 - THREE.MathUtils.smoothstep(g, 0, 0.3);
-
-/** The plan's framing of a level: its drawing plus the margin, in millimetres */
-export function planFrame(shapes: LevelShapes) {
-  const [x0, y0, x1, y1] = shapes.bounds;
-  return { x: x0 - PLAN_PAD, y: y0 - PLAN_PAD, w: x1 - x0 + 2 * PLAN_PAD, h: y1 - y0 + 2 * PLAN_PAD };
-}
 
 /** Render React SVG to markup, with theme variables replaced by their values (an SVG drawn as an image can't read them) */
 function markup(el: React.ReactElement, doc: Document) {
@@ -56,7 +50,7 @@ export function FloorDrawing({ project, level, furniture, labels, quality, growt
   const doc = useCanvasDocument();
   const size = useThree(s => s.size);
   const shapes = useMemo(() => levelShapes(project, level), [project, level]);
-  const frame = planFrame(shapes);
+  const frame = planFrame(project, level);
   // The plan's scale on screen (it fits the framing to the view), for line widths
   const mmPerPx = Math.max(frame.w / size.width, frame.h / size.height);
   const [textures, setTextures] = useState<{ paper: THREE.Texture; ink: THREE.Texture } | null>(null);
@@ -70,7 +64,7 @@ export function FloorDrawing({ project, level, furniture, labels, quality, growt
     let live = true;
     let made: { paper: THREE.Texture; ink: THREE.Texture } | null = null;
     void Promise.all([
-      rasterize(svg(<><PlanDefs /><PlanPaper project={project} level={level} shapes={shapes} /></>, w, h), w, h, doc),
+      rasterize(svg(<><PlanDefs /><PlanPaper project={project} level={level} shapes={shapes} line={line} /></>, w, h), w, h, doc),
       rasterize(svg(<><PlanDefs /><PlanInk shapes={shapes} furniture={furniture} line={line} />{labels && <PlanLabels shapes={shapes} />}</>, w, h), w, h, doc),
     ]).then(([paper, ink]) => {
       made = { paper, ink };

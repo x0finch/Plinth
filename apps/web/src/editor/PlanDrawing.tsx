@@ -4,7 +4,7 @@
  * backdrop, soft lavender shadows, gray walls, light-blue glass. Coordinates in millimetres. Interaction (picking) is optional.
  */
 import type { Project } from '@plinth/core';
-import type { LevelShapes } from './plan-geometry';
+import { isGroundLevel, plinthRect, type LevelShapes } from './plan-geometry';
 
 const pts = (p: [number, number][]) => p.map(([x, y]) => `${x},${y}`).join(' ');
 
@@ -51,13 +51,20 @@ export function PlanDefs() {
   );
 }
 
-/** The site's white plinth (on the lowest floor only: upper floors stand above it) and the room fills */
-export function PlanPaper({ project, level, shapes, pick }: { project: Project; level: string; shapes: LevelShapes; pick?: Pick }) {
-  const lowest = Math.min(...project.levels.map(l => l.elevation));
-  const ground = project.levels.find(l => l.id === level)?.elevation === lowest;
+/**
+ * The white board the house stands on with the site boundary on it (on the lowest floor only: upper floors stand above it), and
+ * the room fills
+ */
+export function PlanPaper({ project, level, shapes, line, pick }: { project: Project; level: string; shapes: LevelShapes; line: Line; pick?: Pick }) {
+  const [x0, y0, x1, y1] = plinthRect(project);
   return (
     <>
-      {ground && <polygon points={pts(project.site.boundary)} fill="var(--card)" filter="url(#plan-plinth-shadow)" />}
+      {isGroundLevel(project, level) && (
+        <>
+          <rect x={x0} y={y0} width={x1 - x0} height={y1 - y0} fill="var(--card)" filter="url(#plan-plinth-shadow)" />
+          <polygon points={pts(project.site.boundary)} fill="none" stroke="var(--chart-3)" {...line(0.8, [6, 4])} />
+        </>
+      )}
       {shapes.spaces.map(({ s, d }) => <path key={s.id} d={d} fill={SPACE_FILL[s.kind]} {...hit(pick, s.id)} />)}
     </>
   );

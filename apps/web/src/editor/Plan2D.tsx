@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
 import { wallBody, wallLength, type Point } from '@plinth/core';
-import { levelShapes, PLAN_PAD, polyPath } from './plan-geometry';
+import { levelShapes, planFrame, polyPath } from './plan-geometry';
 import { labelSize, PlanDefs, PlanInk, PlanLabels, PlanPaper, screenLine } from './PlanDrawing';
 import { useEditor } from './store';
 import { m } from '@/lib/i18n';
@@ -45,9 +45,8 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
   }, [compare, lastChange, view.level]);
   const zoomRef = useRef<ReactZoomPanPinchRef>(null);
 
-  const pad = PLAN_PAD;
-  const [x0, y0, x1, y1] = shapes.bounds;
-  const vb = `${x0 - pad} ${y0 - pad} ${x1 - x0 + 2 * pad} ${y1 - y0 + 2 * pad}`;
+  const frame = planFrame(project, view.level);
+  const vb = `${frame.x} ${frame.y} ${frame.w} ${frame.h}`;
   const font = labelSize(shapes.bounds);
 
   const sel = new Set(view.selection);
@@ -98,7 +97,7 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
           aria-label={m.editor_plan_aria({ level: project.levels.find(l => l.id === view.level)?.name ?? '' })}
         >
           <PlanDefs />
-          <PlanPaper project={project} level={view.level} shapes={shapes} pick={pick} />
+          <PlanPaper project={project} level={view.level} shapes={shapes} line={screenLine} pick={pick} />
           <PlanInk shapes={shapes} furniture={view.layers.furniture} line={screenLine} pick={pick} />
 
           {/* Just changed (or pointed at by the agent): a tint that fades out. Selected: tinted with an outline until deselected */}

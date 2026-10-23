@@ -13,9 +13,9 @@ import { m } from '@/lib/i18n';
 import { useCanvasDocument } from '@/canvas/CanvasFrame';
 import { hops, REVEAL } from '@/canvas/hop';
 import { useThemeColors } from '@/lib/theme';
-import { FloorDrawing, planFrame, PlanSheet } from './model3d/FloorDrawing';
+import { FloorDrawing, PlanSheet } from './model3d/FloorDrawing';
 import { detectQuality, isTouchDevice, Renderer, type Quality } from './model3d/Renderer';
-import { levelShapes } from './plan-geometry';
+import { planFrame, plinthRect } from './plan-geometry';
 import { useEditor, useEditorStore } from './store';
 
 const M = 0.001;
@@ -336,7 +336,7 @@ function CameraRig({ box, levels, current, growing, drawings, growth, projectId 
 
   /** Straight down at the current floor, framed like the plan (which fits the floor's drawing plus a margin to the view) */
   const planPose = (): Pose => {
-    const { x, y, w, h } = planFrame(levelShapes(project, current));
+    const { x, y, w, h } = planFrame(project, current);
     const visibleH = (w / h > size.width / size.height ? (w * size.height) / size.width : h) * M;
     // The drawing lies just above the floor
     const floor = (levels.find(l => l.id === current)?.elevation ?? 0) * M + 0.006;
@@ -556,11 +556,10 @@ export function Model3D() {
   }, [boxes, project.spaces, shownIds, x0, y0, x1, y1]);
   const radius = Math.max(2, box.getSize(new THREE.Vector3()).length() / 2);
 
-  // The plinth: the site raised a little above the surrounding ground, in white
+  // The plinth: a white board a little larger than the site, like a model's base (the same board as on the plan)
   const plinth = useMemo(() => {
-    const g = new THREE.ExtrudeGeometry(new THREE.Shape(project.site.boundary.map(([x, z]) => new THREE.Vector2(x * M, -z * M))), { depth: PLINTH, bevelEnabled: false });
-    g.rotateX(-Math.PI / 2);
-    return g;
+    const [x0, y0, x1, y1] = plinthRect(project);
+    return { size: [(x1 - x0) * M, PLINTH, (y1 - y0) * M] as [number, number, number], center: [((x0 + x1) / 2) * M, ((y0 + y1) / 2) * M] };
   }, [project.site.boundary]);
   const ground = project.site.groundLevel * M;
   const sunTarget = useMemo(() => new THREE.Object3D(), []);
@@ -571,7 +570,7 @@ export function Model3D() {
   // How far the house has grown out of the plan (0 flat, 1 built); the plan's paper fades with it
   const growth = useRef({ g: 1 });
   const sheet = useMemo(() => {
-    const { x, y, w, h } = planFrame(levelShapes(project, current?.id ?? levels[0]?.id ?? ''));
+    const { x, y, w, h } = planFrame(project, current?.id ?? levels[0]?.id ?? '');
     return { center: [(x + w / 2) * M, (y + h / 2) * M] as [number, number] };
   }, [project, current?.id]);
 
@@ -614,7 +613,8 @@ export function Model3D() {
             <planeGeometry args={[Math.max(span, radius) * 40, Math.max(span, radius) * 40]} />
             <meshStandardMaterial color={c.backdrop} roughness={1} />
           </mesh>
-          <mesh geometry={plinth} position={[0, ground - PLINTH - 0.002, 0]} receiveShadow castShadow>
+          <mesh position={[plinth.center[0], ground - PLINTH / 2 - 0.002, plinth.center[1]]} receiveShadow castShadow>
+            <boxGeometry args={plinth.size} />
             <meshStandardMaterial color={c.wall} roughness={1} />
           </mesh>
 
