@@ -118,14 +118,19 @@ function Conflict() {
   );
 }
 
-/** Level switcher; shown in the toolbar on desktop and floating over the canvas on phones */
+/**
+ * Level switcher, floating over the canvas: a level is a choice within the plan / 3D view (the toolbar holds the view switch),
+ * stacked top floor first like the building. In 3D the chosen level and the ones below it are shown.
+ */
 function LevelSwitcher({ className }: { className?: string }) {
   const levels = useEditor(s => s.project.levels);
   const level = useEditor(s => s.view.level);
   const setView = useEditor(s => s.setView);
+  const stacked = useMemo(() => [...levels].sort((a, b) => b.elevation - a.elevation), [levels]);
   return (
-    <ToggleGroup value={[level]} onValueChange={v => v[0] && setView({ level: v[0] as string })} variant="outline" size="sm" className={className}>
-      {levels.map(l => <ToggleGroupItem key={l.id} value={l.id}>{l.name}</ToggleGroupItem>)}
+    <ToggleGroup value={[level]} onValueChange={v => v[0] && setView({ level: v[0] as string })} orientation="vertical" variant="outline" size="sm" spacing={0}
+      aria-label={m.editor_levels_aria()} className={className}>
+      {stacked.map(l => <ToggleGroupItem key={l.id} value={l.id}>{l.name}</ToggleGroupItem>)}
     </ToggleGroup>
   );
 }
@@ -154,7 +159,6 @@ function Toolbar({ onShare, onExport }: { onShare: () => void; onExport: () => v
       </div>
       <SaveStatus />
       <div className="flex-1 max-md:hidden" />
-      <LevelSwitcher className="max-md:hidden" />
       <ToggleGroup value={[view.mode]} onValueChange={v => v[0] && setView({ mode: v[0] as '2d' | '3d' })} variant="outline" size="sm">
         <ToggleGroupItem value="2d" aria-label={m.editor_view_2d()}><SquareIcon /><span className="max-sm:hidden">{m.editor_view_2d()}</span></ToggleGroupItem>
         <ToggleGroupItem value="3d" aria-label={m.editor_view_3d()}><BoxIcon /><span className="max-sm:hidden">{m.editor_view_3d()}</span></ToggleGroupItem>
@@ -281,9 +285,8 @@ function Workspace() {
               </Suspense>
             )}
           </CanvasFrame>
-          {/* Phone: floor switcher floats over the canvas */}
-          <div className="absolute top-2 left-2 md:hidden">
-            <LevelSwitcher className="bg-background" />
+          <div className="absolute top-2 left-2">
+            <LevelSwitcher className="bg-background shadow-xs" />
           </div>
           {mobile && (
             <nav className="absolute inset-x-0 bottom-0 flex justify-around border-t bg-background/95 pb-[env(safe-area-inset-bottom)]">

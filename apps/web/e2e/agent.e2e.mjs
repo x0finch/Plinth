@@ -36,6 +36,13 @@ check(models.body.models.length === 2 && models.body.defaultModelId === added.bo
 await page.reload();
 await page.waitForFunction(() => window.artifact?.ready);
 check(await page.getByText('先配置大模型').count() === 0, 'no setup prompt when a model is configured');
+// Levels are picked on the canvas, apart from the plan / 3D switch in the toolbar (#46)
+const levelPicker = page.getByRole('main').getByRole('group', { name: '楼层' });
+check(await page.getByRole('banner').getByRole('group', { name: '楼层' }).count() === 0, 'level picker is not in the toolbar');
+await levelPicker.getByRole('button', { name: '二层' }).click();
+await page.waitForURL(/level=/);
+check(await page.evaluate(() => window.artifact.project().levels.find(l => l.name === '二层')?.id) === new URL(page.url()).searchParams.get('level'), 'level picked on the canvas');
+await levelPicker.getByRole('button', { name: '一层' }).click();
 // Switch the chat to the second model; the next message uses it
 await page.getByRole('combobox', { name: '对话使用的模型' }).click();
 await page.getByRole('option', { name: /fake-model-2/ }).click();

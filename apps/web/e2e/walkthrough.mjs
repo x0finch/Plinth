@@ -75,7 +75,7 @@ const blankId = owner.url().match(/\/p\/([^/?]+)/)[1];
 check('Start from scratch', (await owner.evaluate(() => window.artifact.project().walls.length)) === 0, 'blank project opened; chat prompts the user to describe the house');
 
 // ---------- 3. Configure the LLM ----------
-await caption(owner, '③ 大模型由用户自带：设置里添加密钥（这里用演示用的脚本模型）');
+await caption(owner, '③ 大模型由用户自带：设置里保存密钥并选模型（这里用演示用的脚本模型）');
 await owner.goto(`${BASE}/settings`);
 await owner.getByRole('heading', { name: '大模型' }).waitFor();
 await pause(800);
@@ -84,23 +84,18 @@ await owner.getByRole('option', { name: 'OpenAI 兼容接口' }).click();
 await owner.getByLabel('型号').fill('demo-model');
 await owner.getByLabel('接口地址').fill(FAKE);
 await owner.getByLabel('API Key').pressSequentially('sk-demo-0000-1234', { delay: 30 });
-await owner.getByLabel('名称（可选）').fill('演示用脚本模型');
 await pause(600);
-await owner.getByRole('button', { name: '添加' }).click();
-await owner.getByText('演示用脚本模型').first().waitFor();
+await owner.getByRole('button', { name: '保存密钥' }).click();
+await owner.getByTestId('api-key').getByText('demo-model').waitFor();
 await pause(1200);
 const keyShown = await owner.getByText('sk-demo-0000-1234').count();
 check('Add model', keyShown === 0 && (await owner.getByText('…1234').count()) > 0, 'key stored encrypted; list shows only the last 4 characters');
 
-await caption(owner, '④ 在方案的“分享”里选用这个模型');
+await caption(owner, '④ 第一个模型就是默认模型，方案直接能用');
 await owner.goto(`${BASE}/p/${blankId}`);
 await ready(owner);
-await owner.getByRole('button', { name: '分享' }).click();
-await owner.getByRole('dialog').getByRole('combobox').last().click();
-await owner.getByRole('option', { name: /演示用脚本模型/ }).click();
 await pause(1200);
-await owner.keyboard.press('Escape');
-check('Select model', (await owner.getByText('模型：演示用脚本模型').count()) > 0, 'chat panel shows the current model');
+check('Default model', (await owner.getByText('模型：demo-model').count()) > 0, 'chat panel uses the default model without extra setup');
 
 // ---------- 4. One-sentence start ----------
 await caption(owner, '⑤ 一句话说需求，agent 记下需求、排出起始方案、自己检查');
@@ -133,11 +128,6 @@ await owner.getByRole('button', { name: '创建' }).click();
 await owner.waitForURL(/\/p\//);
 await ready(owner);
 const sampleId = owner.url().match(/\/p\/([^/?]+)/)[1];
-await owner.getByRole('button', { name: '分享' }).click();
-await owner.getByRole('dialog').getByRole('combobox').last().click();
-await owner.getByRole('option', { name: /演示用脚本模型/ }).click();
-await owner.keyboard.press('Escape');
-await pause(1200);
 
 await caption(owner, '⑧ 在图上点选“老人房一”：它会跳一下；属性面板显示面积、四周的墙和相邻房间');
 await tapRoom(owner, '老人房一');
