@@ -254,31 +254,44 @@ function Glazing({ b, base, c, ...o }: Outline & { b: Box; base: number; c: { gl
   );
 }
 
-/** Where a tile's name sits: the middle of its front (south) edge, just above its floor (metres) */
-interface TileTag { id: string; name: string; pick: string; at: THREE.Vector3 }
+/** A tile's name and where it is written: centred on the floor along the tile's front (south) edge, within `width` (metres) */
+interface TileTag { id: string; name: string; pick: string; x: number; y: number; front: number; width: number }
+
+/** Height of a ground label's letters (mm), smaller when the name would be wider than its tile */
+const LABEL_TEXT = 360;
 
 /**
- * Names for spaces marked nameOnly (the gallery's tiles), as one HTML layer over the canvas: each frame this places every tag
- * at its tile's front edge on screen, scaled with distance like a tag lying there (readable zoomed in, small when zoomed out).
+ * A name written on the floor in front of what a tile shows (spaces marked nameOnly: the gallery's tiles), like lettering painted
+ * on the ground: it turns, scales and recedes with the model. Picking it selects what the tile shows (extras.subject).
  */
-function TagProjector({ tags, els }: { tags: TileTag[]; els: React.RefObject<Map<string, HTMLElement>> }) {
-  const v = new THREE.Vector3();
-  useFrame(({ camera, size }) => {
-    const fov = (camera as THREE.PerspectiveCamera).fov ?? 40;
-    for (const t of tags) {
-      const el = els.current.get(t.id);
-      if (!el) continue;
-      v.copy(t.at).project(camera);
-      if (v.z > 1) {
-        el.style.visibility = 'hidden';
-        continue;
-      }
-      const scale = Math.min(1.6, 28 / (2 * Math.tan((fov * Math.PI) / 360) * camera.position.distanceTo(t.at)));
-      el.style.visibility = 'visible';
-      el.style.transform = `translate(${((v.x + 1) / 2) * size.width}px, ${((1 - v.y) / 2) * size.height}px) translate(-50%, -50%) scale(${scale})`;
-    }
-  });
-  return null;
+function GroundLabel({ t, color }: { t: TileTag; color: string }) {
+  const doc = useCanvasDocument();
+  const label = useMemo(() => {
+    // The page's sans-serif (it falls back to the system's CJK font for Chinese names)
+    const font = doc.defaultView!.getComputedStyle(doc.body).fontFamily || 'sans-serif';
+    const px = 96, c = doc.createElement('canvas'), ctx = c.getContext('2d')!;
+    ctx.font = `500 ${px}px ${font}`;
+    const w = Math.ceil(ctx.measureText(t.name).width) + px / 2;
+    c.width = w;
+    c.height = Math.ceil(px * 1.4);
+    ctx.font = `500 ${px}px ${font}`;
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t.name, w / 2, c.height / 2);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    const k = Math.min(LABEL_TEXT * M, (t.width * 0.9 * px) / w) / px;
+    return { tex, w: w * k, h: c.height * k };
+  }, [doc, t.name, t.width, color]);
+  useEffect(() => () => label.tex.dispose(), [label]);
+  return (
+    <mesh position={[t.x, t.y, t.front - label.h / 2]} rotation={[-Math.PI / 2, 0, 0]} userData={{ id: t.pick, noEdges: true }} renderOrder={4}>
+      <planeGeometry args={[label.w, label.h]} />
+      <meshBasicMaterial map={label.tex} transparent depthWrite={false} toneMapped={false} />
+    </mesh>
+  );
 }
 
 /** A piece of an element (a stair step, a pond's rim or water): its plan outline extruded */
@@ -606,14 +619,15 @@ export function Model3D() {
   const project = useEditor(s => s.project);
   const view = useEditor(s => s.view);
   const select = useEditor(s => s.select);
-  const tagEls = useRef(new Map<string, HTMLElement>());
   const tags = useMemo<TileTag[]>(() => {
     const elevation = new Map(project.levels.map(l => [l.id, l.elevation]));
     return project.spaces.filter(s => s.extras?.nameOnly).map(s => {
       const pts = s.shape.flatMap(p => p.outer);
       const x = (Math.min(...pts.map(q => q[0])) + Math.max(...pts.map(q => q[0]))) / 2, front = Math.max(...pts.map(q => q[1]));
       const pick = typeof s.extras?.subject === 'string' ? s.extras.subject : s.id;
-      return { id: s.id, name: s.name, pick, at: new THREE.Vector3(x * M, ((elevation.get(s.level) ?? 0) + 20) * M, front * M) };
+      const width = Math.max(...pts.map(q => q[0])) - Math.min(...pts.map(q => q[0]));
+      // Just above the floor, along the front edge
+      return { id: s.id, name: s.name, pick, x: x * M, y: ((elevation.get(s.level) ?? 0) + 4) * M, front: front * M, width: width * M };
     });
   }, [project]);
   const projectId = useEditor(s => s.projectId);
@@ -768,7 +782,7 @@ export function Model3D() {
           <CameraRig box={box} levels={levels} current={current?.id ?? ''} growing={growing} drawings={drawings} growth={growth} projectId={projectId} />
           <SafariPinch />
           <Picker />
-          {tags.length > 0 && <TagProjector tags={tags} els={tagEls} />}
+          {tags.map(t => <GroundLabel key={t.id} t={t} color={c.edge} />)}
           <Reveal ownerOf={ownerOf} />
           <Renderer draw={draw} edges={style.edges} edgeColor={c.edge} growth={growth} />
           {/* A phone that wasn't recognized as low-end but can't keep up drops to the light setup, for good */}
@@ -777,17 +791,6 @@ export function Model3D() {
           <Capture draw={draw} />
         </Canvas>
       </TintColors.Provider>
-      {/* Tile names (the gallery): tapping one selects what its tile shows, easier to hit on a phone than a small piece */}
-      {tags.length > 0 && (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          {tags.map(t => (
-            <span key={t.id} ref={el => void (el ? tagEls.current.set(t.id, el) : tagEls.current.delete(t.id))} onClick={() => select([t.pick])}
-              className="pointer-events-auto invisible absolute top-0 left-0 cursor-pointer whitespace-nowrap rounded-sm bg-background/85 px-1 text-[11px] leading-4 text-foreground">
-              {t.name}
-            </span>
-          ))}
-        </div>
-      )}
       <p className="pointer-events-none absolute bottom-2 left-3 text-xs text-muted-foreground max-md:hidden">{m.model3d_hint()}</p>
     </div>
   );
