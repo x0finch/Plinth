@@ -593,5 +593,13 @@
   "canvas_fit": "Fit all",
   "model3d_cutaway": "Show only this level and below",
   "model3d_whole": "Show the whole house",
-  "model3d_hint": "Drag to rotate, two fingers or scroll to zoom, Shift + drag or right-drag to pan"
+  "model3d_hint": "Drag to rotate, two fingers or scroll to zoom, Shift + drag or right-drag to pan",
+  "gallery_title": "Style gallery",
+  "gallery_intro": "How each kind of object looks in the default model style: walls, doors and windows, floor materials, furniture, elements and space kinds. Tap one to see its name and parameters.",
+  "gallery_stair": "U-shaped stair",
+  "gallery_pond": "Pond",
+  "gallery_drain": "Drain",
+  "gallery_back": "Back",
+  "settings_gallery": "Style gallery",
+  "settings_gallery_hint": "See how each wall, door, window, material and piece of furniture looks in the default style"
 }

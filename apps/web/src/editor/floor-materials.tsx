@@ -81,6 +81,26 @@ function speckled(base: string, dots: string[], size: number, count: number, rad
   };
 }
 
+/** Large stone tiles with a few soft veins */
+function marble(base: string, vein: string, grout: string, size: number): FloorPattern {
+  const r = scatter(5);
+  const next = () => r.next().value as number;
+  const veins = Array.from({ length: 3 }, () => {
+    const y0 = next() * size, y1 = next() * size;
+    return `M0 ${y0}C${size / 3} ${y0 + (next() - 0.5) * size / 2} ${(2 * size) / 3} ${y1 + (next() - 0.5) * size / 2} ${size} ${y1}`;
+  });
+  return {
+    w: size, h: size,
+    tile: (
+      <>
+        <rect width={size} height={size} fill={`var(${base})`} />
+        {veins.map((d, i) => <path key={i} d={d} fill="none" stroke={`var(${vein})`} strokeWidth={6 + i * 4} />)}
+        <path d={`M0 0H${size}M0 0V${size}`} stroke={`var(${grout})`} strokeWidth={SEAM / 2} />
+      </>
+    ),
+  };
+}
+
 export const FLOOR_PATTERNS: Record<string, FloorPattern> = {
   oak: planks('--floor-oak', '--floor-oak-seam', 150, 1200),
   wood: planks('--floor-teak', '--floor-teak-seam', 150, 1200),
@@ -91,6 +111,9 @@ export const FLOOR_PATTERNS: Record<string, FloorPattern> = {
   terrazzo: speckled('--floor-terrazzo', ['--floor-terrazzo-chip', '--floor-terrazzo-chip-2'], 800, 140, [6, 16], 7),
   gravel: speckled('--floor-gravel', ['--floor-gravel-stone', '--floor-gravel-stone-2'], 600, 260, [10, 24], 11),
   cement: speckled('--floor-cement', ['--floor-cement-mottle'], 2000, 18, [120, 320], 3),
+  marble: marble('--floor-marble', '--floor-marble-vein', '--floor-marble-grout', 800),
+  slate: bricks('--floor-slate', '--floor-slate-joint', 600, 400),
+  grass: speckled('--floor-grass', ['--floor-grass-blade', '--floor-grass-blade-2'], 600, 320, [8, 18], 13),
 };
 
 /** The plan's fill for a floor material: its pattern, or plain white for one without */
