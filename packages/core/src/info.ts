@@ -13,7 +13,7 @@ export function wallInfo(p: Project, w: Wall) {
     .filter(s => s.level === w.level && sharedLength(w, s) > MIN_SHARED_EDGE)
     .map(s => ({ space: s.name, id: s.id, side: sideOf(w, s) === 1 ? 'right' : 'left' }));
   return {
-    id: w.id, name: w.name, type: 'wall', level: w.level, kind: w.kind,
+    id: w.id, name: w.name, type: 'wall' as const, level: w.level, kind: w.kind,
     start: w.start, end: w.end, length: Math.round(wallLength(w)), thickness: w.thickness, height: w.height ?? null,
     spaces: sides,
     openings: w.openings.map(o => ({ id: o.id, name: o.name, kind: o.kind, at: o.at, width: o.width, height: o.height, sill: o.sill })),
@@ -28,7 +28,7 @@ export function spaceInfo(p: Project, s: Space) {
   });
   const [x0, y0, x1, y1] = bbox(s.shape);
   return {
-    id: s.id, name: s.name, type: 'space', level: s.level, kind: s.kind, floor: s.floor,
+    id: s.id, name: s.name, type: 'space' as const, level: s.level, kind: s.kind, floor: s.floor,
     netArea: r2(netArea(s, p.walls)), axisArea: r2(area(s.shape) / 1e6),
     bounds: { x: x0, y: y0, width: x1 - x0, depth: y1 - y0 },
     shape: s.shape,
@@ -40,7 +40,7 @@ export function spaceInfo(p: Project, s: Space) {
 
 export function openingInfo(p: Project, w: Wall, o: Opening) {
   return {
-    ...o, type: 'opening', level: w.level, wall: { id: w.id, name: w.name }, center: round(openingCenter(w, o)),
+    ...o, type: 'opening' as const, level: w.level, wall: { id: w.id, name: w.name }, center: round(openingCenter(w, o)),
     connects: openingSpaces(p, w, o).map(s => ({ id: s.id, name: s.name })),
   };
 }
@@ -51,10 +51,10 @@ export function objectInfo(p: Project, id: Id) {
     case 'wall': return wallInfo(p, e.obj);
     case 'space': return spaceInfo(p, e.obj);
     case 'opening': return openingInfo(p, e.wall!, e.obj);
-    case 'furniture': return { ...e.obj, type: 'furniture', label: p.library.furniture[e.obj.type]?.name };
-    case 'element': return { ...e.obj, type: 'element' };
-    case 'level': return { ...e.obj, type: 'level', gross: r2(grossArea(p, e.id)) };
-    case 'constraint': return { ...e.obj, type: 'constraint' };
+    case 'furniture': return { ...e.obj, type: 'furniture' as const, label: p.library.furniture[e.obj.type]?.name };
+    case 'element': return { ...e.obj, type: 'element' as const };
+    case 'level': return { ...e.obj, type: 'level' as const, gross: r2(grossArea(p, e.id)) };
+    case 'constraint': return { ...e.obj, type: 'constraint' as const };
     default: return null;
   }
 }

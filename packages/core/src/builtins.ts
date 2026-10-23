@@ -20,7 +20,7 @@ export * from './capabilities/relation.js';
 export * from './capabilities/history.js';
 export * from './capabilities/meta.js';
 export { resolve, resolveLevel } from './refs.js';
-export type { ObjectInfo } from './info.js';
+export { objectInfo, type ObjectInfo } from './info.js';
 
 export const BUILTIN: Capability[] = [
   projectSummary, findObjects, getObject, areaReportCap, checkRulesCap, listConstraints,

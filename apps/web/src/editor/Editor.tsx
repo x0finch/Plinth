@@ -20,13 +20,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { registry } from '@/agent/registry';
 import { PlanPreview } from '@/components/site/PlanPreview';
 import { api, roleLabel } from '@/lib/api';
-import { can } from '@/shared/roles';
+import { standaloneSvg } from '@/lib/theme';
 import { m } from '@/lib/i18n';
 import { ChatPanel } from './ChatPanel';
 import { CanvasFrame } from '@/canvas/CanvasFrame';
 import { Spinner } from '@/components/ui/spinner';
 import { HopDriver } from '@/canvas/HopDriver';
-import { AreasPanel, CommentsPanel, PropsPanel, VersionsPanel } from './Panels';
+import { AreasPanel, CommentsPanel, PropsPanel, VersionsPanel } from './panels';
 import { Plan2D, svgToPng } from './Plan2D';
 import { ShareDialog } from './ShareDialog';
 import { createEditorStore, EditorContext, useEditor, type InitialProject } from './store';
@@ -118,7 +118,20 @@ function Conflict() {
   );
 }
 
+/** Level switcher; shown in the toolbar on desktop and floating over the canvas on phones */
+function LevelSwitcher({ className }: { className?: string }) {
+  const levels = useEditor(s => s.project.levels);
+  const level = useEditor(s => s.view.level);
+  const setView = useEditor(s => s.setView);
+  return (
+    <ToggleGroup value={[level]} onValueChange={v => v[0] && setView({ level: v[0] as string })} variant="outline" size="sm" className={className}>
+      {levels.map(l => <ToggleGroupItem key={l.id} value={l.id}>{l.name}</ToggleGroupItem>)}
+    </ToggleGroup>
+  );
+}
+
 function Toolbar({ onShare, onExport }: { onShare: () => void; onExport: () => void }) {
+  // Subscribing to the project also keeps undo/redo availability current
   const project = useEditor(s => s.project);
   const view = useEditor(s => s.view);
   const setView = useEditor(s => s.setView);
@@ -127,7 +140,6 @@ function Toolbar({ onShare, onExport }: { onShare: () => void; onExport: () => v
   const redo = useEditor(s => s.redo);
   const canEdit = useEditor(s => s.canEdit());
   const session = useEditor(s => s.session);
-  useEditor(s => s.project); // undo/redo availability follows the data
 
   const exportJson = () => {
     const blob = new Blob([JSON.stringify(project, null, 1)], { type: 'application/json' });
@@ -142,9 +154,7 @@ function Toolbar({ onShare, onExport }: { onShare: () => void; onExport: () => v
       </div>
       <SaveStatus />
       <div className="flex-1 max-md:hidden" />
-      <ToggleGroup value={[view.level]} onValueChange={v => v[0] && setView({ level: v[0] as string })} variant="outline" size="sm" className="max-md:hidden">
-        {project.levels.map(l => <ToggleGroupItem key={l.id} value={l.id}>{l.name}</ToggleGroupItem>)}
-      </ToggleGroup>
+      <LevelSwitcher className="max-md:hidden" />
       <ToggleGroup value={[view.mode]} onValueChange={v => v[0] && setView({ mode: v[0] as '2d' | '3d' })} variant="outline" size="sm">
         <ToggleGroupItem value="2d" aria-label={m.editor_view_2d()}><SquareIcon /><span className="max-sm:hidden">{m.editor_view_2d()}</span></ToggleGroupItem>
         <ToggleGroupItem value="3d" aria-label={m.editor_view_3d()}><BoxIcon /><span className="max-sm:hidden">{m.editor_view_3d()}</span></ToggleGroupItem>
@@ -173,14 +183,13 @@ function Toolbar({ onShare, onExport }: { onShare: () => void; onExport: () => v
   );
 }
 
-function PanelBody({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
-  const store = useEditor(s => s);
+function PanelBody() {
   return (
     <>
       <TabsContent value="chat" keepMounted className="min-h-0 flex-1 data-[hidden]:hidden"><ChatPanel /></TabsContent>
       <TabsContent value="props" className="min-h-0 flex-1 overflow-y-auto"><PropsPanel /></TabsContent>
       <TabsContent value="areas" className="min-h-0 flex-1 overflow-y-auto"><AreasPanel /></TabsContent>
-      <TabsContent value="comments" className="min-h-0 flex-1"><CommentsPanel onAskAgent={can(store.role, 'editor') ? text => { setTab('chat'); window.dispatchEvent(new CustomEvent('plinth:ask', { detail: text })); } : undefined} /></TabsContent>
+      <TabsContent value="comments" className="min-h-0 flex-1"><CommentsPanel /></TabsContent>
       <TabsContent value="versions" className="min-h-0 flex-1 overflow-y-auto"><VersionsPanel /></TabsContent>
     </>
   );
@@ -202,10 +211,7 @@ function Thumbnail() {
   useEffect(() => {
     const svg = ref.current?.querySelector('svg');
     if (!snap || !svg) return;
-    const cs = getComputedStyle(document.documentElement);
-    const html = svg.outerHTML
-      .replace(/var\((--[a-z-]+)\)/g, (_m, v: string) => cs.getPropertyValue(v).trim() || 'sans-serif')
-      .replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+    const html = standaloneSvg(svg);
     if (html.length < 190_000) void api(`/projects/${projectId}/thumbnail`, { method: 'PUT', body: html, headers: { 'Content-Type': 'image/svg+xml' } }).catch(() => {});
   }, [snap]);
   return snap ? <div ref={ref} className="hidden" aria-hidden><PlanPreview project={snap} /></div> : null;
@@ -214,8 +220,8 @@ function Thumbnail() {
 function Workspace() {
   const view = useEditor(s => s.view);
   const project = useEditor(s => s.project);
-  const setView = useEditor(s => s.setView);
   const setCapture = useEditor(s => s.setCapture);
+  const ask = useEditor(s => s.ask);
   const svgRef = useRef<SVGSVGElement>(null);
   const mobile = useIsMobile();
   const [tab, setTab] = useState<Tab>('chat');
@@ -241,6 +247,11 @@ function Workspace() {
     }
   };
 
+  // Something was handed to the agent (e.g. from a comment): show the chat
+  useEffect(() => {
+    if (ask) setTab('chat');
+  }, [ask]);
+
   // On phones, open the properties panel when an object is selected
   const sel = view.selection[0];
   useEffect(() => {
@@ -252,7 +263,7 @@ function Workspace() {
       <TabsList variant="line" className="w-full shrink-0 justify-start border-b px-2">
         {TABS.map(t => <TabsTrigger key={t.id} value={t.id} className="flex-none">{t.label()}</TabsTrigger>)}
       </TabsList>
-      <PanelBody tab={tab} setTab={setTab} />
+      <PanelBody />
     </Tabs>
   );
 
@@ -272,9 +283,7 @@ function Workspace() {
           </CanvasFrame>
           {/* Phone: floor switcher floats over the canvas */}
           <div className="absolute top-2 left-2 md:hidden">
-            <ToggleGroup value={[view.level]} onValueChange={v => v[0] && setView({ level: v[0] as string })} variant="outline" size="sm" className="bg-background">
-              {project.levels.map(l => <ToggleGroupItem key={l.id} value={l.id}>{l.name}</ToggleGroupItem>)}
-            </ToggleGroup>
+            <LevelSwitcher className="bg-background" />
           </div>
           {mobile && (
             <nav className="absolute inset-x-0 bottom-0 flex justify-around border-t bg-background/95 pb-[env(safe-area-inset-bottom)]">
@@ -307,6 +316,7 @@ export function Editor({ initial, search }: { initial: InitialProject; search: {
     () => createEditorStore(initial, { level: search.level, mode: search.mode, focus: search.focus?.split(',').filter(Boolean) }),
     [initial.id],
   );
+  useEffect(() => store.getState().connect(), [store]);
   const navigate = useNavigate();
 
   // Open read-only when the link specifies a version
