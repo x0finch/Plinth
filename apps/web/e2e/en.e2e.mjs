@@ -1,4 +1,4 @@
-// E2E: English UI smoke test → landing page in English → sample design → Plan/3D toolbar → select a room in the canvas
+// E2E: English UI smoke test → landing page in English → sample design → Plan/3D toolbar → pick in 3D → select a room in the canvas
 // → properties tab shows its area → Settings shows English selected → a blank design gets English level names
 import { chromium } from 'playwright';
 
@@ -39,6 +39,12 @@ await threeBtn.click();
 const gl = await canvas.locator('canvas').first().waitFor({ timeout: 20000 }).then(() => true, () => false);
 check(gl, 'switching to 3D renders a WebGL canvas');
 await page.screenshot({ path: `${OUT}/en-3d.png` });
+// Clicking the model in 3D selects what is under the pointer (after the entry animation settles)
+await page.waitForTimeout(2500);
+const frameBox = await page.locator('iframe[title="Canvas"]').boundingBox();
+await page.mouse.click(frameBox.x + frameBox.width / 2, frameBox.y + frameBox.height / 2);
+const picked = await page.waitForFunction(() => window.artifact.call('view_get', {}).then(r => r.result?.selection?.length === 1), null, { timeout: 5000 }).then(() => true, () => false);
+check(picked, 'clicking the 3D model selects an object');
 await planBtn.click();
 
 // Properties tab first (selection only switches tabs when the chat tab is not active), then click a room label

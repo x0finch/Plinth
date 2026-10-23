@@ -580,5 +580,5 @@
   "model3d_fit": "回到全景",
   "model3d_top": "俯视",
   "model3d_perspective": "斜视",
-  "model3d_hint": "触控板：双指滑动旋转，捏合缩放，按住 Shift 双指滑动平移 · 鼠标：拖动旋转，滚轮缩放，右键拖动平移"
+  "model3d_hint": "拖动旋转视角，双指或滚轮缩放，按住 Shift 拖动或右键拖动平移"
 }
