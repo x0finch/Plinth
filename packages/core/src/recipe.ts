@@ -14,7 +14,7 @@ import type { Point } from './schema.js';
 
 /** Materials a recipe can use; the renderer gives each a theme color and a finish */
 export const RECIPE_MATERIALS = [
-  'fabric', 'cushion', 'linen', 'bedding', 'canvas', 'canvas2', 'wood', 'woodDark', 'lacquer', 'gold', 'red', 'cabinet', 'countertop',
+  'fabric', 'cushion', 'linen', 'bedding', 'canvas', 'canvas2', 'wood', 'woodDark', 'birch', 'white', 'lacquer', 'gold', 'red', 'cabinet', 'countertop',
   'ceramic', 'ceramicShade', 'appliance', 'plaster', 'stone', 'stoneDark', 'terracotta', 'soil', 'iron', 'dark', 'glass', 'book1',
   'book2', 'book3', 'book4', 'flower', 'tube', 'bark', 'leaf', 'leaf2', 'carBody', 'carGlass', 'tyre', 'metal', 'headlight',
   'taillight', 'frame', 'glassBlock', 'wall', 'water', 'grate',

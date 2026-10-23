@@ -2,47 +2,54 @@
 import type { Expr, Recipe, RecipePart } from '../recipe.js';
 import { block, legs, pair } from './helpers.js';
 
+/** A dining table (IKEA style): a thin birch top with a softened edge on slightly tapered round legs and a slim frame */
 const dining: Recipe = {
   parts: [
-    block('wood', ['w', 40, 'd'], 0, 'h - 40', 0, 10),
-    block('wood', ['w - 160', 80, 'd - 160'], 0, 'h - 120', 0, 4),
-    legs('wood', 70, 'h - 40', 30, { square: true }),
+    block('birch', ['w', 28, 'd'], 0, 'h - 28', 0, 8),
+    block('birch', ['w - 200', 60, 'd - 200'], 0, 'h - 88', 0, 3),
+    legs('birch', 90, 'h - 28', 26),
   ],
 };
 
-/** A wooden chair with a cushioned seat and a railed back (to the north) */
+/** A white spindle-back chair (IKEA style): turned legs, a solid seat, rear posts that rise into a bent top rail, five spindles */
 const chair: Recipe = {
-  let: { seat: 'min(460, h * 0.54)', bz: '-d / 2 + 35' },
+  let: { seat: 'min(450, h * 0.53)', bz: '-d / 2 + 30', tilt: 50 },
   parts: [
-    legs('wood', 35, 'seat - 30', 17),
-    block('wood', ['w', 35, 'd'], 0, 'seat - 35', 0, 10),
-    block('fabric', ['w - 50', 30, 'd - 80'], 0, 'seat', 20, 12),
-    pair({ kind: 'rod', mat: 'wood', from: ['s * (w / 2 - 35)', 'seat', 'bz'], to: ['s * (w / 2 - 35)', 'h', 'bz - 30'], r: 16, seg: 8 }),
-    { kind: 'box', mat: 'wood', size: ['w - 20', 100, 22], at: [0, 'h - 70', 'bz - 25'], r: 8, rot: [-4.6, 0, 0] },
-    { kind: 'box', mat: 'wood', size: ['w - 60', 40, 20], at: [0, 'seat + 200', 'bz - 12'], r: 6, rot: [-4.6, 0, 0] },
+    legs('white', 30, 'seat - 30', 16),
+    block('white', ['w - 20', 22, 'd - 40'], 0, 'seat - 52', 0, 4),
+    block('white', ['w', 30, 'd'], 0, 'seat - 30', 10, 12),
+    pair({ kind: 'rod', mat: 'white', from: ['s * (w / 2 - 30)', 'seat - 30', 'bz'], to: ['s * (w / 2 - 34)', 'h - 20', 'bz - tilt'], r: 15, seg: 10 }),
+    { kind: 'box', mat: 'white', size: ['w - 30', 90, 24], at: [0, 'h - 55', 'bz - tilt + 2'], r: 10, rot: [-8, 0, 0] },
+    { kind: 'repeat', count: 5, let: { x: '(i - 2) * (w - 120) / 4' }, parts: [
+      { kind: 'rod', mat: 'white', from: ['x', 'seat', 'bz + 6'], to: ['x', 'h - 95', 'bz - tilt + 8'], r: 8, seg: 8 },
+    ] },
   ],
 };
 
-/** Base cabinets of height `h` and depth `d`, centred at z, facing south (face 1) or north (-1): a dark plinth, a wood carcass, white doors with handles */
+/**
+ * Base cabinets of height `h` and depth `d`, centred at z, facing south (face 1) or north (-1), IKEA style: a white case on a
+ * recessed plinth, flat white handleless fronts with a narrow drawer above each door, thin gaps between them
+ */
 function cabinets(d: Expr, h: Expr, z: Expr, face: 1 | -1): RecipePart[] {
   return [
-    block('dark', ['w - 20', 100, `(${d}) - 80`], 0, 0, `(${z}) - ${face * 30}`, 5),
-    block('wood', ['w', `(${h}) - 100`, `(${d}) - 30`], 0, 100, `(${z}) - ${face * 15}`, 6),
+    block('white', ['w - 20', 100, `(${d}) - 80`], 0, 0, `(${z}) - ${face * 30}`, 3),
+    block('white', ['w', `(${h}) - 100`, `(${d}) - 30`], 0, 100, `(${z}) - ${face * 15}`, 4),
     {
-      kind: 'repeat', count: 'max(1, round(w / 600))', let: { dw: 'w / max(1, round(w / 600))', x: '-w / 2 + dw * (i + 0.5)' }, parts: [
-        block('cabinet', ['dw - 6', `(${h}) - 130`, 18], 'x', 110, `(${z}) + ${face} * ((${d}) / 2 - 20)`, 4),
-        { kind: 'box', mat: 'metal', size: ['min(160, dw * 0.4)', 12, 20], at: ['x', `(${h}) - 60`, `(${z}) + ${face} * ((${d}) / 2 - 2)`], r: 5 },
+      kind: 'repeat', count: 'max(1, round(w / 600))', let: { dw: 'w / max(1, round(w / 600))', x: '-w / 2 + dw * (i + 0.5)', dh: 160 }, parts: [
+        block('white', ['dw - 4', `(${h}) - 108 - dh`, 18], 'x', 102, `(${z}) + ${face} * ((${d}) / 2 - 20)`, 2),
+        block('white', ['dw - 4', 'dh - 4', 18], 'x', `(${h}) - 4 - dh`, `(${z}) + ${face} * ((${d}) / 2 - 20)`, 2),
+        { kind: 'box', mat: 'metal', size: ['min(240, dw * 0.45)', 10, 16], at: ['x', `(${h}) - 40`, `(${z}) + ${face} * ((${d}) / 2 - 4)`], r: 4 },
       ],
     },
   ];
 }
 
-/** Base cabinets under a stone top, with a sink and a cooktop */
+/** Base cabinets under an oak-look worktop, with a steel sink and a black cooktop */
 const counter: Recipe = {
   let: { sx: '-w * 0.22', cx: 'w * 0.24' },
   parts: [
     ...cabinets('d', 'h - 40', 0, 1),
-    block('countertop', ['w', 40, 'd'], 0, 'h - 40', 0, 6),
+    block('birch', ['w', 40, 'd'], 0, 'h - 40', 0, 4),
     block('metal', ['min(550, w * 0.3)', 4, 'd * 0.62'], 'sx', 'h', 20, 20),
     { kind: 'rod', mat: 'metal', from: ['sx', 'h', '-d / 2 + 80'], to: ['sx', 'h + 300', '-d / 2 + 80'], r: 13 },
     { kind: 'rod', mat: 'metal', from: ['sx', 'h + 300', '-d / 2 + 80'], to: ['sx', 'h + 280', '-d / 2 + 240'], r: 11 },
@@ -68,37 +75,37 @@ const woodstove: Recipe = {
   ],
 };
 
-/** A kitchen island: cabinets facing north, a stone top overhanging to the south for stools, a bowl on top */
+/** A kitchen island: cabinets facing north, an oak-look top overhanging to the south for stools, a bowl on top */
 const island: Recipe = {
   let: { over: 'min(300, d * 0.3)' },
   parts: [
     ...cabinets('d - over', 'h - 40', '-over / 2', -1),
-    block('countertop', ['w', 40, 'd'], 0, 'h - 40', 0, 6),
+    block('birch', ['w', 40, 'd'], 0, 'h - 40', 0, 4),
     { kind: 'lathe', mat: 'ceramic', profile: [[0, 0], [60, 0], [130, 80], [125, 85], [0, 30]], at: ['w * 0.2', 'h', 0] },
   ],
 };
 
-/** A bar counter: a fluted wood front, a stone top and a metal foot rail */
+/** A bar counter (IKEA style): a white panelled front, an oak-look top overhanging the front, a steel foot rail */
 const bar: Recipe = {
-  let: { n: 'floor(w / 60)' },
+  let: { n: 'max(1, round(w / 600))' },
   parts: [
-    block('wood', ['w', 'h - 50', 'd - 60'], 0, 0, -30, 8),
-    { kind: 'repeat', count: 'n', parts: [{ kind: 'box', mat: 'wood', size: [40, 'h - 80', 20], at: ['-w / 2 + (w / n) * (i + 0.5)', '(h - 50) / 2', 'd / 2 - 50'], r: 10, plan: false }] },
-    block('countertop', ['w', 50, 'd'], 0, 'h - 50', 0, 8),
-    { kind: 'rod', mat: 'metal', from: ['-w / 2 + 100', 220, 'd / 2 - 10'], to: ['w / 2 - 100', 220, 'd / 2 - 10'], r: 16 },
-    pair({ kind: 'rod', mat: 'metal', from: ['s * (w / 2 - 150)', 220, 'd / 2 - 10'], to: ['s * (w / 2 - 150)', 220, 'd / 2 - 50'], r: 10 }),
+    block('white', ['w', 'h - 40', 'd - 120'], 0, 0, -60, 4),
+    { kind: 'repeat', count: 'n', parts: [block('white', ['w / n - 4', 'h - 50', 14], '-w / 2 + (w / n) * (i + 0.5)', 4, 'd / 2 - 113', 2)] },
+    block('birch', ['w', 40, 'd'], 0, 'h - 40', 0, 4),
+    { kind: 'rod', mat: 'metal', from: ['-w / 2 + 100', 220, 'd / 2 - 60'], to: ['w / 2 - 100', 220, 'd / 2 - 60'], r: 14 },
+    pair({ kind: 'rod', mat: 'metal', from: ['s * (w / 2 - 150)', 220, 'd / 2 - 60'], to: ['s * (w / 2 - 150)', 220, 'd / 2 - 106'], r: 9 }),
   ],
 };
 
-/** A bar stool: a cushioned seat on a metal pole, foot ring and base */
+/** A wooden bar stool (IKEA style): a round birch seat on four splayed legs joined by a foot ring */
 const barstool: Recipe = {
-  let: { r: 'min(w, d) / 2' },
+  let: { r: 'min(w, d) / 2', top: 'r * 0.42', foot: 'r * 0.82', fy: 'h * 0.32' },
   parts: [
-    { kind: 'cylinder', mat: 'metal', r: 'r * 0.85', r2: 'r * 0.8', h: 20, at: [0, 10, 0], seg: 28 },
-    { kind: 'cylinder', mat: 'metal', r: 24, h: 'h - 60', at: [0, '20 + (h - 60) / 2', 0] },
-    { kind: 'ring', mat: 'metal', R: 'r * 0.65', r: 10, at: [0, 'h * 0.4', 0] },
-    { kind: 'repeat', count: 3, parts: [{ kind: 'rod', mat: 'metal', from: [0, 'h * 0.4', 0], to: ['cos(i * 120) * r * 0.65', 'h * 0.4', 'sin(i * 120) * r * 0.65'], r: 6 }] },
-    { kind: 'lathe', mat: 'fabric', profile: [[0, 0], ['r * 0.95', 0], ['r', 30], ['r * 0.95', 60], [0, 65]], at: [0, 'h - 65', 0] },
+    { kind: 'cylinder', mat: 'birch', r: 'r * 0.82', h: 30, at: [0, 'h - 15', 0], seg: 36 },
+    { kind: 'repeat', count: 4, let: { a: 'i * 90 + 45' }, parts: [
+      { kind: 'rod', mat: 'birch', from: ['cos(a) * top', 'h - 30', 'sin(a) * top'], to: ['cos(a) * foot', 0, 'sin(a) * foot'], r: 15, seg: 10 },
+    ] },
+    { kind: 'ring', mat: 'birch', R: 'top + (foot - top) * (1 - fy / (h - 30))', r: 10, at: [0, 'fy', 0] },
   ],
 };
 
