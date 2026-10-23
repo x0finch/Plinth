@@ -199,6 +199,16 @@ function openingGap(w: Wall, o: Wall['openings'][number], other: Wall): number |
   return Math.abs(edge - pos) - other.thickness / 2;
 }
 
+/** Remove constraints that target objects which no longer exist (deleted walls, openings, spaces, levels…). Mutates p. */
+export function pruneConstraints(p: Project) {
+  if (!p.constraints.length) return;
+  const ids = new Set<Id>([
+    ...p.levels.map(o => o.id), ...p.walls.map(o => o.id), ...p.walls.flatMap(w => w.openings.map(o => o.id)),
+    ...p.spaces.map(o => o.id), ...p.elements.map(o => o.id), ...p.furniture.map(o => o.id),
+  ]);
+  if (p.constraints.some(c => !c.targets.every(t => ids.has(t)))) p.constraints = p.constraints.filter(c => c.targets.every(t => ids.has(t)));
+}
+
 export const SUPPORTED_CONSTRAINTS = Object.keys(HANDLERS) as Constraint['type'][];
 
 export function checkConstraints(p: Project): ConstraintStatus[] {
