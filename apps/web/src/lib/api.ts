@@ -27,4 +27,5 @@ export const can = (role: Role | undefined, min: Role) => !!role && ROLE_RANK[ro
 export interface Me {
   user: { id: string; name: string; email: string; isAnonymous?: boolean | null; image?: string | null } | null;
   googleEnabled: boolean;
+  mailEnabled: boolean;
 }

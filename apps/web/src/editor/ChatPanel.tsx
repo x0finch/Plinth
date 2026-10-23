@@ -22,7 +22,7 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } fro
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { registry } from '@/agent/registry';
 import type { AgentContext } from '@/agent/prompt';
-import { api, can, ROLE_ZH } from '@/lib/api';
+import { api, can } from '@/lib/api';
 import { AUTONOMY_ZH, getAutonomy, setAutonomy } from '@/lib/prefs';
 import { needsApproval, type Autonomy } from '@/agent/policy';
 import { useEditor, useEditorStore } from './store';
@@ -145,12 +145,13 @@ export function ChatPanel() {
   const context = (): AgentContext => {
     const s = store.getState();
     const p = s.project;
-    const typeOf = (id: string) => (p.walls.some(w => w.id === id) ? '墙' : p.spaces.some(x => x.id === id) ? '空间' : p.furniture.some(f => f.id === id) ? '家具' : '门窗');
+    const typeOf = (id: string) => (p.walls.some(w => w.id === id) ? 'wall' : p.spaces.some(x => x.id === id) ? 'space' : p.furniture.some(f => f.id === id) ? 'furniture' : 'opening');
     const nameOf = (id: string) => p.walls.find(w => w.id === id)?.name ?? p.spaces.find(x => x.id === id)?.name ?? p.furniture.find(f => f.id === id)?.name
       ?? p.walls.flatMap(w => w.openings).find(o => o.id === id)?.name ?? id;
     return {
       projectName: p.name,
-      role: ROLE_ZH[s.role],
+      role: s.role,
+      uiLanguage: document.documentElement.lang,
       view: { mode: s.view.mode, level: p.levels.find(l => l.id === s.view.level)?.name ?? s.view.level },
       selection: s.view.selection.map(id => ({ id, name: nameOf(id), type: typeOf(id) })),
       levels: p.levels.map(l => ({ id: l.id, name: l.name, spaces: p.spaces.filter(x => x.level === l.id).map(x => x.name) })),

@@ -637,7 +637,7 @@ export const furnitureAdd = edit({
     level: zRef('level').optional(), type: z.string(), position: zPoint.optional(), space: z.string().optional(),
     rotation: z.number().default(0).describe('Clockwise rotation (degrees)'),
     size: z.object({ w: z.number().positive(), d: z.number().positive(), h: z.number().positive() }).optional(),
-    elevation: z.number().optional(), label: z.string().optional().describe('Display name of a new category (in Chinese)'),
+    elevation: z.number().optional(), label: z.string().optional().describe('Display name of a new category, in the language the project data uses'),
   }),
   label: i => `放${i.type}`,
   apply: (p, i) => {

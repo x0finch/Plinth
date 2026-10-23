@@ -98,7 +98,7 @@ export const commentsList = defineRead({
 
 export const commentReply = defineRead({
   name: 'comment_reply', title: '回复评论', kind: 'relation', permission: 'reversible', runtime: 'browser',
-  description: 'Reply to a comment and set its status: use resolved when the change is done; when the homeowner must decide, spell out the options and use pending-confirm (awaiting the homeowner\'s confirmation). Write the reply in Simplified Chinese.',
+  description: 'Reply to a comment and set its status: use resolved when the change is done; when the homeowner must decide, spell out the options and use pending-confirm (awaiting the homeowner\'s confirmation). Write the reply in the language the comment thread uses.',
   input: z.object({ comment: z.string().describe('Comment ID'), body: z.string(), status: z.enum(['open', 'pending-confirm', 'resolved']) }),
   run: async (i, ctx) => {
     await comments(ctx).reply(i.comment, i.body, i.status);

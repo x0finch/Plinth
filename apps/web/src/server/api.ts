@@ -6,6 +6,7 @@ import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import sample from '../../../../samples/wushi-10/project.json';
 import { auth, googleEnabled } from './auth';
+import { mailEnabled } from './mail';
 import { handleChat } from './chat';
 import { decryptSecret, encryptSecret, keyHint } from './crypto';
 import { PROVIDERS } from './providers';
@@ -80,7 +81,7 @@ function checkContent(json: unknown): Project {
 api.get('/me', async c => {
   const u = c.get('user');
   if (u && !u.isAnonymous) await repo.acceptInvites(u.id, u.email);
-  return c.json({ user: u, googleEnabled: googleEnabled() });
+  return c.json({ user: u, googleEnabled: googleEnabled(), mailEnabled: mailEnabled() });
 });
 
 api.get('/account/export', async c => {

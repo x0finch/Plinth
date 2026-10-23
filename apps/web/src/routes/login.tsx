@@ -3,6 +3,7 @@ import { LoaderIcon } from 'lucide-react';
 import { useState } from 'react';
 import { z } from 'zod';
 import { Logo } from '@/components/site/SiteHeader';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -149,6 +150,8 @@ function Login() {
   );
   const link = (label: string, s: Step) => <Button type="button" variant="link" className="h-auto p-0" onClick={() => go(s)}>{label}</Button>;
   const pw = step.tab === 'password' ? step.at : null;
+  // Production without a mail service: email sign-in can't deliver codes, so only offer the other methods
+  const mailOff = me.data?.mailEnabled === false;
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-4">
@@ -158,6 +161,12 @@ function Login() {
           <h1 className="text-xl font-semibold">登录</h1>
           <p className="mt-1 text-sm text-muted-foreground">{guest ? '登录后，试用期间的方案会转到你的账号里。' : '用验证码登录时，没有账号会自动创建。'}</p>
         </div>
+        {mailOff ? (
+          <Alert>
+            <AlertTitle>邮箱登录暂未开放</AlertTitle>
+            <AlertDescription>{me.data?.googleEnabled ? '请先用 Google 登录。' : '登录方式还在配置中，可以先以访客身份试用。'}</AlertDescription>
+          </Alert>
+        ) : (
         <Tabs value={step.tab} onValueChange={v => go(v === 'code' ? { tab: 'code', at: 'email' } : { tab: 'password', at: 'sign-in' })}>
           <TabsList className="w-full">
             <TabsTrigger value="code">验证码</TabsTrigger>
@@ -214,10 +223,11 @@ function Login() {
             )}
           </TabsContent>
         </Tabs>
+        )}
         {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
         {me.data?.googleEnabled && (
           <>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground"><Separator className="flex-1" />或<Separator className="flex-1" /></div>
+            {!mailOff && <div className="flex items-center gap-3 text-xs text-muted-foreground"><Separator className="flex-1" />或<Separator className="flex-1" /></div>}
             <Button variant="outline" className="w-full" onClick={google}>用 Google 登录</Button>
           </>
         )}
