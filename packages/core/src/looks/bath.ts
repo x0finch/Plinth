@@ -15,16 +15,15 @@ const toilet: Recipe = {
   ],
 };
 
-/** A wall-hung vanity: a wood cabinet with white doors, a ceramic top with its basin, a faucet */
+/** A wall-hung vanity (IKEA style): a white case with two handleless drawers, a ceramic top with its basin, a faucet */
 const basin: Recipe = {
-  let: { top: 'h - 40', ch: 'min(500, top - 200)', br: 'min(w * 0.32, 200)' },
+  let: { top: 'h - 40', ch: 'min(500, top - 200)', dh: '(ch - 12) / 2', br: 'min(w * 0.32, 200)' },
   parts: [
-    block('wood', ['w', 'ch', 'd - 20'], 0, 'top - ch', -10, 8),
-    {
-      kind: 'if', when: 'w >= 500',
-      parts: [pair(block('cabinet', ['w / 2 - 6', 'ch - 20', 16], 's * w / 4', 'top - ch + 10', 'd / 2 - 10', 4))],
-      else: [block('cabinet', ['w - 10', 'ch - 20', 16], 0, 'top - ch + 10', 'd / 2 - 10', 4)],
-    },
+    block('white', ['w', 'ch', 'd - 20'], 0, 'top - ch', -10, 4),
+    { kind: 'repeat', count: 2, let: { y: 'top - ch + 4 + i * (dh + 4)' }, parts: [
+      block('white', ['w - 8', 'dh', 16], 0, 'y', 'd / 2 - 10', 2),
+      block('metal', ['min(260, w * 0.5)', 8, 6], 0, 'y + dh - 20', 'd / 2 + 1', 3, { plan: false }),
+    ] },
     block('ceramic', ['w', 40, 'd'], 0, 'top', 0, 12),
     { kind: 'cylinder', mat: 'ceramicShade', r: 'br', h: 4, at: [0, 'h + 2', 30.5], scale: [1, 1, 0.75], seg: 36 },
     { kind: 'cylinder', mat: 'metal', r: 20, h: 180, at: [0, 'h + 90', '-d / 2 + 60'] },

@@ -26,6 +26,8 @@ export const LOOK_MATERIALS: Record<RecipeMaterial, MaterialDef> = {
   canvas2: { color: '--furn-canvas-2', roughness: 0.9, metalness: 0 },
   wood: { color: '--furn-wood', roughness: 0.7, metalness: 0 },
   woodDark: { color: '--furn-wood-dark', roughness: 0.6, metalness: 0 },
+  birch: { color: '--furn-birch', roughness: 0.65, metalness: 0 },
+  white: { color: '--furn-white', roughness: 0.5, metalness: 0 },
   lacquer: { color: '--furn-lacquer', roughness: 0.4, metalness: 0 },
   gold: { color: '--furn-gold', roughness: 0.35, metalness: 0.7 },
   red: { color: '--furn-red', roughness: 0.5, metalness: 0 },
@@ -119,7 +121,7 @@ function partGeometry(p: Exclude<BuiltPart, { kind: 'base' }>): THREE.BufferGeom
       if (p.axis === 'y') g.rotateX(Math.PI / 2);
       return g.translate(p.at[0] * M, p.at[1] * M, p.at[2] * M);
     }
-    case 'tube': return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(p.points.map(v3)), Math.max(8, p.points.length * 2), p.r * M, 8);
+    case 'tube': return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(p.points.map(v3)), Math.max(24, p.points.length * 12), p.r * M, 10);
     case 'panel': {
       const [ax, az] = p.from, [bx, bz] = p.to;
       return new THREE.BoxGeometry(Math.hypot(bx - ax, bz - az) * M, p.h * M, p.t * M).rotateY(-Math.atan2(bz - az, bx - ax))

@@ -1,38 +1,69 @@
-/** Living room: sofas, armchair, coffee and tea tables, TV stand, side table, potted plant, ancestral shrine */
+/** Living room: sofas, lounge chair, coffee and tea tables, TV stand, side table, potted plant, ancestral shrine */
 import type { Recipe } from '../recipe.js';
 import { block, clump, legs, pair } from './helpers.js';
 
-/** Legs, a base, arms and a back frame; seat and back cushions of about 65 cm each, so a longer sofa gets more cushions */
+/**
+ * A Scandinavian sofa (IKEA style): wide, low, softly rounded arms, a deep seat on small black feet, loose seat and back
+ * cushions of about 65 cm each, so a longer sofa gets more cushions
+ */
 const sofa: Recipe = {
   let: {
-    leg: 70, arm: 'min(180, max(120, w * 0.1))', back: 'min(220, d * 0.25)', baseTop: 'leg + min(200, h * 0.25)', seatTop: 'max(baseTop + 40, min(h * 0.55, 450))',
-    armTop: 'min(h * 0.8, 640)', inner: 'w - 2 * arm', n: 'max(1, round(inner / 650))', cw: 'inner / n', seatD: 'd - back - 20',
+    leg: 50, arm: 'min(240, max(140, w * 0.11))', back: 'min(200, d * 0.22)', baseTop: 'leg + min(220, h * 0.27)', seatTop: 'max(baseTop + 40, min(h * 0.55, 450))',
+    armTop: 'min(h * 0.76, 630)', inner: 'w - 2 * arm', n: 'max(1, round(inner / 650))', cw: 'inner / n', seatD: 'd - back - 30',
   },
   parts: [
-    legs('woodDark', 80, 'leg', 24),
-    block('fabric', ['w', 'baseTop - leg', 'd'], 0, 'leg', 0, 30),
-    pair(block('fabric', ['arm', 'armTop - leg', 'd'], 's * (w - arm) / 2', 'leg', 0, 50)),
-    block('fabric', ['w - 2 * arm + 20', 'h - baseTop', 'back'], 0, 'baseTop', '-(d - back) / 2', 50),
+    legs('dark', 60, 'leg', 20, { square: true }),
+    block('fabric', ['w - 20', 'baseTop - leg', 'd - 20'], 0, 'leg', 0, 40),
+    pair(block('fabric', ['arm', 'armTop - leg', 'd'], 's * (w - arm) / 2', 'leg', 0, 90)),
+    block('fabric', ['inner + 40', 'h - baseTop - 40', 'back'], 0, 'baseTop', '-(d - back) / 2', 60),
     {
       kind: 'repeat', count: 'n', let: { x: '-inner / 2 + cw * (i + 0.5)' }, parts: [
-        block('cushion', ['cw - 12', 'seatTop - baseTop', 'seatD'], 'x', 'baseTop', '(d - seatD) / 2 - 10', 60),
-        { kind: 'box', mat: 'cushion', size: ['cw - 12', '(h - seatTop) * 0.92', 170], at: ['x', 'seatTop + (h - seatTop) * 0.46', '-d / 2 + back + 70'], r: 70, rot: [-6.9, 0, 0] },
+        block('cushion', ['cw - 10', 'seatTop - baseTop', 'seatD'], 'x', 'baseTop', '(d - seatD) / 2 - 15', 70),
+        { kind: 'box', mat: 'cushion', size: ['cw - 10', '(h - seatTop) * 0.98', 200], at: ['x', 'seatTop + (h - seatTop) * 0.49', '-d / 2 + back + 80'], r: 90, rot: [-9, 0, 0] },
       ],
     },
   ],
 };
 
-const coffee: Recipe = {
+/**
+ * A bentwood lounge chair (IKEA style): a laminated birch frame that runs along the floor, curves up at the front into the
+ * arms and carries one long cushion from the knees to the head
+ */
+const armchair: Recipe = {
+  let: {
+    cw: 'w - 150', fx: 'cw / 2 + 25',
+    zf: 'd / 2 - 110', yf: 'h * 0.43', zb: '-d / 2 + 230', yb: 'h * 0.32', zt: '-d / 2 + 60', yt: 'h - 30',
+    a1: 'atan2(yf - yb, zf - zb)', l1: 'hypot(yf - yb, zf - zb)', a2: 'atan2(zb - zt, yt - yb)', l2: 'hypot(zb - zt, yt - yb)',
+  },
   parts: [
-    block('wood', ['w', 40, 'd'], 0, 'h - 40', 0, 12),
-    block('wood', ['w - 140', 20, 'd - 120'], 0, 120, 0, 6),
-    legs('wood', 50, 'h - 40', 22),
-    { kind: 'box', mat: 'book2', size: [260, 30, 190], at: ['-w * 0.22', 'h + 15', 20], r: 4, rot: [0, 11.5, 0] },
-    { kind: 'box', mat: 'book4', size: [220, 25, 160], at: ['-w * 0.22', 'h + 43', 20], r: 4, rot: [0, -5.7, 0] },
-    { kind: 'lathe', mat: 'ceramic', profile: [[0, 0], [50, 0], [90, 50], [90, 55], [0, 55]], at: ['w * 0.2', 'h', -20] },
+    pair(
+      { kind: 'tube', mat: 'birch', r: 16, points: [
+        ['s * fx', 16, '-d / 2 + 100'], ['s * fx', 16, 'd / 2 - 160'], ['s * fx', 60, 'd / 2 - 40'], ['s * fx', 'h * 0.3', 'd / 2 - 30'],
+        ['s * fx', 'h * 0.56', 'd / 2 - 80'], ['s * fx', 'h * 0.6', 'd / 2 - 260'], ['s * fx', 'h * 0.5', '-d / 2 + 250'], ['s * fx', 'yb - 20', 'zb - 20'],
+      ] },
+      { kind: 'tube', mat: 'birch', r: 14, points: [['s * (cw / 2 - 10)', 'yf - 50', 'zf'], ['s * (cw / 2 - 10)', 'yb - 50', 'zb'], ['s * (cw / 2 - 10)', 'yt - 40', 'zt + 20']] },
+    ),
+    { kind: 'rod', mat: 'birch', from: ['-fx', 16, '-d / 2 + 100'], to: ['fx', 16, '-d / 2 + 100'], r: 14 },
+    { kind: 'rod', mat: 'birch', from: ['-fx', 'yf - 60', 'zf'], to: ['fx', 'yf - 60', 'zf'], r: 14 },
+    { kind: 'box', mat: 'cushion', size: ['cw', 100, 'l1 + 60'], at: [0, '(yf + yb) / 2', '(zf + zb) / 2'], r: 45, rot: ['-a1', 0, 0] },
+    { kind: 'box', mat: 'cushion', size: ['cw', 'l2 + 40', 90], at: [0, '(yb + yt) / 2', '(zb + zt) / 2'], r: 40, rot: ['-a2', 0, 0] },
   ],
 };
 
+/** A low table with a thick top flush on square legs and a shelf underneath (IKEA style): a birch top, white legs and shelf */
+const coffee: Recipe = {
+  let: { t: 50, l: 50 },
+  parts: [
+    block('birch', ['w', 't', 'd'], 0, 'h - t', 0, 4),
+    legs('white', 'l / 2', 'h - t', 'l / 2', { square: true }),
+    block('white', ['w - 2 * l', 18, 'd - 2 * l'], 0, 90, 0, 2),
+    { kind: 'box', mat: 'book2', size: [260, 30, 190], at: ['-w * 0.22', 'h + 15', 20], r: 4, rot: [0, 11.5, 0] },
+    { kind: 'box', mat: 'book4', size: [220, 25, 160], at: ['-w * 0.22', 'h + 43', 20], r: 4, rot: [0, -5.7, 0] },
+    { kind: 'lathe', mat: 'ceramic', profile: [[0, 0], [50, 0], [90, 50], [90, 55], [0, 55]], at: ['w * 0.2', 'h', -20] },
+    block('book1', [300, 22, 220], '-w * 0.18', 108, 0, 3, { plan: false }),
+    block('book3', [280, 18, 200], '-w * 0.18', 130, 0, 3, { plan: false }),
+  ],
+};
 /** A Chinese tea table: a heavy dark top with an apron, a stone tray, a teapot and cups */
 const teatable: Recipe = {
   let: { tx: 'w * 0.1' },
@@ -47,16 +78,15 @@ const teatable: Recipe = {
   ],
 };
 
-/** A low cabinet: a wood carcass with white doors, a vase and books on top */
+/** A low media bench (IKEA style): a white case on slim steel legs, handleless push-open doors, a vase and books on top */
 const tvstand: Recipe = {
-  let: { n: 'max(1, round(w / 600))', dw: 'w / n' },
+  let: { leg: 110, n: 'max(1, round(w / 600))', dw: 'w / n' },
   parts: [
-    legs('woodDark', 60, 80, 18),
-    block('wood', ['w', 'h - 80', 'd'], 0, 80, 0, 12),
+    legs('metal', 40, 'leg', 12),
+    block('white', ['w', 'h - leg', 'd - 16'], 0, 'leg', -8, 6),
     {
       kind: 'repeat', count: 'n', let: { x: '-w / 2 + dw * (i + 0.5)' }, parts: [
-        block('cabinet', ['dw - 30', 'h - 120', 14], 'x', 100, 'd / 2', 4),
-        { kind: 'box', mat: 'metal', size: [100, 12, 16], at: ['x', 'h - 60', 'd / 2 + 12'], r: 5 },
+        block('white', ['dw - 4', 'h - leg - 4', 16], 'x', 'leg + 2', 'd / 2 - 8', 3),
       ],
     },
     { kind: 'lathe', mat: 'ceramic', profile: [[0, 0], [60, 0], [80, 100], [40, 220], [35, 260], [0, 260]], at: ['-w * 0.32', 'h', 0] },
@@ -65,22 +95,22 @@ const tvstand: Recipe = {
   ],
 };
 
-/** A round side table on one stem */
+/** A small square side table (IKEA style): a thick top flush on four square legs, all white */
 const sidetable: Recipe = {
-  let: { r: 'min(w, d) / 2' },
+  let: { t: 50, l: 50 },
   parts: [
-    { kind: 'cylinder', mat: 'wood', r: 'r', h: 30, at: [0, 'h - 15', 0], seg: 36 },
-    { kind: 'cylinder', mat: 'wood', r: 'r * 0.55', r2: 'r * 0.6', h: 20, at: [0, 10, 0], seg: 32 },
-    { kind: 'cylinder', mat: 'woodDark', r: 25, h: 'h - 50', at: [0, '20 + (h - 50) / 2', 0] },
+    block('white', ['w', 't', 'd'], 0, 'h - t', 0, 4),
+    legs('white', 'l / 2', 'h - t', 'l / 2', { square: true }),
+    { kind: 'lathe', mat: 'ceramicShade', profile: [[0, 0], [45, 0], [60, 60], [35, 150], [28, 180], [0, 180]], at: ['w * 0.15', 'h', '-d * 0.1'] },
   ],
 };
 
-/** A terracotta pot with a small leafy tree */
+/** A white ceramic pot with a small leafy tree */
 const plant: Recipe = {
-  let: { r: 'min(w, d) / 2', ph: 'min(380, h * 0.32)' },
+  let: { r: 'min(w, d) / 2', ph: 'min(340, h * 0.3)' },
   parts: [
-    { kind: 'lathe', mat: 'terracotta', profile: [[0, 0], ['r * 0.6', 0], ['r * 0.78', 'ph * 0.92'], ['r * 0.82', 'ph'], [0, 'ph']], at: [0, 0, 0] },
-    { kind: 'cylinder', mat: 'soil', r: 'r * 0.74', h: 10, at: [0, 'ph - 25', 0] },
+    { kind: 'lathe', mat: 'ceramic', profile: [[0, 0], ['r * 0.66', 0], ['r * 0.72', 'ph * 0.08'], ['r * 0.76', 'ph'], ['r * 0.7', 'ph'], [0, 'ph - 20']], at: [0, 0, 0] },
+    { kind: 'cylinder', mat: 'soil', r: 'r * 0.7', h: 10, at: [0, 'ph - 25', 0] },
     ...([[0, 120], [120, 200], [240, 160]] as const).map(([a, lean]) =>
       ({ kind: 'rod' as const, mat: 'bark' as const, from: [0, 'ph - 30', 0] as [string | number, string, number], to: [`cos(${a}) * ${lean}`, 'h * 0.72', `sin(${a}) * ${lean}`] as [string, string, string], r: 12, seg: 6 })),
     ...([[0, 0.78, 0, 0.5], [0.16, 0.66, 0.08, 0.4], [-0.14, 0.7, 0.1, 0.38], [0.05, 0.62, -0.16, 0.4], [-0.08, 0.88, -0.06, 0.36], [0.1, 0.9, 0.1, 0.3]] as const)
@@ -108,4 +138,4 @@ const shrine: Recipe = {
   ],
 };
 
-export const LIVING: Record<string, Recipe> = { sofa3: sofa, sofa2: sofa, armchair: sofa, coffee, teatable, tvstand, sidetable, plant, shrine };
+export const LIVING: Record<string, Recipe> = { sofa3: sofa, sofa2: sofa, armchair, coffee, teatable, tvstand, sidetable, plant, shrine };

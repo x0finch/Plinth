@@ -101,6 +101,8 @@
     --furn-bedding: oklch(0.74 0.03 235);
     --furn-wood: oklch(0.72 0.06 68);
     --furn-wood-dark: oklch(0.45 0.035 55);
+    --furn-birch: oklch(0.84 0.045 80);
+    --furn-white: oklch(0.975 0.002 90);
     --furn-bark: oklch(0.50 0.035 60);
     --furn-leaf: oklch(0.64 0.11 140);
     --furn-leaf-2: oklch(0.72 0.10 128);
