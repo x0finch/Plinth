@@ -1,9 +1,9 @@
 /** Rule checks: lightweight, deterministic, no browser needed. Errors reject the operation; warnings are advisory. */
-import { add, openingSpaces, overlapArea, pointAt, scale, spaceWalls, wallDir, wallLength, wallNormal } from './topology.js';
-import { pointInPolygon } from './geometry.js';
+import { add, furnitureFootprint, pointAt, pointInPolygon, scale, wallDir, wallLength, wallNormal } from './geometry.js';
+import { openingSpaces, overlapArea, spaceWalls } from './topology.js';
 import { text } from './i18n.js';
 import { BEDROOM_NAME } from './names.js';
-import type { Furniture, Id, Point, Polygon, Project, Space, Wall } from './schema.js';
+import type { Id, Polygon, Project, Space, Wall } from './schema.js';
 
 export interface Issue {
   code: string;
@@ -16,13 +16,6 @@ export const issueKey = (i: Issue) => `${i.code}:${[...i.targets].sort().join(',
 
 const ROOMLIKE = (s: Space) => s.kind === 'indoor' && !s.slabOpening && !(s.extras as any)?.stair;
 const PASSAGE = ['door', 'sliding-door', 'opening', 'gate'];
-
-function furnitureBox(f: Furniture): Polygon {
-  const r = (f.rotation * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r);
-  const hw = f.size.w / 2, hd = f.size.d / 2;
-  const pts: Point[] = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([x, y]) => [f.position[0] + x * c - y * s, f.position[1] + x * s + y * c]);
-  return { outer: pts };
-}
 
 /** Area swept by a swing door leaf (approximated as a square) */
 function doorSwing(w: Wall, o: Wall['openings'][number]): Polygon | null {
@@ -79,7 +72,7 @@ export function checkRules(p: Project): Issue[] {
     if (!sw) continue;
     for (const f of p.furniture) {
       if (f.level !== w.level || f.elevation) continue;
-      if (overlapArea([sw], [furnitureBox(f)]) > 0.02e6)
+      if (overlapArea([sw], [furnitureFootprint(f)]) > 0.02e6)
         out.push({ code: 'door-blocked', severity: 'warning', message: text('rule_door_blocked', '{opening} hits {furniture} when it opens', { opening: o.name, furniture: f.name }), targets: [o.id, f.id] });
     }
   }

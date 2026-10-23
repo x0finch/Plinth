@@ -3,10 +3,8 @@
  * An unfixable hard constraint rolls back the transaction; an unfixable soft constraint only produces a warning.
  */
 import { current, isDraft } from 'immer';
-import {
-  cross, dot, moveWall, project as projectPoint, scale, sideOf, spaceNetArea, spaceWalls, sub, wallDir,
-  wallLength, wallNormal,
-} from './topology.js';
+import { dot, parallel, project as projectPoint, scale, sub, TOL, wallNormal } from './geometry.js';
+import { moveWall, sideOf, spaceNetArea, spaceWalls, wallSpaceSpan } from './topology.js';
 import { text } from './i18n.js';
 import { findObject } from './project-index.js';
 import type { Constraint, Id, Point, Project, Space, Wall } from './schema.js';
@@ -33,26 +31,8 @@ function findOpening(p: Project, id: Id) {
   return e ? { w: e.wall!, o: e.obj } : null;
 }
 
-const parallel = (a: Wall, b: Wall) => Math.abs(cross(wallDir(a), wallDir(b))) < 1e-6;
 /** Offset of b's centreline from a's centreline along a's normal */
 const offsetBetween = (a: Wall, b: Wall) => dot(sub(b.start, a.start), wallNormal(a));
-
-/** Interval where the opening's wall coincides with the space boundary */
-function sharedInterval(w: Wall, s: Space): [number, number] | null {
-  const d = wallDir(w), L = wallLength(w);
-  let lo = Infinity, hi = -Infinity;
-  for (const poly of s.shape) {
-    const r = poly.outer;
-    for (let i = 0; i < r.length; i++) {
-      const a = r[i], b = r[(i + 1) % r.length];
-      const pa = projectPoint(w, a), pb = projectPoint(w, b);
-      if (pa.dist > 5 || pb.dist > 5 || Math.abs(cross(d, sub(b, a))) > 10) continue;
-      lo = Math.min(lo, Math.max(0, Math.min(pa.at, pb.at)));
-      hi = Math.max(hi, Math.min(L, Math.max(pa.at, pb.at)));
-    }
-  }
-  return hi > lo ? [lo, hi] : null;
-}
 
 /** Pick a wall to adjust area with: prefer partitions, then the longest shared edge */
 export function pickResizeWall(p: Project, s: Space): Wall | null {
@@ -98,7 +78,7 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
   align: {
     check(p, c) {
       const ws = c.targets.map(id => findWall(p, id)).filter((w): w is Wall => !!w);
-      const bad = ws.slice(1).filter(w => !parallel(ws[0], w) || Math.abs(offsetBetween(ws[0], w)) > 5);
+      const bad = ws.slice(1).filter(w => !parallel(ws[0], w) || Math.abs(offsetBetween(ws[0], w)) > TOL);
       return { ok: ws.length === c.targets.length && !bad.length, message: text('constraint_align', '{walls} aligned', { walls: ws.map(w => w.name).join(text('list_separator', ', ')) }) };
     },
     fix(p, c, changed) {
@@ -109,7 +89,7 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
       for (const w of ws) {
         if (w === ref || !parallel(ref, w)) continue;
         const off = offsetBetween(ref, w);
-        if (Math.abs(off) <= 5) continue;
+        if (Math.abs(off) <= TOL) continue;
         moveWall(p, w.id, scale(wallNormal(ref), -off).map(Math.round) as Point);
         changed.add(w.id);
         moved = true;
@@ -123,16 +103,16 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
     check(p, c) {
       const hit = findOpening(p, c.targets[0]), s = findSpace(p, c.targets[1]);
       if (!hit || !s) return { ok: false, message: text('constraint_center_missing', 'The objects to centre no longer exist') };
-      const iv = sharedInterval(hit.w, s);
-      return { ok: !!iv && Math.abs(hit.o.at - (iv[0] + iv[1]) / 2) <= 5, message: text('constraint_center', '{opening} centred on {space}', { opening: hit.o.name, space: s.name }) };
+      const iv = wallSpaceSpan(hit.w, s);
+      return { ok: !!iv && Math.abs(hit.o.at - (iv[0] + iv[1]) / 2) <= TOL, message: text('constraint_center', '{opening} centred on {space}', { opening: hit.o.name, space: s.name }) };
     },
     fix(p, c, changed) {
       const hit = findOpening(p, c.targets[0]), s = findSpace(p, c.targets[1]);
       if (!hit || !s) return false;
-      const iv = sharedInterval(hit.w, s);
+      const iv = wallSpaceSpan(hit.w, s);
       if (!iv) return false;
       const mid = Math.round((iv[0] + iv[1]) / 2);
-      if (Math.abs(hit.o.at - mid) <= 5) return false;
+      if (Math.abs(hit.o.at - mid) <= TOL) return false;
       hit.o.at = mid;
       changed.add(hit.o.id);
       return true;
@@ -148,11 +128,11 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
       if (!other) return { ok: false, message: text('constraint_spacing_missing', 'The objects of this spacing no longer exist') };
       if (hit) {
         const g = openingGap(hit.w, hit.o, other);
-        return { ok: g != null && Math.abs(g - dist) <= 5, message: text('constraint_opening_spacing', '{opening} {distance} mm from {wall}', { opening: hit.o.name, wall: other.name, distance: dist }) };
+        return { ok: g != null && Math.abs(g - dist) <= TOL, message: text('constraint_opening_spacing', '{opening} {distance} mm from {wall}', { opening: hit.o.name, wall: other.name, distance: dist }) };
       }
       const a = findWall(p, c.targets[0]);
       if (!a) return { ok: false, message: text('constraint_spacing_missing', 'The objects of this spacing no longer exist') };
-      return { ok: parallel(a, other) && Math.abs(Math.abs(offsetBetween(a, other)) - dist) <= 5, message: text('constraint_wall_spacing', '{a} and {b} {distance} mm apart', { a: a.name, b: other.name, distance: dist }) };
+      return { ok: parallel(a, other) && Math.abs(Math.abs(offsetBetween(a, other)) - dist) <= TOL, message: text('constraint_wall_spacing', '{a} and {b} {distance} mm apart', { a: a.name, b: other.name, distance: dist }) };
     },
     fix(p, c, changed) {
       const dist = Number(c.params.distance);
@@ -161,7 +141,7 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
       if (!other) return false;
       if (hit) {
         const g = openingGap(hit.w, hit.o, other);
-        if (g == null || Math.abs(g - dist) <= 5) return false;
+        if (g == null || Math.abs(g - dist) <= TOL) return false;
         // The side of the opening nearest other: positive along the wall away from other
         const sign = Math.sign(hit.o.at - projectPoint(hit.w, other.start).at) || 1;
         hit.o.at = Math.round(hit.o.at + sign * (dist - g));
@@ -171,7 +151,7 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
       const a = findWall(p, c.targets[0]);
       if (!a || !parallel(a, other)) return false;
       const off = offsetBetween(a, other), want = Math.sign(off || 1) * dist;
-      if (Math.abs(off - want) <= 5) return false;
+      if (Math.abs(off - want) <= TOL) return false;
       // The changed one is the reference; move the other
       if (changed.has(other.id) && !changed.has(a.id)) {
         moveWall(p, a.id, scale(wallNormal(a), off - want).map(Math.round) as Point);

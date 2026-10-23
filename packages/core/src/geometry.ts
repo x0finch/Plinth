@@ -1,5 +1,54 @@
 import pc from 'polygon-clipping';
-import type { Point, Polygon, Ring, Wall } from './schema.js';
+import type { Furniture, Opening, Point, Polygon, Ring, Wall } from './schema.js';
+
+// ---------- Tolerances ----------
+
+/** Positions closer than this (mm) count as the same point / line */
+export const TOL = 5;
+/** A wall bounds a space when they share more than this length (mm) */
+export const MIN_SHARED_EDGE = 100;
+/** Shortest wall that may be created (mm) */
+export const MIN_WALL_LENGTH = 50;
+/** Two unit directions are parallel when the magnitude of their cross product is below this */
+export const PARALLEL_EPS = 1e-6;
+
+// ---------- Vectors ----------
+
+export const sub = (a: Point, b: Point): Point => [a[0] - b[0], a[1] - b[1]];
+export const add = (a: Point, b: Point): Point => [a[0] + b[0], a[1] + b[1]];
+export const scale = (a: Point, k: number): Point => [a[0] * k, a[1] * k];
+export const dot = (a: Point, b: Point) => a[0] * b[0] + a[1] * b[1];
+export const cross = (a: Point, b: Point) => a[0] * b[1] - a[1] * b[0];
+export const len = (a: Point) => Math.hypot(a[0], a[1]);
+export const round = (p: Point): Point => [Math.round(p[0]), Math.round(p[1])];
+
+// ---------- Wall centreline ----------
+
+export const wallLength = (w: Wall) => len(sub(w.end, w.start));
+export const wallDir = (w: Wall): Point => scale(sub(w.end, w.start), 1 / wallLength(w));
+/** Normal: the right-hand side looking from start → end (plan north up, y south) */
+export const wallNormal = (w: Wall): Point => {
+  const [dx, dy] = wallDir(w);
+  return [-dy, dx];
+};
+export const parallel = (a: Wall, b: Wall) => Math.abs(cross(wallDir(a), wallDir(b))) < PARALLEL_EPS;
+
+export const pointAt = (w: Wall, at: number): Point => add(w.start, scale(wallDir(w), at));
+export const openingCenter = (w: Wall, o: Opening) => pointAt(w, o.at);
+
+/** Distance from a point to the wall's centreline and its projection parameter (distance along the wall) */
+export function project(w: Wall, p: Point): { dist: number; at: number } {
+  const d = wallDir(w), v = sub(p, w.start);
+  return { dist: Math.abs(cross(d, v)), at: dot(v, d) };
+}
+
+/** Whether a point lies on the wall centreline (endpoints included) */
+export function onWall(w: Wall, p: Point, tol = TOL) {
+  const { dist, at } = project(w, p);
+  return dist <= tol && at >= -tol && at <= wallLength(w) + tol;
+}
+
+// ---------- Polygons ----------
 
 type PcPolygon = [number, number][][];
 
@@ -27,7 +76,8 @@ export function difference(a: Polygon[], b: Polygon[]): Polygon[] {
   return fromPc(pc.difference(a.map(toPc), ...b.map(toPc)));
 }
 
-const ringArea = (r: Ring) => {
+/** Unsigned area of one ring (mm²) */
+export const ringArea = (r: Ring) => {
   let s = 0;
   for (let i = 0; i < r.length; i++) {
     const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length];
@@ -45,13 +95,18 @@ export const area = (polys: Polygon[]) =>
  * fences, parapets and railings are not extended.
  */
 export function wallBody(w: Wall): Polygon {
-  const [x1, y1] = w.start, [x2, y2] = w.end;
-  const len = Math.hypot(x2 - x1, y2 - y1);
-  const dx = (x2 - x1) / len, dy = (y2 - y1) / len;
-  const h = w.thickness / 2, e = w.kind === 'bearing' || w.kind === 'partition' ? h : 0;
-  const nx = -dy * h, ny = dx * h;
-  const a: Point = [x1 - dx * e, y1 - dy * e], b: Point = [x2 + dx * e, y2 + dy * e];
-  return { outer: [[a[0] + nx, a[1] + ny], [b[0] + nx, b[1] + ny], [b[0] - nx, b[1] - ny], [a[0] - nx, a[1] - ny]] };
+  const d = wallDir(w), n = scale(wallNormal(w), w.thickness / 2);
+  const e = w.kind === 'bearing' || w.kind === 'partition' ? w.thickness / 2 : 0;
+  const a = sub(w.start, scale(d, e)), b = add(w.end, scale(d, e));
+  return { outer: [add(a, n), add(b, n), sub(b, n), sub(a, n)] };
+}
+
+/** Plan footprint of a piece of furniture: its size rotated clockwise about its centre */
+export function furnitureFootprint(f: Furniture): Polygon {
+  const r = (f.rotation * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r);
+  const hw = f.size.w / 2, hd = f.size.d / 2;
+  const corners: Point[] = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]];
+  return { outer: corners.map(([x, y]) => [f.position[0] + x * c - y * s, f.position[1] + x * s + y * c]) };
 }
 
 export function bbox(polys: Polygon[]): [number, number, number, number] {
