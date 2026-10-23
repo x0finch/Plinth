@@ -1,9 +1,14 @@
-/** Floor plan: SVG in millimetres. Picking, zoom/pan, selection and change highlights, compare with before. */
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+/**
+ * Floor plan: SVG in millimetres. Picking, zoom/pan, selection and change highlights, compare with before, and dragging the
+ * selected wall, door or window, or piece of furniture (see plan-drag.ts).
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
-import { wallBody, wallLength, type Point } from '@plinth/core';
+import { wallBody, wallLength, type Point, type Project } from '@plinth/core';
+import { dragCall, draggable, type DragResult } from './plan-drag';
 import { levelShapes, planFrame, polyPath } from './plan-geometry';
 import { labelSize, PlanDefs, PlanInk, PlanLabels, PlanPaper, screenLine } from './PlanDrawing';
+import { useRun } from './panels/common';
 import { useEditor } from './store';
 import { m } from '@/lib/i18n';
 import { standaloneSvg } from '@/lib/theme';
@@ -35,7 +40,8 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
   const select = useEditor(s => s.select);
   const compare = useEditor(s => s.compare);
   const lastChange = useEditor(s => s.lastChange);
-  const shapes = useMemo(() => levelShapes(project, view.level), [project, view.level]);
+  const drag = useDrag();
+  const shapes = useMemo(() => levelShapes(drag.preview ?? project, view.level), [drag.preview, project, view.level]);
   // Before: draw only the original positions of walls that changed
   const before = useMemo(() => {
     if (!compare || !lastChange) return null;
@@ -84,9 +90,11 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
   }, [fitRequest]);
 
   const selWall = shapes.walls.find(x => sel.has(x.w.id));
+  const canEdit = useEditor(s => s.canEdit());
+  const handle = canEdit && !compare && view.selection.length === 1 && draggable(project, view.selection[0]) ? view.selection[0] : null;
 
   return (
-    <TransformWrapper ref={zoomRef} minScale={0.5} maxScale={20} doubleClick={{ disabled: true }} wheel={{ step: 0.15 }}>
+    <TransformWrapper ref={zoomRef} minScale={0.5} maxScale={20} doubleClick={{ disabled: true }} wheel={{ step: 0.15 }} panning={{ excluded: ['plan-drag'] }}>
       <TransformComponent wrapperClass="!w-full !h-full" contentClass="!w-full !h-full">
         <svg
           ref={ref}
@@ -121,6 +129,27 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
 
           {view.layers.labels && <PlanLabels shapes={shapes} pick={pick} />}
 
+          {/* The selected object can be dragged: a handle over it, then snapping guides and the distance while dragging */}
+          {handle && outlines.has(handle) && (
+            <path d={outlines.get(handle)} fill="transparent" className="plan-drag cursor-move" style={{ touchAction: 'none' }}
+              onPointerDown={e => drag.start(e, handle, ref.current)} onPointerMove={drag.move} onPointerUp={drag.end} onPointerCancel={drag.cancel}
+              onClick={e => {
+                e.stopPropagation();
+                if (!drag.moved() && (e.shiftKey || e.metaKey)) pick(handle)(e);
+              }} />
+          )}
+          {drag.result && (
+            <g pointerEvents="none">
+              {drag.result.guides.map(([a, b], i) => (
+                <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="var(--chart-2)" strokeWidth={1} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+              ))}
+              {drag.result.readout && drag.pointer && (
+                <text x={drag.pointer[0] + 14 * drag.mmPerPx} y={drag.pointer[1] - 14 * drag.mmPerPx} fontSize={12 * drag.mmPerPx} fill="var(--foreground)"
+                  fontFamily="var(--font-mono)" paintOrder="stroke" stroke="var(--background)" strokeWidth={3 * drag.mmPerPx}>{drag.result.readout}</text>
+              )}
+            </g>
+          )}
+
           {/* Dimension: length of the selected wall */}
           {view.layers.dimensions && selWall && (
             <text x={(selWall.w.start[0] + selWall.w.end[0]) / 2} y={(selWall.w.start[1] + selWall.w.end[1]) / 2 - selWall.w.thickness}
@@ -135,3 +164,75 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
   );
 }
 
+
+/** Snapping distance in screen pixels */
+const SNAP_PX = 8;
+
+/**
+ * Dragging the selected object: each move previews the capability call it maps to (on a scratch copy, so connected walls and
+ * room areas follow live); releasing runs it once, as one undoable edit.
+ */
+function useDrag() {
+  const project = useEditor(s => s.project);
+  const preview = useEditor(s => s.preview);
+  const run = useRun();
+  const [state, setState] = useState<{ preview: Project | null; result: DragResult | null; pointer: Point | null; mmPerPx: number }>({
+    preview: null, result: null, pointer: null, mmPerPx: 1,
+  });
+  const active = useRef<{ id: string; origin: Point; svg: SVGSVGElement; pointerId: number; key: string; moved: boolean; frame: number } | null>(null);
+  const latest = useRef<DragResult | null>(null);
+
+  const toMm = (svg: SVGSVGElement, e: React.PointerEvent): { at: Point; mmPerPx: number } => {
+    const m = svg.getScreenCTM()!.inverse();
+    const q = new DOMPoint(e.clientX, e.clientY).matrixTransform(m);
+    return { at: [q.x, q.y], mmPerPx: Math.hypot(m.a, m.b) };
+  };
+
+  const reset = () => {
+    if (active.current) cancelAnimationFrame(active.current.frame);
+    active.current = null;
+    latest.current = null;
+    setState({ preview: null, result: null, pointer: null, mmPerPx: 1 });
+  };
+
+  return {
+    ...state,
+    moved: () => !!active.current?.moved,
+    start(e: React.PointerEvent, id: string, svg: SVGSVGElement | null) {
+      if (!svg || e.button !== 0) return;
+      e.stopPropagation();
+      (e.target as Element).setPointerCapture(e.pointerId);
+      active.current = { id, origin: toMm(svg, e).at, svg, pointerId: e.pointerId, key: '', moved: false, frame: 0 };
+    },
+    move(e: React.PointerEvent) {
+      const a = active.current;
+      if (!a || e.pointerId !== a.pointerId) return;
+      const { at, mmPerPx } = toMm(a.svg, e);
+      const delta: Point = [at[0] - a.origin[0], at[1] - a.origin[1]];
+      // A small wobble on press is a click, not a drag
+      if (!a.moved && Math.hypot(delta[0], delta[1]) < 4 * mmPerPx) return;
+      a.moved = true;
+      const r = dragCall(project, a.id, delta, SNAP_PX * mmPerPx);
+      latest.current = r;
+      setState(s => ({ ...s, result: r, pointer: at, mmPerPx }));
+      const key = r ? JSON.stringify(r.input) : '';
+      if (key === a.key) return;
+      a.key = key;
+      cancelAnimationFrame(a.frame);
+      a.frame = requestAnimationFrame(async () => {
+        const p = r ? await preview(r.name, r.input) : null;
+        // Ignore a preview that arrives after the drag moved on or ended
+        if (active.current === a && a.key === key) setState(s => ({ ...s, preview: p }));
+      });
+    },
+    async end(e: React.PointerEvent) {
+      const a = active.current;
+      if (!a || e.pointerId !== a.pointerId) return;
+      const r = a.moved ? latest.current : null;
+      if (r) await run(r.name, r.input);
+      // Keep "moved" until the click that follows this release has been handled
+      setTimeout(reset);
+    },
+    cancel: reset,
+  };
+}

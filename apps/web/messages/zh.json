@@ -160,6 +160,7 @@
   "panels_type_opening": "门窗",
   "panels_type_furniture": "家具",
   "panels_type_element": "构件",
+  "panels_drag_hint": "在平面图上拖动它可以移动，会自动对齐附近的墙",
   "panels_row_levels": "楼层",
   "panels_name": "名称",
   "panels_row_kind": "类型",
