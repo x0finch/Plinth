@@ -1,11 +1,12 @@
 /**
  * 3D massing model: walls drawn as boxes from the solid segments cut by the core package, spaces as slabs, furniture as simple blocks.
- * Shows the current floor and below; picking is synced with the plan. Units: data in millimetres, scene in metres.
+ * Shows the whole house, or with the cutaway layer the current floor and below; picking is synced with the plan.
+ * Units: data in millimetres, scene in metres.
  */
 import { Edges, OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { findObject, projectBoxes, type Box, type Project, type Space } from '@plinth/core';
-import { ScanIcon, SquareIcon, BoxIcon } from 'lucide-react';
+import { BoxIcon, LayersIcon, ScanIcon, SquareIcon } from 'lucide-react';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { Button } from '@/components/ui/button';
@@ -402,11 +403,13 @@ export function Model3D() {
   const project = useEditor(s => s.project);
   const view = useEditor(s => s.view);
   const projectId = useEditor(s => s.projectId);
+  const setView = useEditor(s => s.setView);
   const c = useColors();
   const model = useRef<THREE.Group>(null);
 
   const current = project.levels.find(l => l.id === view.level);
-  const shown = project.levels.filter(l => !current || l.elevation <= current.elevation);
+  // The whole house by default; the cutaway shows the current level and below, to look into it
+  const shown = project.levels.filter(l => !view.layers.cutaway || !current || l.elevation <= current.elevation);
   const elev = new Map(project.levels.map(l => [l.id, l.elevation]));
   const boxes = useMemo(() => projectBoxes(project), [project]);
   const ownerOf = (id: string) => findObject(project, id, 'opening')?.wall?.id;
@@ -499,6 +502,11 @@ export function Model3D() {
         <Button size="icon-sm" variant="outline" className="bg-background" onClick={() => { run(top ? 'perspective' : 'top'); setTop(!top); }}
           aria-label={top ? m.model3d_perspective() : m.model3d_top()} title={top ? m.model3d_perspective() : m.model3d_top()}>
           {top ? <BoxIcon /> : <SquareIcon />}
+        </Button>
+        <Button size="icon-sm" variant={view.layers.cutaway ? 'secondary' : 'outline'} className={view.layers.cutaway ? undefined : 'bg-background'}
+          aria-pressed={view.layers.cutaway} onClick={() => setView({ layers: { ...view.layers, cutaway: !view.layers.cutaway } })}
+          aria-label={view.layers.cutaway ? m.model3d_whole() : m.model3d_cutaway()} title={view.layers.cutaway ? m.model3d_whole() : m.model3d_cutaway()}>
+          <LayersIcon />
         </Button>
       </div>
       <p className="pointer-events-none absolute bottom-2 left-3 text-xs text-muted-foreground max-md:hidden">{m.model3d_hint()}</p>
