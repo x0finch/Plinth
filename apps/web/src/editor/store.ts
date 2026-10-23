@@ -62,6 +62,11 @@ export interface EditorState {
   fitRequest: number;
   /** Registered by the 3D view: plays the house sinking back into the plan; the view switch waits for it before showing the plan */
   leave3D: (() => Promise<void>) | null;
+  /**
+   * Keep the plan on screen after switching to 3D until the 3D view's first frame is ready (loading code, drawing the floors).
+   * That frame is the same picture as the plan, so the plan then goes away without a visible change.
+   */
+  planUntil3D: boolean;
 }
 
 export interface EditorActions {
@@ -69,6 +74,7 @@ export interface EditorActions {
   setView(patch: Partial<ViewState>): ViewState;
   fitView(): void;
   setLeave3D(fn: (() => Promise<void>) | null): void;
+  setPlanUntil3D(on: boolean): void;
   select(ids: string[]): void;
   focus(ids: string[], highlight?: boolean): ViewState;
   undo(): void;
@@ -149,6 +155,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
       ask: null,
       fitRequest: 0,
       leave3D: null,
+      planUntil3D: false,
 
       canEdit: () => can(get().role, 'editor') && get().readOnlyVersion == null,
 
@@ -184,6 +191,10 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
 
       setLeave3D(fn) {
         set({ leave3D: fn });
+      },
+
+      setPlanUntil3D(planUntil3D) {
+        set({ planUntil3D });
       },
 
       select(ids) {

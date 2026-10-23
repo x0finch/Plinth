@@ -13,9 +13,9 @@ import { m } from '@/lib/i18n';
 import { useCanvasDocument } from '@/canvas/CanvasFrame';
 import { hops, REVEAL } from '@/canvas/hop';
 import { useThemeColors } from '@/lib/theme';
-import { FloorDrawing } from './model3d/FloorDrawing';
+import { FloorDrawing, planFrame, PlanSheet } from './model3d/FloorDrawing';
 import { detectQuality, isTouchDevice, Renderer, type Quality } from './model3d/Renderer';
-import { levelShapes, PLAN_PAD } from './plan-geometry';
+import { levelShapes } from './plan-geometry';
 import { useEditor, useEditorStore } from './store';
 
 const M = 0.001;
@@ -27,7 +27,7 @@ const unitBox = new THREE.BoxGeometry(1, 1, 1);
 const useColors = () =>
   useThemeColors({
     backdrop: '--canvas-backdrop', sun: '--canvas-sun', skylight: '--canvas-skylight', wall: '--card', furn: '--muted',
-    glass: '--canvas-glass', frame: '--foreground', ink: '--foreground', faint: '--muted-foreground', sel: '--chart-2', changed: '--chart-1',
+    glass: '--canvas-glass', frame: '--foreground', page: '--background', sel: '--chart-2', changed: '--chart-1',
   }, useCanvasDocument());
 
 /** Selected objects are tinted with the selection color and outlined; just-changed objects get a tint that fades out */
@@ -281,7 +281,7 @@ function framed(box: THREE.Box3, aspect: number, dir: THREE.Vector3): Pose {
  * How far each floor has grown at overall progress g (0: flat like the plan, 1: built). The current floor and the ones below rise
  * together first; the floors above follow one after another, each from the top of the one below.
  */
-function growth(levels: { id: string; elevation: number }[], current: string, g: number) {
+function floorGrowth(levels: { id: string; elevation: number }[], current: string, g: number) {
   const top = levels.find(l => l.id === current)?.elevation ?? Infinity;
   const n = levels.filter(l => l.elevation > top).length;
   // The upper floors share the last stretch, staggered so the top one finishes exactly at the end
@@ -300,13 +300,15 @@ function growth(levels: { id: string; elevation: number }[], current: string, g:
  * house out of it while the camera tilts; leaving runs the same in reverse before the plan comes back. Showing other floors
  * (the cutaway) and "fit all" frame the model again from the current direction.
  */
-function CameraRig({ box, levels, current, growing, drawings, projectId }: {
+function CameraRig({ box, levels, current, growing, drawings, growth, projectId }: {
   box: THREE.Box3; levels: { id: string; elevation: number }[]; current: string;
-  growing: React.RefObject<Map<string, THREE.Group>>; drawings: React.RefObject<Map<string, THREE.Group>>; projectId: string;
+  growing: React.RefObject<Map<string, THREE.Group>>; drawings: React.RefObject<Map<string, THREE.Group>>;
+  growth: React.RefObject<{ g: number }>; projectId: string;
 }) {
   const { camera, controls, size, invalidate } = useThree();
   const project = useEditor(s => s.project);
   const setLeave3D = useEditor(s => s.setLeave3D);
+  const setPlanUntil3D = useEditor(s => s.setPlanUntil3D);
   const orbit = controls as unknown as Orbit | null;
   const anim = useRef<{ elapsed: number; frames: number; ms: number; from: Pose; to: Pose; grow?: [number, number]; done?: () => void; hold?: number } | null>(null);
   const leaving = useRef(false);
@@ -321,7 +323,8 @@ function CameraRig({ box, levels, current, growing, drawings, projectId }: {
   };
   const direction = () => (orbit ? camera.position.clone().sub(orbit.target).normalize() : BIRD);
   const grow = (g: number) => {
-    for (const { id, k, below } of growth(levels, current, g)) {
+    growth.current.g = g;
+    for (const { id, k, below } of floorGrowth(levels, current, g)) {
       const group = growing.current.get(id), drawing = drawings.current.get(id);
       if (group) {
         group.scale.y = Math.max(k, 0.001);
@@ -333,12 +336,12 @@ function CameraRig({ box, levels, current, growing, drawings, projectId }: {
 
   /** Straight down at the current floor, framed like the plan (which fits the floor's drawing plus a margin to the view) */
   const planPose = (): Pose => {
-    const [x0, y0, x1, y1] = levelShapes(project, current).bounds;
-    const w = x1 - x0 + 2 * PLAN_PAD, h = y1 - y0 + 2 * PLAN_PAD;
+    const { x, y, w, h } = planFrame(levelShapes(project, current));
     const visibleH = (w / h > size.width / size.height ? (w * size.height) / size.width : h) * M;
+    // The drawing lies just above the floor
+    const floor = (levels.find(l => l.id === current)?.elevation ?? 0) * M + 0.006;
     const dist = visibleH / 2 / Math.tan(THREE.MathUtils.degToRad(FOV) / 2);
-    const floor = (levels.find(l => l.id === current)?.elevation ?? 0) * M;
-    const target = new THREE.Vector3(((x0 + x1) / 2) * M, floor, ((y0 + y1) / 2) * M);
+    const target = new THREE.Vector3((x + w / 2) * M, floor, (y + h / 2) * M);
     // A hair off vertical, toward the south, so north stays up
     return { target, pos: target.clone().add(new THREE.Vector3(0, dist, dist * 1e-4)) };
   };
@@ -363,6 +366,7 @@ function CameraRig({ box, levels, current, growing, drawings, projectId }: {
     }));
     return () => {
       setLeave3D(null);
+      setPlanUntil3D(false);
       // Leaving mid-animation remembers where the camera was heading
       if (!leaving.current) lastPose.set(projectId, anim.current?.to ?? { pos: camera.position.clone(), target: orbit.target.clone() });
     };
@@ -389,9 +393,11 @@ function CameraRig({ box, levels, current, growing, drawings, projectId }: {
     if (!a || !orbit) return;
     invalidate();
     if (a.hold) {
-      const ready = growth(levels, current, 0).every(l => !l.below || (drawings.current.get(l.id)?.children.length ?? 0) > 0);
+      const ready = floorGrowth(levels, current, 0).every(l => !l.below || (drawings.current.get(l.id)?.children.length ?? 0) > 0);
       if (!ready && performance.now() - a.hold < 1500) return;
       a.hold = undefined;
+      // This frame is the plan itself: the plan kept on screen while 3D got ready can go
+      setPlanUntil3D(false);
     }
     // The clock starts after two frames (the first frame in 3D can take a second, compiling shaders) so the animation plays from
     // its start; after that it follows real time, a slow frame advancing at most 200 ms, so slow devices still finish on time
@@ -562,6 +568,12 @@ export function Model3D() {
   const levels = [...shown].sort((a, b) => a.elevation - b.elevation);
   const growing = useRef(new Map<string, THREE.Group>());
   const drawings = useRef(new Map<string, THREE.Group>());
+  // How far the house has grown out of the plan (0 flat, 1 built); the plan's paper fades with it
+  const growth = useRef({ g: 1 });
+  const sheet = useMemo(() => {
+    const { x, y, w, h } = planFrame(levelShapes(project, current?.id ?? levels[0]?.id ?? ''));
+    return { center: [(x + w / 2) * M, (y + h / 2) * M] as [number, number] };
+  }, [project, current?.id]);
 
   return (
     <div className="relative size-full">
@@ -575,7 +587,8 @@ export function Model3D() {
           flat
           gl={{ preserveDrawingBuffer: true, antialias: true }}
           camera={{ position: [cx + span * 0.9, span * 0.8, cz + span * 1.1], fov: FOV, near: 0.1, far: 2000 }}
-          style={{ background: c.backdrop }}
+          // White like the plan's page until the first frame: switching from the plan shows no gray flash
+          style={{ background: c.page }}
           // react-three-fiber sizes the canvas with CSS only when it is an HTMLCanvasElement of the parent window, which a
           // canvas in our iframe is not. Without it the canvas shows at its drawing-buffer size, twice too large on 2x screens,
           // so the model sits off-center and clicks miss. Fill the wrapper instead.
@@ -605,6 +618,10 @@ export function Model3D() {
             <meshStandardMaterial color={c.wall} roughness={1} />
           </mesh>
 
+          {/* The plan's page around the drawing at the current floor, while the house lies flat */}
+          <group position={[0, (current?.elevation ?? 0) * M, 0]}>
+            <PlanSheet center={sheet.center} size={Math.max(span, radius) * 40} color={c.page} growth={growth} />
+          </group>
           <group>
             {levels.map(l => (
               // Each floor grows from its own base when entering 3D (see CameraRig)
@@ -629,14 +646,14 @@ export function Model3D() {
                 </group>
                 {/* Outside the growing group, so the drawing stays just above the floor while the floor is flat; shown with its floor */}
                 <group ref={g => void (g ? drawings.current.set(l.id, g) : drawings.current.delete(l.id))}>
-                  <FloorDrawing project={project} level={l.id} ink={c.ink} faint={c.faint} quality={q} />
+                  <FloorDrawing project={project} level={l.id} furniture={view.layers.furniture} labels={view.layers.labels} quality={q} growth={growth} />
                 </group>
               </group>
             ))}
           </group>
           <OrbitControls makeDefault enableDamping dampingFactor={0.09} maxPolarAngle={Math.PI / 2 - 0.05}
             minDistance={Math.max(1.5, radius * 0.15)} maxDistance={radius * 6} />
-          <CameraRig box={box} levels={levels} current={current?.id ?? ''} growing={growing} drawings={drawings} projectId={projectId} />
+          <CameraRig box={box} levels={levels} current={current?.id ?? ''} growing={growing} drawings={drawings} growth={growth} projectId={projectId} />
           <SafariPinch />
           <Picker />
           <Reveal ownerOf={ownerOf} />

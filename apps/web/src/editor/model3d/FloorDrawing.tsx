@@ -1,80 +1,129 @@
 /**
- * The plan's linework printed on a floor in 3D: wall footprints, furniture outlines, door leaves and swings, room names and areas.
- * Rooms read at a glance, and on entering 3D the flat floor looks just like the plan it grows from (the wall footprints are hidden
- * under the walls once they stand). Drawn from the same shapes as the plan, as an SVG rasterized into a texture.
+ * The plan printed on a floor in 3D, drawn by the plan's own code (PlanDrawing), so on entering 3D the flat house is exactly the
+ * plan and grows out of it. Two layers: paper (site boundary, room fills; and with it a sheet of the plan's background around the
+ * drawing) fades out as the house rises; ink (walls, furniture, doors, labels) stays, the wall footprints hidden under the walls
+ * once they stand. Both are unlit, so their colors are the plan's. Line widths are the plan's screen widths at the scale the plan
+ * is shown, converted to millimetres.
  */
 import type { Project } from '@plinth/core';
-import { useEffect, useMemo, useState } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import * as THREE from 'three';
 import { useCanvasDocument } from '@/canvas/CanvasFrame';
-import { levelShapes } from '../plan-geometry';
+import { levelShapes, PLAN_PAD, type LevelShapes } from '../plan-geometry';
+import { PlanDefs, PlanInk, PlanLabels, PlanPaper, scaledLine } from '../PlanDrawing';
 import type { Quality } from './Renderer';
 
 const M = 0.001;
-/** Texture size along the longer side of the level */
+/** Texture size along the longer side of the drawing */
 const MAX_PX = { high: 4096, low: 2048 };
 
-const esc = (s: string) => s.replace(/[&<>"]/g, ch => `&#${ch.charCodeAt(0)};`);
-const pts = (p: [number, number][]) => p.map(([x, y]) => `${x},${y}`).join(' ');
+/** How opaque the paper is while the house grows (g: 0 flat, 1 built): gone once the walls are a third of the way up */
+export const paperOpacity = (g: number) => 1 - THREE.MathUtils.smoothstep(g, 0, 0.3);
 
-/** SVG of one level's linework, in millimetres; colors are concrete (an SVG drawn as an image can't read theme variables) */
-function linework(project: Project, level: string, ink: string, faint: string) {
-  const s = levelShapes(project, level);
-  const [x0, y0, x1, y1] = s.bounds;
-  const font = Math.max(220, Math.min(420, (x1 - x0) / 45));
-  const body = [
-    `<path d="${s.light}" fill="${faint}" fill-opacity="0.5"/>`, `<path d="${s.solid}" fill="${faint}"/>`, `<path d="${s.bearing}" fill="${ink}"/>`,
-    ...s.furniture.map(({ d }) => `<path d="${d}" fill="none" stroke="${ink}" stroke-width="12"/>`),
-    ...s.openings.flatMap(o => [
-      ...o.lines.map(l => `<polyline points="${pts(l)}" fill="none" stroke="${ink}" stroke-width="15"${o.dashed ? ' stroke-dasharray="60 40"' : ''}/>`),
-      ...o.arcs.map(a => `<path d="${a}" fill="none" stroke="${faint}" stroke-width="10" stroke-dasharray="40 30"/>`),
-    ]),
-    ...s.spaces.map(({ s: sp, label, area }) => `<g text-anchor="middle" font-family="sans-serif">
-      <text x="${label[0]}" y="${label[1]}" font-size="${font}" fill="${ink}">${esc(sp.name)}</text>
-      ${sp.kind === 'void' ? '' : `<text x="${label[0]}" y="${label[1] + font * 1.15}" font-size="${font * 0.75}" fill="${faint}">${area.toFixed(1)} m²</text>`}
-    </g>`),
-  ];
-  return { bounds: s.bounds, svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0} ${y0} ${x1 - x0} ${y1 - y0}">${body.join('')}</svg>` };
+/** The plan's framing of a level: its drawing plus the margin, in millimetres */
+export function planFrame(shapes: LevelShapes) {
+  const [x0, y0, x1, y1] = shapes.bounds;
+  return { x: x0 - PLAN_PAD, y: y0 - PLAN_PAD, w: x1 - x0 + 2 * PLAN_PAD, h: y1 - y0 + 2 * PLAN_PAD };
 }
 
-/** A transparent plane just above the floor (placed at the level's elevation by the parent) carrying its linework. Ignored by picking. */
-export function FloorDrawing({ project, level, ink, faint, quality }: {
-  project: Project; level: string; ink: string; faint: string; quality: Quality;
+/** Render React SVG to markup, with theme variables replaced by their values (an SVG drawn as an image can't read them) */
+function markup(el: React.ReactElement, doc: Document) {
+  const html = renderToStaticMarkup(el);
+  const cs = doc.defaultView!.getComputedStyle(doc.documentElement);
+  return html.replace(/var\((--[\w-]+)\)/g, (_, v: string) => cs.getPropertyValue(v).trim().replace(/"/g, "'"));
+}
+
+async function rasterize(svg: string, width: number, height: number, doc: Document) {
+  const img = new (doc.defaultView!.Image)();
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  await img.decode();
+  const c = doc.createElement('canvas');
+  c.width = width;
+  c.height = height;
+  c.getContext('2d')!.drawImage(img, 0, 0, width, height);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+/** The level's drawing, just above its floor (the parent places it at the level's elevation). Ignored by picking. */
+export function FloorDrawing({ project, level, furniture, labels, quality, growth }: {
+  project: Project; level: string; furniture: boolean; labels: boolean; quality: Quality; growth: React.RefObject<{ g: number }>;
 }) {
   const doc = useCanvasDocument();
-  const drawing = useMemo(() => linework(project, level, ink, faint), [project, level, ink, faint]);
-  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+  const size = useThree(s => s.size);
+  const shapes = useMemo(() => levelShapes(project, level), [project, level]);
+  const frame = planFrame(shapes);
+  // The plan's scale on screen (it fits the framing to the view), for line widths
+  const mmPerPx = Math.max(frame.w / size.width, frame.h / size.height);
+  const [textures, setTextures] = useState<{ paper: THREE.Texture; ink: THREE.Texture } | null>(null);
 
   useEffect(() => {
-    const [x0, y0, x1, y1] = drawing.bounds;
-    const k = MAX_PX[quality] / Math.max(x1 - x0, y1 - y0, 1);
-    const img = new (doc.defaultView!.Image)();
-    let tex: THREE.CanvasTexture | null = null;
+    const line = scaledLine(mmPerPx);
+    const svg = (children: React.ReactNode, w: number, h: number) =>
+      markup(<svg xmlns="http://www.w3.org/2000/svg" viewBox={`${frame.x} ${frame.y} ${frame.w} ${frame.h}`} width={w} height={h}>{children}</svg>, doc);
+    const k = MAX_PX[quality] / Math.max(frame.w, frame.h);
+    const w = Math.round(frame.w * k), h = Math.round(frame.h * k);
     let live = true;
-    img.onload = () => {
-      if (!live) return;
-      const c = doc.createElement('canvas');
-      c.width = Math.max(1, Math.round((x1 - x0) * k));
-      c.height = Math.max(1, Math.round((y1 - y0) * k));
-      c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
-      tex = new THREE.CanvasTexture(c);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = 8;
-      setTexture(tex);
-    };
-    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(drawing.svg)}`;
+    let made: { paper: THREE.Texture; ink: THREE.Texture } | null = null;
+    void Promise.all([
+      rasterize(svg(<><PlanDefs /><PlanPaper project={project} shapes={shapes} line={line} /></>, w, h), w, h, doc),
+      rasterize(svg(<><PlanDefs /><PlanInk shapes={shapes} furniture={furniture} line={line} />{labels && <PlanLabels shapes={shapes} />}</>, w, h), w, h, doc),
+    ]).then(([paper, ink]) => {
+      made = { paper, ink };
+      if (live) setTextures(made);
+      else (paper.dispose(), ink.dispose());
+    });
     return () => {
       live = false;
-      tex?.dispose();
+      made?.paper.dispose();
+      made?.ink.dispose();
     };
-  }, [drawing, quality, doc]);
+  }, [shapes, furniture, labels, quality, mmPerPx, doc]);
 
-  if (!texture) return null;
-  const [x0, y0, x1, y1] = drawing.bounds;
+  const paper = useRef<THREE.MeshBasicMaterial>(null);
+  const paperMesh = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    const f = paperOpacity(growth.current.g);
+    if (paper.current) paper.current.opacity = f;
+    if (paperMesh.current) paperMesh.current.visible = f > 0;
+  });
+
+  if (!textures) return null;
+  const center: [number, number] = [(frame.x + frame.w / 2) * M, (frame.y + frame.h / 2) * M];
   return (
-    <mesh position={[((x0 + x1) / 2) * M, 0.004, ((y0 + y1) / 2) * M]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} renderOrder={1}>
-      <planeGeometry args={[(x1 - x0) * M, (y1 - y0) * M]} />
-      <meshBasicMaterial map={texture} transparent depthWrite={false} toneMapped={false} polygonOffset polygonOffsetFactor={-2} />
+    <group>
+      <mesh ref={paperMesh} position={[center[0], 0.005, center[1]]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} renderOrder={2}>
+        <planeGeometry args={[frame.w * M, frame.h * M]} />
+        <meshBasicMaterial ref={paper} map={textures.paper} transparent depthWrite={false} toneMapped={false} fog={false} />
+      </mesh>
+      <mesh position={[center[0], 0.006, center[1]]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} renderOrder={3}>
+        <planeGeometry args={[frame.w * M, frame.h * M]} />
+        <meshBasicMaterial map={textures.ink} transparent depthWrite={false} toneMapped={false} fog={false} />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * The plan's background around the drawing, as far as the view reaches: with the paper it makes the flat house look exactly like
+ * the plan (white page, no backdrop or plinth), and fades out with it.
+ */
+export function PlanSheet({ center, size, color, growth }: { center: [number, number]; size: number; color: string; growth: React.RefObject<{ g: number }> }) {
+  const material = useRef<THREE.MeshBasicMaterial>(null);
+  const mesh = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    const f = paperOpacity(growth.current.g);
+    if (material.current) material.current.opacity = f;
+    if (mesh.current) mesh.current.visible = f > 0;
+  });
+  return (
+    <mesh ref={mesh} position={[center[0], 0.004, center[1]]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} renderOrder={1}>
+      <planeGeometry args={[size, size]} />
+      <meshBasicMaterial ref={material} color={color} transparent depthWrite={false} toneMapped={false} fog={false} />
     </mesh>
   );
 }

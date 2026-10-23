@@ -147,6 +147,7 @@ function CanvasTools({ className }: { className?: string }) {
   const setView = useEditor(s => s.setView);
   const fitView = useEditor(s => s.fitView);
   const leave3D = useEditor(s => s.leave3D);
+  const setPlanUntil3D = useEditor(s => s.setPlanUntil3D);
   const [switching, setSwitching] = useState(false);
   const to = view.mode === '2d' ? '3d' : '2d';
   // Leaving 3D lets the house sink back into the plan first
@@ -154,6 +155,7 @@ function CanvasTools({ className }: { className?: string }) {
     setSwitching(true);
     try {
       if (to === '2d' && leave3D) await leave3D();
+      else if (to === '3d') setPlanUntil3D(true);
       setView({ mode: to });
     } finally {
       setSwitching(false);
@@ -266,6 +268,7 @@ function Thumbnail() {
 
 function Workspace() {
   const view = useEditor(s => s.view);
+  const planUntil3D = useEditor(s => s.planUntil3D);
   const project = useEditor(s => s.project);
   const setCapture = useEditor(s => s.setCapture);
   const ask = useEditor(s => s.ask);
@@ -326,6 +329,11 @@ function Workspace() {
               <Suspense fallback={<div className="flex size-full items-center justify-center text-muted-foreground"><Spinner className="size-6" /></div>}>
                 <Model3D />
               </Suspense>
+            )}
+            {view.mode === '3d' && planUntil3D && (
+              <div aria-hidden className="pointer-events-none absolute inset-0">
+                <Plan2D />
+              </div>
             )}
           </CanvasFrame>
           <div className="absolute top-2 left-2">
