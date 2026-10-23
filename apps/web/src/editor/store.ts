@@ -60,12 +60,15 @@ export interface EditorState {
   ask: { text: string; at: number } | null;
   /** Bumped by "fit all": the plan and the 3D view frame the whole drawing again when it changes */
   fitRequest: number;
+  /** Registered by the 3D view: plays the house sinking back into the plan; the view switch waits for it before showing the plan */
+  leave3D: (() => Promise<void>) | null;
 }
 
 export interface EditorActions {
   call(name: string, input: unknown, actor?: Actor): Promise<CallResult>;
   setView(patch: Partial<ViewState>): ViewState;
   fitView(): void;
+  setLeave3D(fn: (() => Promise<void>) | null): void;
   select(ids: string[]): void;
   focus(ids: string[], highlight?: boolean): ViewState;
   undo(): void;
@@ -145,6 +148,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
       capture: null,
       ask: null,
       fitRequest: 0,
+      leave3D: null,
 
       canEdit: () => can(get().role, 'editor') && get().readOnlyVersion == null,
 
@@ -176,6 +180,10 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
 
       fitView() {
         set(s => ({ fitRequest: s.fitRequest + 1 }));
+      },
+
+      setLeave3D(fn) {
+        set({ leave3D: fn });
       },
 
       select(ids) {

@@ -32,6 +32,9 @@ export interface LevelShapes {
   furniture: { f: Furniture; d: string }[];
 }
 
+/** Margin the plan leaves around a level's drawing, in millimetres (3D starts from the same framing) */
+export const PLAN_PAD = 1500;
+
 export const polyPath = (polys: Polygon[]) =>
   polys.map(p => [p.outer, ...(p.holes ?? [])].map(r => `M${r.map(([x, y]) => `${x},${y}`).join('L')}Z`).join('')).join('');
 

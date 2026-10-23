@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
 import { wallBody, wallLength, type Point } from '@plinth/core';
-import { levelShapes, polyPath } from './plan-geometry';
+import { levelShapes, PLAN_PAD, polyPath } from './plan-geometry';
 import { useEditor } from './store';
 import { m } from '@/lib/i18n';
 import { standaloneSvg } from '@/lib/theme';
@@ -49,7 +49,7 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
   }, [compare, lastChange, view.level]);
   const zoomRef = useRef<ReactZoomPanPinchRef>(null);
 
-  const pad = 1500;
+  const pad = PLAN_PAD;
   const [x0, y0, x1, y1] = shapes.bounds;
   const vb = `${x0 - pad} ${y0 - pad} ${x1 - x0 + 2 * pad} ${y1 - y0 + 2 * pad}`;
   const font = Math.max(220, Math.min(420, (x1 - x0) / 45));
