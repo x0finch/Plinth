@@ -453,6 +453,10 @@ export function Model3D() {
           gl={{ preserveDrawingBuffer: true, antialias: true }}
           camera={{ position: [cx + span * 0.9, span * 0.8, cz + span * 1.1], fov: FOV, near: 0.1, far: 2000 }}
           style={{ background: c.bg }}
+          // react-three-fiber sizes the canvas with CSS only when it is an HTMLCanvasElement of the parent window, which a
+          // canvas in our iframe is not. Without it the canvas shows at its drawing-buffer size, twice too large on 2x screens,
+          // so the model sits off-center and clicks miss. Fill the wrapper instead.
+          onCreated={({ gl }) => Object.assign(gl.domElement.style, { width: '100%', height: '100%' })}
         >
           {/* The ground fades into the background in the distance, so it has no visible edge */}
           <fog attach="fog" args={[c.bg, radius * 5, radius * 14]} />
