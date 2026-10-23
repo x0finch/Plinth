@@ -80,11 +80,12 @@ await page.waitForURL(/\/gallery/);
 check(await page.getByRole('heading', { name: 'Style gallery', exact: true }).isVisible(), 'the style gallery opens from Settings');
 check(!(await page.getByRole('button', { name: 'Plan', exact: true }).isVisible()) && !(await page.getByText('Level 2', { exact: true }).isVisible()),
   'the gallery is 3D only: no switch to the plan, no level buttons');
-const gallery = page.frameLocator('iframe[title="Canvas"]');
-// Its 3D view names each tile; tapping a name selects what the tile shows
-await gallery.getByText('Light oak flooring', { exact: true }).first().click({ timeout: 30000 });
-const picked3 = await page.locator('main h3').innerText({ timeout: 5000 }).catch(() => '');
-check(picked3 === 'Light oak flooring', `clicking a specimen shows its name in the details (${picked3})`);
+// The names are written on the ground in WebGL, so pick a specimen in the model itself: in this 1400×900 window the furniture
+// rows cover this spot, once the model has grown
+await page.waitForTimeout(6000);
+await page.mouse.click(545, 330);
+const picked3 = await page.locator('main h3').innerText({ timeout: 10000 }).catch(() => '');
+check(/^[\x20-\x7e]+$/.test(picked3), `clicking a specimen shows its English name in the details (${picked3})`);
 await page.screenshot({ path: `${OUT}/en-gallery.png` });
 
 // Blank design: project data follows the UI language

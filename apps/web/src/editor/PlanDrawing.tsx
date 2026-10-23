@@ -114,8 +114,8 @@ export function PlanLabels({ shapes, pick }: { shapes: LevelShapes; pick?: Pick 
         <g key={s.id} textAnchor="middle" fontFamily="var(--font-sans)" {...(pick ? { onClick: pick(s.id), className: 'cursor-pointer' } : {})}>
           <text x={label[0]} y={label[1]} fontSize={font} fill="var(--foreground)" fontWeight={500}
             paintOrder="stroke" stroke="var(--background)" strokeWidth={font / 6}>{s.name}</text>
-          {/* The area, except for a void, and for labels that are only a name (the gallery's tiles) */}
-          {s.kind !== 'void' && !s.extras?.nameOnly && (
+          {/* The area, except for a void */}
+          {s.kind !== 'void' && (
             <text x={label[0]} y={label[1] + font * 1.15} fontSize={font * 0.8} fill="var(--muted-foreground)" fontFamily="var(--font-mono)"
               paintOrder="stroke" stroke="var(--background)" strokeWidth={font / 6}>{area.toFixed(1)} m²</text>
           )}

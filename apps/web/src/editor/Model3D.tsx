@@ -16,6 +16,7 @@ import { useThemeColors } from '@/lib/theme';
 import { FloorDrawing, PlanSheet } from './model3d/FloorDrawing';
 import { useFloorTexture } from './model3d/floor-textures';
 import { detectQuality, isTouchDevice, Renderer, type Quality } from './model3d/Renderer';
+import { GroundLabels, type GroundLabelSpec } from './ground-labels';
 import { modelStyle } from './model-style';
 import { planFrame, plinthRect } from './plan-geometry';
 import { useEditor, useEditorStore } from './store';
@@ -254,17 +255,14 @@ function Glazing({ b, base, c, ...o }: Outline & { b: Box; base: number; c: { gl
   );
 }
 
-/** A tile's name and where it is written: centred on the floor along the tile's front (south) edge, within `width` (metres) */
-interface TileTag { id: string; name: string; pick: string; x: number; y: number; front: number; width: number }
-
-/** Height of a ground label's letters (mm), smaller when the name would be wider than its tile */
+/** Height of a ground label's letters (mm), smaller when the name would be wider than it may be */
 const LABEL_TEXT = 360;
 
 /**
- * A name written on the floor in front of what a tile shows (spaces marked nameOnly: the gallery's tiles), like lettering painted
- * on the ground: it turns, scales and recedes with the model. Picking it selects what the tile shows (extras.subject).
+ * A name written on the ground (see ground-labels.ts), like lettering painted on the floor: it turns, scales and recedes with
+ * the model. Picking it selects what it names.
  */
-function GroundLabel({ t, color }: { t: TileTag; color: string }) {
+function GroundLabel({ t, base, color }: { t: GroundLabelSpec; base: number; color: string }) {
   const doc = useCanvasDocument();
   const label = useMemo(() => {
     // The page's sans-serif (it falls back to the system's CJK font for Chinese names)
@@ -282,12 +280,13 @@ function GroundLabel({ t, color }: { t: TileTag; color: string }) {
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
-    const k = Math.min(LABEL_TEXT * M, (t.width * 0.9 * px) / w) / px;
+    const k = Math.min(LABEL_TEXT, (t.width * 0.9 * px) / w) * M / px;
     return { tex, w: w * k, h: c.height * k };
   }, [doc, t.name, t.width, color]);
   useEffect(() => () => label.tex.dispose(), [label]);
   return (
-    <mesh position={[t.x, t.y, t.front - label.h / 2]} rotation={[-Math.PI / 2, 0, 0]} userData={{ id: t.pick, noEdges: true }} renderOrder={4}>
+    // Just above the ground (or floor) it's written on
+    <mesh position={[t.at[0] * M, (base + 4) * M, t.at[1] * M + label.h / 2]} rotation={[-Math.PI / 2, 0, 0]} userData={{ id: t.pick, noEdges: true }} renderOrder={4}>
       <planeGeometry args={[label.w, label.h]} />
       <meshBasicMaterial map={label.tex} transparent depthWrite={false} toneMapped={false} />
     </mesh>
@@ -619,17 +618,7 @@ export function Model3D() {
   const project = useEditor(s => s.project);
   const view = useEditor(s => s.view);
   const select = useEditor(s => s.select);
-  const tags = useMemo<TileTag[]>(() => {
-    const elevation = new Map(project.levels.map(l => [l.id, l.elevation]));
-    return project.spaces.filter(s => s.extras?.nameOnly).map(s => {
-      const pts = s.shape.flatMap(p => p.outer);
-      const x = (Math.min(...pts.map(q => q[0])) + Math.max(...pts.map(q => q[0]))) / 2, front = Math.max(...pts.map(q => q[1]));
-      const pick = typeof s.extras?.subject === 'string' ? s.extras.subject : s.id;
-      const width = Math.max(...pts.map(q => q[0])) - Math.min(...pts.map(q => q[0]));
-      // Just above the floor, along the front edge
-      return { id: s.id, name: s.name, pick, x: x * M, y: ((elevation.get(s.level) ?? 0) + 4) * M, front: front * M, width: width * M };
-    });
-  }, [project]);
+  const labels = useContext(GroundLabels);
   const projectId = useEditor(s => s.projectId);
   const c = useColors();
   const style = modelStyle();
@@ -782,7 +771,7 @@ export function Model3D() {
           <CameraRig box={box} levels={levels} current={current?.id ?? ''} growing={growing} drawings={drawings} growth={growth} projectId={projectId} />
           <SafariPinch />
           <Picker />
-          {tags.map(t => <GroundLabel key={t.id} t={t} color={c.edge} />)}
+          {labels.map(t => <GroundLabel key={t.pick} t={t} base={elev.get(t.level) ?? 0} color={c.edge} />)}
           <Reveal ownerOf={ownerOf} />
           <Renderer draw={draw} edges={style.edges} edgeColor={c.edge} growth={growth} />
           {/* A phone that wasn't recognized as low-end but can't keep up drops to the light setup, for good */}
