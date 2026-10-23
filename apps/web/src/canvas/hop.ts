@@ -1,33 +1,26 @@
 /**
- * Selection and change feedback: objects hop up and land back instead of color highlighting.
- * - Select: hop once, then a gentle hop every 3 s until deselected
- * - Change: a ripple sweeps out from the change center, one round only; after that the "compare with before" dashes take over
- * - Feel by weight: load-bearing walls hop low and land heavy, partitions and railings are light, furniture lightest
- * Hops are transient; at rest objects are always at their true position. Screenshots capture still frames only.
- * The plan is viewed from above, so a "hop" lifts toward you: slight scale-up plus shadow.
+ * Selection and change feedback. Color carries the state (see Plan2D and Model3D): selected objects stay tinted until
+ * deselected, changed objects get a tint that fades out. Motion is a one-time cue only: in 3D a newly selected object
+ * hops once (it helps find objects behind walls); nothing repeats, and the plan doesn't hop at all.
+ * Feel by weight: load-bearing walls hop low and land heavy, partitions and railings are light, furniture lightest.
  */
-import { centroid, findObject, openingCenter, type Point, type Project } from '@plinth/core';
+import { findObject, type Project } from '@plinth/core';
 
 export type Weight = 'heavy' | 'light' | 'furniture' | 'floor';
 
-/**
- * lift: 3D hop height in screen pixels (equally visible at any camera distance); scale: plan scale factor; ms: hop duration
- */
-export const PROFILE: Record<Weight, { lift: number; scale: number; ms: number }> = {
-  heavy: { lift: 12, scale: 1.02, ms: 560 },
-  light: { lift: 18, scale: 1.035, ms: 460 },
-  furniture: { lift: 22, scale: 1.06, ms: 420 },
-  floor: { lift: 10, scale: 1.015, ms: 560 },
+/** lift: 3D hop height in screen pixels (equally visible at any camera distance); ms: hop duration */
+export const PROFILE: Record<Weight, { lift: number; ms: number }> = {
+  heavy: { lift: 12, ms: 560 },
+  light: { lift: 18, ms: 460 },
+  furniture: { lift: 22, ms: 420 },
+  floor: { lift: 10, ms: 560 },
 };
 
 /** How long the camera takes to turn to a hidden selected object */
 export const REVEAL = { ms: 600 };
 
-const REPEAT_MS = 3000;
-const REPEAT_GAIN = 0.55;
-/** Ripple delay per metre and maximum delay */
-const RIPPLE_MS_PER_M = 90;
-const RIPPLE_MAX_MS = 900;
+/** How long the tint on changed objects takes to fade out */
+export const CHANGE_FADE_MS = 2000;
 
 /** 0→1→0: take off, land with one small rebound; exactly 0 for t≥1 */
 export function hopCurve(t: number) {
@@ -36,28 +29,26 @@ export function hopCurve(t: number) {
   return 0.12 * Math.sin((Math.PI * (t - 0.72)) / 0.28);
 }
 
-export interface Hop { id: string; at: number; gain: number; weight: Weight }
+interface Hop { id: string; at: number; weight: Weight }
 
-type Listener = (h: Hop) => void;
-
-/** Object weight and position; doors/windows count as their wall (in 3D they are part of the wall) */
-export function describe(project: Project, id: string): { weight: Weight; at: Point; wall?: string } | null {
+/** Object weight, and for doors/windows their wall (in 3D they are part of the wall) */
+function describe(project: Project, id: string): { weight: Weight; wall?: string } | null {
   const e = findObject(project, id);
   switch (e?.kind) {
-    case 'wall': return { weight: e.obj.kind === 'bearing' ? 'heavy' : 'light', at: [(e.obj.start[0] + e.obj.end[0]) / 2, (e.obj.start[1] + e.obj.end[1]) / 2] };
-    case 'opening': return { weight: 'light', at: openingCenter(e.wall!, e.obj), wall: e.wall!.id };
-    case 'furniture': return { weight: 'furniture', at: e.obj.position };
-    case 'space': return { weight: 'floor', at: centroid(e.obj) };
+    case 'wall': return { weight: e.obj.kind === 'bearing' ? 'heavy' : 'light' };
+    case 'opening': return { weight: 'light', wall: e.wall!.id };
+    case 'furniture': return { weight: 'furniture' };
+    case 'space': return { weight: 'floor' };
     default: return null;
   }
 }
 
 class Hops {
   /** Latest hop per object, keyed by ID; 3D looks it up by ID every frame */
-  private recent = new Map<string, Hop[]>();
-  private listeners = new Set<Listener>();
+  private recent = new Map<string, Hop>();
+  /** When each object was last changed, for the fading tint */
+  private changed = new Map<string, number>();
   private selected: string[] = [];
-  private timer: ReturnType<typeof setInterval> | null = null;
   private project: Project | null = null;
   reduced = false;
 
@@ -65,69 +56,53 @@ class Hops {
     this.project = p;
   }
 
-  subscribe(fn: Listener) {
-    this.listeners.add(fn);
-    return () => void this.listeners.delete(fn);
-  }
-
-  private emit(id: string, at: number, gain: number) {
+  private emit(id: string) {
     if (this.reduced || !this.project) return;
     const d = describe(this.project, id);
     if (!d) return;
-    const h: Hop = { id, at, gain, weight: d.weight };
-    this.push(h);
+    const h: Hop = { id, at: performance.now(), weight: d.weight };
+    this.recent.set(id, h);
     // In 3D, doors/windows hop with their wall
-    if (d.wall) this.push({ ...h, id: d.wall, weight: describe(this.project, d.wall)?.weight ?? 'light' });
-    this.listeners.forEach(l => l(h));
+    if (d.wall) this.recent.set(d.wall, { ...h, id: d.wall, weight: describe(this.project, d.wall)?.weight ?? 'light' });
   }
 
-  private push(h: Hop) {
-    const done = h.at - 2000;
-    this.recent.set(h.id, [...(this.recent.get(h.id) ?? []).filter(x => x.at > done), h]);
-  }
-
-  /** Selection changed: newly selected objects hop once, then hop gently on a timer */
+  /** Selection changed: newly selected objects hop once */
   select(ids: string[]) {
-    const now = performance.now();
-    for (const id of ids) if (!this.selected.includes(id)) this.emit(id, now, 1);
+    for (const id of ids) if (!this.selected.includes(id)) this.emit(id);
     this.selected = ids;
-    if (this.timer) clearInterval(this.timer);
-    this.timer = ids.length ? setInterval(() => this.selected.forEach(id => this.emit(id, performance.now(), REPEAT_GAIN)), REPEAT_MS) : null;
   }
 
-  /** Change: hop one round outward from the center, ordered by distance */
-  ripple(ids: string[]) {
-    if (!this.project || !ids.length) return;
-    const items = ids.map(id => ({ id, d: describe(this.project!, id) })).filter(x => x.d);
-    if (!items.length) return;
-    const cx = items.reduce((a, x) => a + x.d!.at[0], 0) / items.length;
-    const cy = items.reduce((a, x) => a + x.d!.at[1], 0) / items.length;
-    const far = Math.max(...items.map(x => Math.hypot(x.d!.at[0] - cx, x.d!.at[1] - cy)), 1);
-    const span = Math.min(RIPPLE_MAX_MS, (far / 1000) * RIPPLE_MS_PER_M);
+  /** Objects were changed (or the agent pointed at them): start their fading tint */
+  mark(ids: string[]) {
     const now = performance.now();
-    for (const x of items) this.emit(x.id, now + (Math.hypot(x.d!.at[0] - cx, x.d!.at[1] - cy) / far) * span, 1);
+    for (const id of ids) {
+      this.changed.set(id, now);
+      const wall = this.project && describe(this.project, id)?.wall;
+      if (wall) this.changed.set(wall, now);
+    }
   }
 
   /** Hop again after the camera turns to reveal a hidden object */
   poke(id: string) {
-    this.emit(id, performance.now(), 1);
+    this.emit(id);
   }
 
   /** How many screen pixels an object is lifted right now (0 = at rest); called by 3D every frame */
   lift(id: string, now: number) {
-    let v = 0;
-    for (const h of this.recent.get(id) ?? []) {
-      const y = hopCurve((now - h.at) / PROFILE[h.weight].ms) * h.gain * PROFILE[h.weight].lift;
-      if (y > v) v = y;
-    }
-    return v;
+    const h = this.recent.get(id);
+    return h ? hopCurve((now - h.at) / PROFILE[h.weight].ms) * PROFILE[h.weight].lift : 0;
+  }
+
+  /** Strength of the change tint right now: 1 just after the change, fading to 0 */
+  changeTint(id: string, now: number) {
+    const at = this.changed.get(id);
+    return at == null ? 0 : Math.max(0, 1 - (now - at) / CHANGE_FADE_MS);
   }
 
   stop() {
-    if (this.timer) clearInterval(this.timer);
-    this.timer = null;
     this.selected = [];
     this.recent.clear();
+    this.changed.clear();
   }
 }
 

@@ -6,13 +6,12 @@ import { Bounds, Edges, OrbitControls, useBounds } from '@react-three/drei';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { findObject, projectBoxes, type Box, type Project, type Space } from '@plinth/core';
 import { ScanIcon, SquareIcon, BoxIcon } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { Button } from '@/components/ui/button';
 import { m } from '@/lib/i18n';
 import { useCanvasDocument } from '@/canvas/CanvasFrame';
 import { hops, REVEAL } from '@/canvas/hop';
-import { useReducedMotion } from '@/canvas/HopDriver';
 import { useThemeColors } from '@/lib/theme';
 import { useEditor } from './store';
 
@@ -23,19 +22,35 @@ const unitBox = new THREE.BoxGeometry(1, 1, 1);
 const useColors = () =>
   useThemeColors({
     bg: '--muted', wall: '--card', slab: '--secondary', ground: '--accent', furn: '--chart-3',
-    glass: '--muted-foreground', edge: '--muted-foreground', sel: '--foreground', sky: '--background',
+    glass: '--muted-foreground', edge: '--muted-foreground', sel: '--chart-2', changed: '--chart-1', sky: '--background',
   }, useCanvasDocument());
 
+/** Selected objects are tinted with the selection color and outlined; just-changed objects get a tint that fades out */
+const SELECTED_TINT = 0.45;
+const CHANGED_TINT = 0.6;
+const TintColors = createContext<{ sel: THREE.Color; changed: THREE.Color }>({ sel: new THREE.Color(), changed: new THREE.Color() });
+
 /**
- * Selection and changes don't change color; objects hop up and land back (see canvas/hop.ts).
- * restY records the rest position; objects are put back before screenshots.
+ * Per-frame feedback for one object (see canvas/hop.ts): its color (selected, or fading after a change) and the one-time hop.
+ * userData.restY and userData.baseColor record the resting state; screenshots put objects back to it first.
  */
-function useHop<T extends THREE.Object3D>(id: string) {
+function useFeedback<T extends THREE.Mesh>(id: string, color: string, selected: boolean) {
   const ref = useRef<T>(null);
+  const tints = useContext(TintColors);
+  const base = useMemo(() => new THREE.Color(color), [color]);
   useFrame(({ camera, size }) => {
     const o = ref.current;
     if (!o) return;
-    const px = hops.lift(id, performance.now());
+    const now = performance.now();
+    const mat = o.material as THREE.MeshStandardMaterial;
+    o.userData.baseColor = base;
+    mat.color.copy(base);
+    if (selected) mat.color.lerp(tints.sel, SELECTED_TINT);
+    else {
+      const k = hops.changeTint(id, now);
+      if (k > 0) mat.color.lerp(tints.changed, CHANGED_TINT * k);
+    }
+    const px = hops.lift(id, now);
     o.position.y = o.userData.restY;
     if (!px) return;
     // Hop height is in screen pixels: the farther from the camera, the higher the lift
@@ -115,13 +130,13 @@ function Reveal({ ownerOf }: { ownerOf: (id: string) => string | undefined }) {
   return null;
 }
 
-/** With reduced motion, the selected object gets a thin foreground-color outline */
+/** The selected object's edges are drawn in the selection color */
 type Outline = { edge: string; sel?: string };
 const edgeProps = ({ edge, sel }: Outline) => ({ color: sel ?? edge, lineWidth: sel ? 2 : 1 });
 
 function BoxMesh({ b, base, color, opacity = 1, onPick, ...o }: Outline & { b: Box; base: number; color: string; opacity?: number; onPick: (e: ThreeEvent<MouseEvent>) => void }) {
   const y = (base + b.z + b.height / 2) * M;
-  const ref = useHop<THREE.Mesh>(b.id);
+  const ref = useFeedback<THREE.Mesh>(b.id, color, !!o.sel);
   return (
     <mesh
       ref={ref}
@@ -141,7 +156,7 @@ function BoxMesh({ b, base, color, opacity = 1, onPick, ...o }: Outline & { b: B
 }
 
 function Slab({ s, y, thickness, color, onPick, ...o }: Outline & { s: Space; y: number; thickness: number; color: string; onPick: (e: ThreeEvent<MouseEvent>) => void }) {
-  const ref = useHop<THREE.Mesh>(s.id);
+  const ref = useFeedback<THREE.Mesh>(s.id, color, !!o.sel);
   const geo = useMemo(() => {
     const shapes = s.shape.map(p => {
       const sh = new THREE.Shape(p.outer.map(([x, z]) => new THREE.Vector2(x * M, -z * M)));
@@ -162,7 +177,7 @@ function Slab({ s, y, thickness, color, onPick, ...o }: Outline & { s: Space; y:
 
 function Furniture({ f, base, color, sel, onPick }: { f: Project['furniture'][number]; base: number; color: string; sel?: string; onPick: (e: ThreeEvent<MouseEvent>) => void }) {
   const y = (base + (f.elevation ?? 0) + f.size.h / 2) * M;
-  const ref = useHop<THREE.Mesh>(f.id);
+  const ref = useFeedback<THREE.Mesh>(f.id, color, !!sel);
   return (
     <mesh ref={ref} geometry={unitBox} castShadow onClick={onPick} userData={{ id: f.id, restY: y }}
       position={[f.position[0] * M, y, f.position[1] * M]}
@@ -188,9 +203,10 @@ function Capture() {
   const setCapture = useEditor(s => s.setCapture);
   useEffect(() => {
     setCapture(async () => {
-      // Capture still frames only: put hopping objects back at rest first
+      // Capture the drawing only: put hopping and tinted objects back to rest first
       scene.traverse(o => {
         if (typeof o.userData.restY === 'number') o.position.y = o.userData.restY;
+        if (o.userData.baseColor) ((o as THREE.Mesh).material as THREE.MeshStandardMaterial).color.copy(o.userData.baseColor);
       });
       gl.render(scene, camera);
       const c = gl.domElement;
@@ -310,9 +326,10 @@ export function Model3D() {
   const shown = project.levels.filter(l => !current || l.elevation <= current.elevation);
   const elev = new Map(project.levels.map(l => [l.id, l.elevation]));
   const boxes = useMemo(() => projectBoxes(project), [project]);
-  const reduced = useReducedMotion();
   const ownerOf = (id: string) => findObject(project, id, 'opening')?.wall?.id;
-  const sel = new Set(reduced ? view.selection.map(id => ownerOf(id) ?? id) : []);
+  // A door or window is part of its wall in 3D, so selecting it marks the wall
+  const sel = new Set(view.selection.map(id => ownerOf(id) ?? id));
+  const tints = useMemo(() => ({ sel: new THREE.Color(c.sel), changed: new THREE.Color(c.changed) }), [c.sel, c.changed]);
 
   const [command, setCommand] = useState<ViewCommand | null>(null);
   const [top, setTop] = useState(false);
@@ -331,47 +348,49 @@ export function Model3D() {
 
   return (
     <div className="relative size-full">
-      <Canvas
-        shadows
-        gl={{ preserveDrawingBuffer: true, antialias: true }}
-        camera={{ position: [cx + span * 0.9, span * 0.8, cz + span * 1.1], fov: 40, near: 0.1, far: 2000 }}
-        onPointerMissed={() => select([])}
-        style={{ background: c.bg }}
-      >
-        <hemisphereLight args={[c.sky, c.edge, 1.1]} />
-        <directionalLight position={[cx - 20, 40, cz + 25]} intensity={1.6} castShadow shadow-mapSize={[2048, 2048]}
-          shadow-camera-left={-40} shadow-camera-right={40} shadow-camera-top={40} shadow-camera-bottom={-40} />
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, project.site.groundLevel * M - 0.01, cz]} receiveShadow>
-          <planeGeometry args={[span * 4, span * 4]} />
-          <meshStandardMaterial color={c.ground} roughness={1} />
-        </mesh>
+      <TintColors.Provider value={tints}>
+        <Canvas
+          shadows
+          gl={{ preserveDrawingBuffer: true, antialias: true }}
+          camera={{ position: [cx + span * 0.9, span * 0.8, cz + span * 1.1], fov: 40, near: 0.1, far: 2000 }}
+          onPointerMissed={() => select([])}
+          style={{ background: c.bg }}
+        >
+          <hemisphereLight args={[c.sky, c.edge, 1.1]} />
+          <directionalLight position={[cx - 20, 40, cz + 25]} intensity={1.6} castShadow shadow-mapSize={[2048, 2048]}
+            shadow-camera-left={-40} shadow-camera-right={40} shadow-camera-top={40} shadow-camera-bottom={-40} />
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, project.site.groundLevel * M - 0.01, cz]} receiveShadow>
+            <planeGeometry args={[span * 4, span * 4]} />
+            <meshStandardMaterial color={c.ground} roughness={1} />
+          </mesh>
 
-        <Bounds margin={1.15}>
-          <Fit project={project} level={view.level} />
-          <ViewCommands command={command} />
-          <group>
-            {shown.map(l => (
-              <group key={l.id}>
-                {project.spaces.filter(s => s.level === l.id && s.kind !== 'void' && !s.slabOpening).map(s => (
-                  <Slab key={s.id} s={s} y={s.kind === 'outdoor' && l.elevation === 0 ? project.site.groundLevel + 20 : l.elevation} thickness={s.kind === 'outdoor' ? 20 : 120}
-                    color={c.slab} edge={c.edge} sel={sel.has(s.id) ? c.sel : undefined} onPick={pick(s.id)} />
-                ))}
-                {boxes.filter(b => b.level === l.id).map((b, i) => (
-                  <BoxMesh key={`${b.id}-${i}`} b={b} base={elev.get(l.id) ?? 0} edge={c.edge} onPick={pick(b.id)}
-                    color={b.kind === 'glass' ? c.glass : c.wall} sel={sel.has(b.id) ? c.sel : undefined} opacity={b.kind === 'glass' ? 0.2 : 1} />
-                ))}
-                {view.layers.furniture && project.furniture.filter(f => f.level === l.id).map(f => (
-                  <Furniture key={f.id} f={f} base={elev.get(l.id) ?? 0} color={c.furn} sel={sel.has(f.id) ? c.sel : undefined} onPick={pick(f.id)} />
-                ))}
-              </group>
-            ))}
-          </group>
-        </Bounds>
-        <OrbitControls makeDefault enableDamping enableZoom={false} maxPolarAngle={Math.PI / 2 - 0.05} />
-        <WheelControls />
-        <Reveal ownerOf={ownerOf} />
-        <Capture />
-      </Canvas>
+          <Bounds margin={1.15}>
+            <Fit project={project} level={view.level} />
+            <ViewCommands command={command} />
+            <group>
+              {shown.map(l => (
+                <group key={l.id}>
+                  {project.spaces.filter(s => s.level === l.id && s.kind !== 'void' && !s.slabOpening).map(s => (
+                    <Slab key={s.id} s={s} y={s.kind === 'outdoor' && l.elevation === 0 ? project.site.groundLevel + 20 : l.elevation} thickness={s.kind === 'outdoor' ? 20 : 120}
+                      color={c.slab} edge={c.edge} sel={sel.has(s.id) ? c.sel : undefined} onPick={pick(s.id)} />
+                  ))}
+                  {boxes.filter(b => b.level === l.id).map((b, i) => (
+                    <BoxMesh key={`${b.id}-${i}`} b={b} base={elev.get(l.id) ?? 0} edge={c.edge} onPick={pick(b.id)}
+                      color={b.kind === 'glass' ? c.glass : c.wall} sel={sel.has(b.id) ? c.sel : undefined} opacity={b.kind === 'glass' ? 0.2 : 1} />
+                  ))}
+                  {view.layers.furniture && project.furniture.filter(f => f.level === l.id).map(f => (
+                    <Furniture key={f.id} f={f} base={elev.get(l.id) ?? 0} color={c.furn} sel={sel.has(f.id) ? c.sel : undefined} onPick={pick(f.id)} />
+                  ))}
+                </group>
+              ))}
+            </group>
+          </Bounds>
+          <OrbitControls makeDefault enableDamping enableZoom={false} maxPolarAngle={Math.PI / 2 - 0.05} />
+          <WheelControls />
+          <Reveal ownerOf={ownerOf} />
+          <Capture />
+        </Canvas>
+      </TintColors.Provider>
       <div className="absolute top-2 right-2 flex gap-1">
         <Button size="icon-sm" variant="outline" className="bg-background" onClick={() => run('fit')} aria-label={m.model3d_fit()} title={m.model3d_fit()}><ScanIcon /></Button>
         <Button size="icon-sm" variant="outline" className="bg-background" onClick={() => { run(top ? 'perspective' : 'top'); setTop(!top); }}
