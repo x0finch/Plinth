@@ -16,8 +16,15 @@ import { PlanDefs, PlanInk, PlanLabels, PlanPaper, scaledLine } from '../PlanDra
 import type { Quality } from './Renderer';
 
 const M = 0.001;
-/** Texture size along the longer side of the drawing */
-const MAX_PX = { high: 4096, low: 2048 };
+/**
+ * Texture size along the longer side of the drawing. A budget, since phone browsers kill pages that hold too much image memory
+ * (4096-pixel textures for two layers on four floors took about 600 MB): the current floor's ink is sharpest; other floors' ink and
+ * all paper (seen only while the house grows, and soft-edged) are smaller; low-end phones get half.
+ */
+const TEXTURE_PX = {
+  high: { ink: 2048, otherInk: 1024, paper: 1024 },
+  low: { ink: 1024, otherInk: 512, paper: 512 },
+};
 
 /** How opaque the paper is while the house grows (g: 0 flat, 1 built): gone once the walls are a third of the way up */
 export const paperOpacity = (g: number) => 1 - THREE.MathUtils.smoothstep(g, 0, 0.3);
@@ -44,8 +51,8 @@ async function rasterize(svg: string, width: number, height: number, doc: Docume
 }
 
 /** The level's drawing, just above its floor (the parent places it at the level's elevation). Ignored by picking. */
-export function FloorDrawing({ project, level, furniture, labels, quality, growth }: {
-  project: Project; level: string; furniture: boolean; labels: boolean; quality: Quality; growth: React.RefObject<{ g: number }>;
+export function FloorDrawing({ project, level, current, furniture, labels, quality, growth }: {
+  project: Project; level: string; current: boolean; furniture: boolean; labels: boolean; quality: Quality; growth: React.RefObject<{ g: number }>;
 }) {
   const doc = useCanvasDocument();
   const size = useThree(s => s.size);
@@ -59,13 +66,18 @@ export function FloorDrawing({ project, level, furniture, labels, quality, growt
     const line = scaledLine(mmPerPx);
     const svg = (children: React.ReactNode, w: number, h: number) =>
       markup(<svg xmlns="http://www.w3.org/2000/svg" viewBox={`${frame.x} ${frame.y} ${frame.w} ${frame.h}`} width={w} height={h}>{children}</svg>, doc);
-    const k = MAX_PX[quality] / Math.max(frame.w, frame.h);
-    const w = Math.round(frame.w * k), h = Math.round(frame.h * k);
+    const budget = TEXTURE_PX[quality];
+    const dims = (px: number) => {
+      const k = px / Math.max(frame.w, frame.h);
+      return [Math.round(frame.w * k), Math.round(frame.h * k)] as const;
+    };
+    const [pw, ph] = dims(budget.paper);
+    const [iw, ih] = dims(current ? budget.ink : budget.otherInk);
     let live = true;
     let made: { paper: THREE.Texture; ink: THREE.Texture } | null = null;
     void Promise.all([
-      rasterize(svg(<><PlanDefs /><PlanPaper project={project} level={level} shapes={shapes} line={line} /></>, w, h), w, h, doc),
-      rasterize(svg(<><PlanDefs /><PlanInk shapes={shapes} furniture={furniture} line={line} />{labels && <PlanLabels shapes={shapes} />}</>, w, h), w, h, doc),
+      rasterize(svg(<><PlanDefs /><PlanPaper project={project} level={level} shapes={shapes} line={line} /></>, pw, ph), pw, ph, doc),
+      rasterize(svg(<><PlanDefs /><PlanInk shapes={shapes} furniture={furniture} line={line} />{labels && <PlanLabels shapes={shapes} />}</>, iw, ih), iw, ih, doc),
     ]).then(([paper, ink]) => {
       made = { paper, ink };
       if (live) setTextures(made);
@@ -76,7 +88,7 @@ export function FloorDrawing({ project, level, furniture, labels, quality, growt
       made?.paper.dispose();
       made?.ink.dispose();
     };
-  }, [shapes, furniture, labels, quality, mmPerPx, doc]);
+  }, [shapes, furniture, labels, quality, current, mmPerPx, doc]);
 
   const paper = useRef<THREE.MeshBasicMaterial>(null);
   const paperMesh = useRef<THREE.Mesh>(null);
