@@ -471,7 +471,8 @@ function checkLibraryLook(l: z.output<typeof zLibraryLook>) {
   }
 }
 
-api.get('/libraries', async c => c.json([...(await repo.listLibraries(requireUser(c).id)), ...builtinSummaries()]));
+// Built-in libraries first (the default set leads), then the user's own and shared ones
+api.get('/libraries', async c => c.json([...builtinSummaries(), ...(await repo.listLibraries(requireUser(c).id))]));
 
 api.post('/libraries', async c => {
   const u = requireUser(c);

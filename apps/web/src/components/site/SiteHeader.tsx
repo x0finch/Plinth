@@ -31,6 +31,7 @@ export function SiteHeader() {
       {user ? (
         <>
           <Button variant="ghost" size="sm" nativeButton={false} render={<Link to="/projects" />}>{m.site_my_projects()}</Button>
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link to="/looks" />}>{m.nav_libraries()}</Button>
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={m.site_account()} />}><UserIcon /></DropdownMenuTrigger>
             <DropdownMenuContent align="end">

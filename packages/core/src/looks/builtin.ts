@@ -106,3 +106,6 @@ export const BUILTIN_LIBRARIES: BuiltinLibrary[] = [
 ];
 
 export const builtinLibrary = (id: string) => BUILTIN_LIBRARIES.find(l => l.id === id);
+
+/** The default set (looks/index.ts) shown as a library: what every object without a look of its own is drawn with */
+export const DEFAULT_LIBRARY_ID = 'builtin-default';

@@ -1,4 +1,4 @@
-// E2E: look libraries (#81): create one in Settings, save a design's look to it, share it, another person adds the look to
+// E2E: look libraries (#81): create one from the library list (top navigation), save a design's look to it, share it, another person adds the look to
 // their own design together with one from the built-in Chinese library, an update shows as "newer" with before/after, deleting the library leaves designs unchanged
 import { chromium } from 'playwright';
 
@@ -37,45 +37,55 @@ const openLooks = async page => {
 
 const a = await person(), bob = await person();
 
-// A opens Settings from the account menu and creates a library; the built-in Chinese library is listed too
+// The account menu opens Settings
 await a.page.goto(`${BASE}/projects`);
 await a.page.getByRole('button', { name: '账号' }).click();
 await a.page.getByRole('menuitem', { name: '设置' }).click();
 await a.page.waitForURL(/\/settings/);
-check(await a.page.getByText('中式物件').waitFor({ timeout: 15000 }).then(() => true, () => false), 'the account menu opens Settings, which lists the built-in library');
-await a.page.getByLabel('新模型库的名字').fill('家具库');
-await a.page.getByRole('button', { name: '新建模型库' }).click();
-await a.page.getByText('家具库').waitFor();
-check(true, 'a library is created in Settings');
+check(true, 'the account menu opens Settings');
+
+// The top navigation opens the library list: the default library, the built-in Chinese one; A creates a library there
+await a.page.locator('header a[href="/looks"]').click();
+await a.page.waitForURL(/\/looks$/);
+await a.page.getByRole('link', { name: '打开“中式物件”' }).waitFor({ timeout: 15000 });
+check(await a.page.getByRole('link', { name: '打开“默认物件库”' }).isVisible(), 'the library list shows the default and the built-in libraries');
+await a.page.getByLabel('新物件库的名字').fill('家具库');
+await a.page.getByRole('button', { name: '新建物件库' }).click();
+await a.page.waitForURL(/\/looks\/lib/);
+await a.page.getByText('还没有外观', { exact: false }).waitFor();
+check(true, 'a new library opens on its own page, empty');
 
 // A makes a look in the design and saves it to the library
 await a.page.goto(a.url);
 await a.page.waitForFunction(() => window.artifact?.ready);
 await a.page.evaluate(r => window.artifact.call('look_add', { name: '圆餐桌', for: ['furniture:dining'], recipe: r, use: true }), ROUND);
 await openLooks(a.page);
-await a.page.getByRole('combobox', { name: '把“圆餐桌”存入模型库' }).click();
+await a.page.getByRole('combobox', { name: '把“圆餐桌”存入物件库' }).click();
 await a.page.getByRole('option', { name: '家具库' }).click();
-await a.page.getByText('“圆餐桌”已存入模型库').waitFor();
+await a.page.getByText('“圆餐桌”已存入物件库').waitFor();
 let pa = await project(a.page);
 const aLook = Object.values(pa.library.looks)[0];
 check(aLook.source?.version === 1, 'saving links the design copy to the library (v1)');
 await a.page.screenshot({ path: `${OUT}/libraries-1-design.png` });
 
-// A shares the library with Bob as an editor
+// A opens the library from the list and shares it with Bob as an editor
 await a.page.waitForTimeout(2000);
-await a.page.goto(`${BASE}/settings`);
-await a.page.getByRole('button', { name: /家具库/ }).click();
+await a.page.goto(`${BASE}/looks`);
+await a.page.getByRole('link', { name: '打开“家具库”' }).click();
+await a.page.getByText('圆餐桌').first().waitFor({ timeout: 15000 }).catch(() => {});
+await a.page.screenshot({ path: `${OUT}/libraries-2-page.png` });
+await a.page.getByRole('button', { name: '管理' }).click();
 await a.page.getByLabel('对方注册用的邮箱').fill(bob.email);
 await a.page.getByRole('combobox', { name: '权限' }).click();
 await a.page.getByRole('option', { name: '可编辑' }).click();
 await a.page.getByRole('button', { name: '分享' }).click();
 await a.page.getByText(bob.email).waitFor();
 check(true, 'the library is shared with another person');
-await a.page.screenshot({ path: `${OUT}/libraries-2-settings.png` });
+await a.page.screenshot({ path: `${OUT}/libraries-3-manage.png` });
 
 // Bob adds the look to his own design
 await openLooks(bob.page);
-await bob.page.getByRole('button', { name: '从模型库添加' }).click();
+await bob.page.getByRole('button', { name: '从物件库添加' }).click();
 await bob.page.getByRole('button', { name: '添加并使用' }).click();
 await bob.page.getByText('已添加“圆餐桌”').waitFor();
 let pb = await project(bob.page);
@@ -84,8 +94,8 @@ check(bId && pb.library.looks[bId].source?.look === aLook.source.look, 'another 
 check(JSON.stringify(pb.library.looks[bId].recipe) === JSON.stringify(aLook.recipe), 'both see the same look');
 
 // Bob also uses a look from the built-in Chinese library: one design, looks from two libraries
-await bob.page.getByRole('button', { name: '从模型库添加' }).click();
-await bob.page.getByRole('combobox', { name: '模型库' }).click();
+await bob.page.getByRole('button', { name: '从物件库添加' }).click();
+await bob.page.getByRole('combobox', { name: '物件库' }).click();
 await bob.page.getByRole('option', { name: '中式物件' }).click();
 await bob.page.getByRole('dialog').locator('div.space-y-1', { hasText: '功夫茶台' }).getByRole('button', { name: '添加并使用' }).click();
 await bob.page.getByText('已添加“功夫茶台”').waitFor();
@@ -100,20 +110,20 @@ await a.page.waitForFunction(() => window.artifact?.ready);
 const id = Object.keys((await project(a.page)).library.looks)[0];
 await a.page.evaluate(([id, r]) => window.artifact.call('look_update', { look: id, recipe: { ...r, parts: r.parts.map(p => ({ ...p, mat: 'woodDark' })) } }), [id, ROUND]);
 await openLooks(a.page);
-await a.page.getByRole('combobox', { name: '把“圆餐桌”存入模型库' }).click();
+await a.page.getByRole('combobox', { name: '把“圆餐桌”存入物件库' }).click();
 await a.page.getByRole('option', { name: '家具库' }).click();
-await a.page.getByText('“圆餐桌”已存入模型库').waitFor();
+await a.page.getByText('“圆餐桌”已存入物件库').waitFor();
 pa = await project(a.page);
 check(Object.values(pa.library.looks)[0].source?.version === 2, 'saving again makes v2 in the library');
 await bob.page.waitForTimeout(2500);
 await bob.page.reload();
 await bob.page.waitForFunction(() => window.artifact?.ready);
 await openLooks(bob.page);
-await bob.page.getByText('模型库里有新版本 v2').waitFor({ timeout: 10000 });
+await bob.page.getByText('物件库里有新版本 v2').waitFor({ timeout: 10000 });
 check(true, 'the other design shows that a newer version exists');
 await bob.page.getByRole('button', { name: '更新', exact: true }).click();
 await bob.page.getByRole('img', { name: '更新后' }).waitFor({ timeout: 15000 });
-await bob.page.screenshot({ path: `${OUT}/libraries-3-update.png` });
+await bob.page.screenshot({ path: `${OUT}/libraries-4-update.png` });
 await bob.page.getByRole('alertdialog').getByRole('button', { name: '更新' }).click();
 await bob.page.waitForTimeout(500);
 pb = await project(bob.page);
