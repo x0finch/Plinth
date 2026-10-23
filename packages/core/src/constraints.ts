@@ -22,7 +22,6 @@ export interface ConstraintReport {
   violatedSoft: ConstraintStatus[];
 }
 
-const plain = (p: Project): Project => JSON.parse(JSON.stringify(isDraft(p) ? current(p) : p));
 
 const findWall = (p: Project, id: Id) => findObject(p, id, 'wall')?.obj;
 const findSpace = (p: Project, id: Id) => findObject(p, id, 'space')?.obj;
@@ -51,9 +50,13 @@ export function solveAreaMove(p: Project, spaceId: Id, target: number, wallId?: 
   const w = wallId ? findWall(p, wallId) : pickResizeWall(p, s);
   if (!w) return null;
   const out = scale(wallNormal(w), -sideOf(w, s)); // away from the space
+  // Trial moves only touch this level's walls and spaces, so copy just those instead of the whole project
+  const src = isDraft(p) ? current(p) : p;
+  const walls = src.walls.filter(x => x.level === s.level), spaces = src.spaces.filter(x => x.level === s.level);
   const areaAt = (d: number) => {
-    const q = plain(p);
-    if (d) moveWall(q, w.id, scale(out, d));
+    if (!d) return spaceNetArea(src, findSpace(src, spaceId)!);
+    const q: Project = { ...src, walls: structuredClone(walls), spaces: structuredClone(spaces) };
+    moveWall(q, w.id, scale(out, d));
     return spaceNetArea(q, findSpace(q, spaceId)!);
   };
   let d0 = 0, a0 = areaAt(0), d1 = 500, a1 = areaAt(d1);

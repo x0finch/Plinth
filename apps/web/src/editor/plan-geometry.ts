@@ -1,6 +1,6 @@
 /** Shapes the plan draws: derived from project data, cached per floor. */
 import {
-  add, difference, furnitureFootprint, netArea, ringArea, scale, union, wallBody, wallDir, wallNormal, pointAt,
+  add, derived, difference, furnitureFootprint, ringArea, scale, union, wallBody, wallDir, wallNormal, pointAt,
   type Furniture, type Opening, type Point, type Polygon, type Project, type Space, type Wall,
 } from '@plinth/core';
 import polylabel from 'polylabel';
@@ -92,12 +92,13 @@ export function levelShapes(p: Project, level: string): LevelShapes {
   const partition = difference(union(solidWalls.filter(w => w.kind === 'partition').map(wallBody)), [...holes, ...bearing]);
   const light = difference(union(walls.filter(w => w.kind === 'fence' || w.kind === 'parapet').map(wallBody)), holes);
 
+  const net = new Map(derived(p).areas.levels.flatMap(l => l.spaces.map(s => [s.id, s.net])));
   const spaces = p.spaces
     .filter(s => s.level === level)
     .map(s => {
       const big = [...s.shape].sort((a, b) => ringArea(b.outer) - ringArea(a.outer))[0];
       const lp = polylabel([big.outer, ...(big.holes ?? [])], 50);
-      return { s, d: polyPath(s.shape), label: [lp[0], lp[1]] as Point, area: s.kind === 'void' ? 0 : netArea(s, p.walls) };
+      return { s, d: polyPath(s.shape), label: [lp[0], lp[1]] as Point, area: net.get(s.id) ?? 0 };
     });
 
   const pts = [...walls.flatMap(w => [w.start, w.end]), ...p.spaces.filter(s => s.level === level).flatMap(s => s.shape.flatMap(q => q.outer))];

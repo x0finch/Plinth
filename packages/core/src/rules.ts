@@ -1,5 +1,5 @@
 /** Rule checks: lightweight, deterministic, no browser needed. Errors reject the operation; warnings are advisory. */
-import { add, furnitureFootprint, pointAt, pointInPolygon, scale, wallDir, wallLength, wallNormal } from './geometry.js';
+import { add, bbox, furnitureFootprint, pointAt, pointInPolygon, scale, wallDir, wallLength, wallNormal } from './geometry.js';
 import { openingSpaces, overlapArea, spaceWalls } from './topology.js';
 import { text } from './i18n.js';
 import { BEDROOM_NAME } from './names.js';
@@ -11,6 +11,9 @@ export interface Issue {
   message: string;
   targets: Id[];
 }
+
+/** Whether two [x0, y0, x1, y1] boxes overlap; polygons whose boxes don't can't overlap either */
+const boxesMeet = (a: number[], b: number[]) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
 
 export const issueKey = (i: Issue) => `${i.code}:${[...i.targets].sort().join(',')}`;
 
@@ -48,9 +51,10 @@ export function checkRules(p: Project): Issue[] {
 
   // Indoor and semi-outdoor spaces on the same level must not overlap
   const bodies = p.spaces.filter(s => s.kind === 'indoor' || s.kind === 'semi-outdoor');
+  const boxes = bodies.map(s => bbox(s.shape));
   for (let i = 0; i < bodies.length; i++) for (let j = i + 1; j < bodies.length; j++) {
     const a = bodies[i], b = bodies[j];
-    if (a.level !== b.level) continue;
+    if (a.level !== b.level || !boxesMeet(boxes[i], boxes[j])) continue;
     const ov = overlapArea(a.shape, b.shape);
     if (ov > 0.05e6) out.push({ code: 'space-overlap', severity: 'error', message: text('rule_space_overlap', '{a} and {b} overlap by about {area} m²', { a: a.name, b: b.name, area: (ov / 1e6).toFixed(1) }), targets: [a.id, b.id] });
   }
@@ -70,9 +74,11 @@ export function checkRules(p: Project): Issue[] {
   for (const w of p.walls) for (const o of w.openings) {
     const sw = doorSwing(w, o);
     if (!sw) continue;
+    const swingBox = bbox([sw]);
     for (const f of p.furniture) {
       if (f.level !== w.level || f.elevation) continue;
-      if (overlapArea([sw], [furnitureFootprint(f)]) > 0.02e6)
+      const fp = furnitureFootprint(f);
+      if (boxesMeet(swingBox, bbox([fp])) && overlapArea([sw], [fp]) > 0.02e6)
         out.push({ code: 'door-blocked', severity: 'warning', message: text('rule_door_blocked', '{opening} hits {furniture} when it opens', { opening: o.name, furniture: f.name }), targets: [o.id, f.id] });
     }
   }

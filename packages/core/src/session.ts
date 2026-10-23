@@ -3,8 +3,8 @@
  * if any step fails the whole transaction rolls back. Undo / redo is based on immer patches.
  */
 import { applyPatches, current, enablePatches, produceWithPatches, setAutoFreeze, type Patch } from 'immer';
-import { areaReport } from './area.js';
-import { checkRules, issueKey, type Issue } from './rules.js';
+import { derived } from './derived.js';
+import { issueKey, type Issue } from './rules.js';
 import { solveConstraints, type ConstraintReport } from './constraints.js';
 import type { Id, Project } from './schema.js';
 import { text } from './i18n.js';
@@ -91,7 +91,7 @@ function touchedGeometry(a: Project, b: Project): Id[] {
 
 function areaSnapshot(p: Project) {
   const m = new Map<Id, { name: string; level: Id; net: number }>();
-  for (const l of areaReport(p).levels) for (const s of l.spaces) m.set(s.id, { name: s.name, level: l.id, net: s.net });
+  for (const l of derived(p).areas.levels) for (const s of l.spaces) m.set(s.id, { name: s.name, level: l.id, net: s.net });
   return m;
 }
 
@@ -158,9 +158,10 @@ export class Session {
     }
     if (!patches.length) return { ok: true, result, changed: [], warnings: [], areaChanges: [], constraints };
 
-    // Rule check: only block newly introduced errors; pre-existing problems do not block the change
-    const old = new Set(checkRules(before).map(issueKey));
-    const fresh = checkRules(next).filter(i => !old.has(issueKey(i)));
+    // Rule check: only block newly introduced errors; pre-existing problems do not block the change.
+    // `before` is usually the previous transaction's `next`, so its results are already cached.
+    const old = new Set(derived(before).rules.map(issueKey));
+    const fresh = derived(next).rules.filter(i => !old.has(issueKey(i)));
     const errors = fresh.filter(i => i.severity === 'error');
     if (errors.length) {
       return {

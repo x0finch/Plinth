@@ -1,13 +1,14 @@
 /** Built-in capabilities: query, edit, relation, verify. Browser-only view capabilities are registered at runtime. */
+import { current, isDraft } from 'immer';
 import { z } from 'zod';
 import { defineEdit, defineRead, Registry, type Capability, type CapabilityContext } from './capability.js';
-import { areaReport, grossArea, netArea } from './area.js';
+import { grossArea, netArea } from './area.js';
+import { derived } from './derived.js';
 import {
   add, area, bbox, cross, dot, MIN_SHARED_EDGE, MIN_WALL_LENGTH, openingCenter, PARALLEL_EPS, pointInPolygon, rect, round, scale, sub, TOL, union,
   wallDir, wallLength, wallNormal,
 } from './geometry.js';
-import { checkRules } from './rules.js';
-import { checkConstraints, solveAreaMove, SUPPORTED_CONSTRAINTS } from './constraints.js';
+import { solveAreaMove, SUPPORTED_CONSTRAINTS } from './constraints.js';
 import { autoWallName, moveWall, nextId, openingSpaces, sharedLength, sideOf, spaceNeighbors, spaceWalls, uniqueName, wallSpaceSpan } from './topology.js';
 import { TxError } from './session.js';
 import { text } from './i18n.js';
@@ -246,9 +247,12 @@ function addSpace(p: Project, level: Id, name: string, shape: Polygon[], kind: S
 
 /** Refresh auto-generated names after wall changes: only renames walls whose names are still auto-generated */
 function renameWalls(p: Project, level: Id) {
+  // Work out names from a plain snapshot: reading geometry through the draft's proxies is several times slower
+  const snap = isDraft(p) ? current(p) : p;
+  const bases = new Map(snap.walls.filter(x => x.level === level).map(w => [w.id, autoWallName(snap, w)]));
   for (const w of p.walls.filter(x => x.level === level)) {
     if ((w.extras as any)?.customName) continue;
-    const base = autoWallName(p, w);
+    const base = bases.get(w.id)!;
     if (w.name === base || w.name.startsWith(base)) continue;
     const others = p.walls.filter(x => x.level === level && x !== w).map(x => x.name);
     const name = uniqueName(others, base, p.language);
@@ -267,7 +271,7 @@ export const projectSummary = read({
   input: z.object({}),
   run: (_, { session }) => {
     const p = session.project;
-    const rep = areaReport(p);
+    const rep = derived(p).areas;
     return {
       name: p.name,
       levels: p.levels.map(l => ({ id: l.id, name: l.name, elevation: l.elevation, height: l.height, roof: !!l.roof, gross: r2(rep.levels.find(x => x.id === l.id)!.gross), spaces: p.spaces.filter(s => s.level === l.id).map(s => s.name) })),
@@ -314,7 +318,7 @@ export const areaReportCap = read({
   run: ({ level }, { session }) => {
     const p = session.project;
     const lv = level ? resolveLevel(p, level).id : undefined;
-    const rep = areaReport(p);
+    const rep = derived(p).areas;
     return {
       levels: rep.levels.filter(l => !lv || l.id === lv).map(l => ({ ...l, gross: r2(l.gross), spaces: l.spaces.map(s => ({ ...s, net: r2(s.net) })) })),
       totalGross: r2(rep.totalGross),
@@ -327,8 +331,8 @@ export const checkRulesCap = read({
   description: 'Check for overlapping rooms, openings beyond the wall or overlapping, rooms without an entrance, bedrooms without a window, door leaves hitting furniture, furniture outside any space, and whether constraints are satisfied.',
   input: z.object({}),
   run: (_, { session }) => ({
-    issues: checkRules(session.project),
-    constraints: checkConstraints(session.project).filter(c => !c.ok),
+    issues: derived(session.project).rules,
+    constraints: derived(session.project).constraints.filter(c => !c.ok),
   }),
 });
 
@@ -337,7 +341,7 @@ export const listConstraints = read({
   description: 'List all constraints and whether each is satisfied.',
   input: z.object({}),
   run: (_, { session }) => {
-    const st = new Map(checkConstraints(session.project).map(s => [s.id, s]));
+    const st = new Map(derived(session.project).constraints.map(s => [s.id, s]));
     return session.project.constraints.map(c => ({ ...c, ok: st.get(c.id)?.ok, status: st.get(c.id)?.message }));
   },
 });

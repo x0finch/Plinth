@@ -10,7 +10,8 @@
     "extract": "node scripts/extract-legacy.mjs",
     "convert": "tsx scripts/convert-legacy.ts",
     "test": "vitest run",
-    "typecheck": "tsc -p packages/core --noEmit"
+    "typecheck": "tsc -p packages/core --noEmit",
+    "bench": "tsx packages/core/bench/transactions.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

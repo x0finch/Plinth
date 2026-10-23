@@ -2,7 +2,7 @@
 import pc from 'polygon-clipping';
 import { netArea } from './area.js';
 import {
-  add, area, cross, dot, MIN_SHARED_EDGE, onWall, openingCenter, PARALLEL_EPS, pointAt, pointInPolygon, project, round, scale, sub, toPc, TOL,
+  add, area, bbox, cross, dot, MIN_SHARED_EDGE, onWall, openingCenter, PARALLEL_EPS, pointAt, pointInPolygon, project, round, scale, sub, toPc, TOL,
   union, wallDir, wallLength, wallNormal,
 } from './geometry.js';
 import { directionOf, names } from './names.js';
@@ -92,8 +92,13 @@ export function autoWallName(p: Project, w: Wall): string {
   const rank: Record<Space['kind'], number> = { indoor: 3, 'semi-outdoor': 2, 'roof-terrace': 1, outdoor: 1, void: 0 };
   let best: { s: Space; score: number } | null = null;
   const indoorSides = new Map<number, number>();
+  const [x0, x1] = [Math.min(w.start[0], w.end[0]) - TOL, Math.max(w.start[0], w.end[0]) + TOL];
+  const [y0, y1] = [Math.min(w.start[1], w.end[1]) - TOL, Math.max(w.start[1], w.end[1]) + TOL];
   for (const s of p.spaces) {
     if (s.level !== w.level) continue;
+    // A space whose bounding box doesn't reach the wall can't share an edge with it
+    const b = bbox(s.shape);
+    if (b[0] > x1 || b[2] < x0 || b[1] > y1 || b[3] < y0) continue;
     const l = sharedLength(w, s);
     if (l <= 0) continue;
     const side = sideOf(w, s);
