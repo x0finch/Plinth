@@ -206,6 +206,8 @@
   "panels_type_wall": "Wall",
   "panels_type_opening": "Door/window",
   "panels_type_furniture": "Furniture",
+  "panels_type_element": "Element",
+  "panels_row_levels": "Levels",
   "panels_name": "Name",
   "panels_row_kind": "Type",
   "panels_row_bay_depth": "Width × depth",

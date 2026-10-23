@@ -40,12 +40,24 @@ describe('project language', () => {
   });
 
   it('a v1 project migrates to language zh', () => {
-    const v1 = JSON.parse(readFileSync(join(import.meta.dirname, '../../../samples/wushi-10/project.json'), 'utf8'));
+    const v1 = JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/wushi-10-v1.json'), 'utf8'));
     expect(v1.version).toBe(1);
     expect(v1.language).toBeUndefined();
     const p = migrate(v1);
     expect(p.version).toBe(SCHEMA_VERSION);
     expect(p.language).toBe('zh');
+    expect(validate(p)).toEqual([]);
+  });
+
+  it('the legacy stair migrates to one U-shaped stair per storey', () => {
+    const v1 = JSON.parse(readFileSync(join(import.meta.dirname, 'fixtures/wushi-10-v1.json'), 'utf8'));
+    const p = migrate(v1);
+    const stairs = p.elements.filter(e => e.type === 'stair');
+    expect(stairs.map(e => [e.id, e.name, e.level, e.topLevel])).toEqual([
+      ['e-stair', '楼梯·一层', 'L1', 'L2'], ['e-stair-2', '楼梯·二层', 'L2', 'L3'], ['e-stair-3', '楼梯·三层', 'L3', 'RF'],
+    ]);
+    expect(p.elements.some(e => e.type === 'legacy-stair')).toBe(false);
+    expect('legacy-stair' in p.library.elements).toBe(false);
     expect(validate(p)).toEqual([]);
   });
 });

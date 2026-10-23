@@ -67,10 +67,23 @@ export function PlanPaper({ project, level, shapes, line, pick }: { project: Pro
   );
 }
 
-/** Walls, furniture, doors and windows; with `pick`, walls get hit areas above them */
+/** Stairs, ponds and drains: flights and water filled, treads and the walking line drawn; stairs seen from above faintly */
+function PlanElements({ shapes, line, pick }: { shapes: LevelShapes; line: Line; pick?: Pick }) {
+  return shapes.elements.map((e, i) => (
+    <g key={`${e.id}-${i}`} opacity={e.faint ? 0.5 : undefined} {...(e.faint ? { pointerEvents: 'none' } : hit(pick, e.id))}>
+      {e.fills.map((f, k) => (
+        <polygon key={k} points={pts(f.ring)} fill={f.kind === 'water' ? 'var(--muted)' : 'var(--card)'} stroke="var(--muted-foreground)" {...line(0.8)} />
+      ))}
+      {e.lines.map((l, k) => <polyline key={k} points={pts(l.points)} fill="none" stroke="var(--foreground)" {...line(0.8, l.dashed ? [4, 3] : undefined)} />)}
+    </g>
+  ));
+}
+
+/** Elements, walls, furniture, doors and windows; with `pick`, walls get hit areas above them */
 export function PlanInk({ shapes, furniture, line, pick }: { shapes: LevelShapes; furniture: boolean; line: Line; pick?: Pick }) {
   return (
     <>
+      <PlanElements shapes={shapes} line={line} pick={pick} />
       {furniture && shapes.furniture.map(({ f, d }) => (
         <path key={f.id} d={d} fill="var(--card)" fillOpacity={0.85} stroke="var(--muted-foreground)" {...line(0.8)} {...hit(pick, f.id)} />
       ))}

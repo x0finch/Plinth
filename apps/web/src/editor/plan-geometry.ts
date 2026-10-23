@@ -1,7 +1,7 @@
 /** Shapes the plan draws: derived from project data, cached per floor. */
 import {
-  add, derived, difference, furnitureFootprint, ringArea, scale, union, wallBody, wallDir, wallNormal, pointAt,
-  type Furniture, type Opening, type Point, type Polygon, type Project, type Space, type Wall,
+  add, derived, difference, furnitureFootprint, projectElements, ringArea, scale, union, wallBody, wallDir, wallNormal, pointAt,
+  type ElementPlan, type Furniture, type Opening, type Point, type Polygon, type Project, type Space, type Wall,
 } from '@plinth/core';
 import polylabel from 'polylabel';
 
@@ -30,6 +30,8 @@ export interface LevelShapes {
   walls: { w: Wall; d: string }[];
   openings: OpeningShape[];
   furniture: { f: Furniture; d: string }[];
+  /** Elements (stairs, ponds, drains) drawn on this level, including stairs seen from the level they arrive at */
+  elements: ElementPlan[];
 }
 
 /** Margin the plan leaves around a level's drawing, in millimetres (3D starts from the same framing) */
@@ -105,6 +107,17 @@ function openingShape(w: Wall, o: Opening): OpeningShape {
   };
 }
 
+/** Element drawings on a level; a stair seen from above is left out where this level's own stair covers it (the plan shows one) */
+function levelElements(p: Project, level: string) {
+  const plans = projectElements(p).flatMap(g => g.plans).filter(e => e.level === level);
+  const box = (e: ElementPlan) => {
+    const q = e.fills.flatMap(f => f.ring);
+    return [Math.min(...q.map(v => v[0])), Math.min(...q.map(v => v[1])), Math.max(...q.map(v => v[0])), Math.max(...q.map(v => v[1]))];
+  };
+  const own = plans.filter(e => !e.faint).map(box);
+  return plans.filter(e => !e.faint || !own.some(b => { const a = box(e); return a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]; }));
+}
+
 const cache = new WeakMap<Project, Map<string, LevelShapes>>();
 
 export function levelShapes(p: Project, level: string): LevelShapes {
@@ -142,6 +155,7 @@ export function levelShapes(p: Project, level: string): LevelShapes {
     walls: walls.map(w => ({ w, d: polyPath([wallBody(w)]) })),
     openings: walls.flatMap(w => w.openings.map(o => openingShape(w, o))),
     furniture: p.furniture.filter(f => f.level === level).map(f => ({ f, d: polyPath([furnitureFootprint(f)]) })),
+    elements: levelElements(p, level),
   };
   m.set(level, shapes);
   return shapes;

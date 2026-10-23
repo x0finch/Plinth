@@ -1,8 +1,9 @@
 {
  "schema": "plinth/project",
- "version": 1,
+ "version": 3,
  "id": "wushi-courtyard-10",
  "name": "乌石合院 · 方案十",
+ "language": "zh",
  "units": "mm",
  "site": {
   "boundary": [
@@ -2751,63 +2752,56 @@
  "elements": [
   {
    "id": "e-stair",
-   "name": "楼梯",
-   "type": "legacy-stair",
+   "name": "楼梯·一层",
+   "type": "stair",
    "level": "L1",
+   "topLevel": "L2",
+   "params": {
+    "rect": [
+     15030,
+     120,
+     2220,
+     6150
+    ],
+    "up": "north",
+    "turn": "right",
+    "gap": 100
+   }
+  },
+  {
+   "id": "e-stair-2",
+   "name": "楼梯·二层",
+   "type": "stair",
+   "level": "L2",
+   "topLevel": "L3",
+   "params": {
+    "rect": [
+     15030,
+     120,
+     2220,
+     6150
+    ],
+    "up": "north",
+    "turn": "right",
+    "gap": 100
+   }
+  },
+  {
+   "id": "e-stair-3",
+   "name": "楼梯·三层",
+   "type": "stair",
+   "level": "L3",
    "topLevel": "RF",
    "params": {
-    "type": "legacy",
-    "hole1": [
-     14900,
-     17500,
-     0,
-     3880
-    ],
-    "holeR": [
-     14900,
-     17500,
-     0,
-     4870
-    ],
-    "kiosk": [
-     14900,
-     17380,
+    "rect": [
+     15030,
      120,
-     4990
+     2220,
+     6150
     ],
-    "door": [
-     15500,
-     4990
-    ],
-    "holeM": [
-     [
-      14900,
-      16140,
-      0,
-      4870
-     ],
-     [
-      16140,
-      17500,
-      0,
-      3880
-     ]
-    ],
-    "footprint": {
-     "x": 14900,
-     "y": 120,
-     "w": 2480,
-     "h": 6150
-    },
-    "flights": {
-     "w0": 15.03,
-     "w1": 16.09,
-     "e0": 16.19,
-     "e1": 17.25,
-     "x0": 14.9,
-     "z1": 6.27,
-     "dz": 0.12
-    }
+    "up": "north",
+    "turn": "right",
+    "gap": 100
    }
   },
   {
@@ -4802,11 +4796,6 @@
    }
   },
   "elements": {
-   "legacy-stair": {
-    "name": "楼梯（旧页面参数）",
-    "version": 1,
-    "note": "参数照搬旧页面，第 5 步改写成正式的楼梯构件"
-   },
    "pond": {
     "name": "鱼池",
     "version": 1,
@@ -4814,6 +4803,10 @@
    },
    "drain": {
     "name": "排水沟",
+    "version": 1
+   },
+   "stair": {
+    "name": "两跑楼梯",
     "version": 1
    }
   }
