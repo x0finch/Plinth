@@ -4,17 +4,17 @@
  * Shows the whole house, or with the cutaway layer the current floor and below; picking is synced with the plan.
  * Units: data in millimetres, scene in metres.
  */
-import { Edges, OrbitControls } from '@react-three/drei';
+import { Edges, OrbitControls, PerformanceMonitor } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { findObject, projectBoxes, type Box, type Project, type Space } from '@plinth/core';
-import { createContext, Fragment, useContext, useEffect, useMemo, useRef } from 'react';
+import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { m } from '@/lib/i18n';
 import { useCanvasDocument } from '@/canvas/CanvasFrame';
 import { hops, REVEAL } from '@/canvas/hop';
 import { useThemeColors } from '@/lib/theme';
 import { FloorDrawing } from './model3d/FloorDrawing';
-import { detectQuality, Renderer } from './model3d/Renderer';
+import { detectQuality, isTouchDevice, Renderer, type Quality } from './model3d/Renderer';
 import { levelShapes, PLAN_PAD } from './plan-geometry';
 import { useEditor, useEditorStore } from './store';
 
@@ -507,7 +507,10 @@ export function Model3D() {
   const projectId = useEditor(s => s.projectId);
   const c = useColors();
   const doc = useCanvasDocument();
-  const quality = useMemo(() => detectQuality(doc.defaultView!), [doc]);
+  // Decided once the WebGL context exists (the GPU model is part of it); a touch device that can't keep up drops to 'low'
+  const [quality, setQuality] = useState<Quality | null>(null);
+  const touch = useMemo(() => isTouchDevice(doc.defaultView!), [doc]);
+  const q: Quality = quality ?? 'high';
   const draw = useRef<(() => void) | null>(null);
 
   const current = project.levels.find(l => l.id === view.level);
@@ -567,7 +570,7 @@ export function Model3D() {
           shadows="percentage"
           frameloop="demand"
           // Occlusion is costly per pixel: cap the resolution where it runs
-          dpr={quality === 'high' ? [1, 1.5] : [1, 2]}
+          dpr={q === 'high' ? [1, 1.5] : [1, 2]}
           // No tone mapping: white surfaces stay white instead of the filmic gray
           flat
           gl={{ preserveDrawingBuffer: true, antialias: true }}
@@ -579,6 +582,7 @@ export function Model3D() {
           onCreated={({ gl, scene }) => {
             Object.assign(gl.domElement.style, { width: '100%', height: '100%' });
             scene.background = new THREE.Color(c.backdrop);
+            setQuality(detectQuality(doc.defaultView!, gl.getContext()));
           }}
         >
           {/* The ground fades into the backdrop in the distance, so it has no visible edge */}
@@ -587,9 +591,10 @@ export function Model3D() {
               hence the strong intensities) */}
           <hemisphereLight args={[c.skylight, c.wall, 2.2]} />
           <primitive object={sunTarget} position={center} />
-          <directionalLight color={c.sun} intensity={3.6} target={sunTarget} castShadow
+          {/* Remounted when the quality changes: a shadow map keeps its size once created */}
+          <directionalLight key={q} color={c.sun} intensity={3.6} target={sunTarget} castShadow
             position={[center.x - radius * 1.2, center.y + radius * 2, center.z + radius * 0.9]}
-            shadow-mapSize={quality === 'high' ? [2048, 2048] : [1024, 1024]} shadow-radius={quality === 'high' ? 6 : 3} shadow-bias={-0.0004} shadow-normalBias={0.02}
+            shadow-mapSize={q === 'high' ? [2048, 2048] : [1024, 1024]} shadow-radius={q === 'high' ? 6 : 3} shadow-bias={-0.0004} shadow-normalBias={0.02}
             shadow-camera-left={-radius * 1.4} shadow-camera-right={radius * 1.4} shadow-camera-top={radius * 1.4} shadow-camera-bottom={-radius * 1.4}
             shadow-camera-near={0.5} shadow-camera-far={radius * 6} />
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, ground - PLINTH - 0.001, cz]} receiveShadow>
@@ -624,7 +629,7 @@ export function Model3D() {
                 </group>
                 {/* Outside the growing group, so the drawing stays just above the floor while the floor is flat; shown with its floor */}
                 <group ref={g => void (g ? drawings.current.set(l.id, g) : drawings.current.delete(l.id))}>
-                  <FloorDrawing project={project} level={l.id} ink={c.ink} faint={c.faint} quality={quality} />
+                  <FloorDrawing project={project} level={l.id} ink={c.ink} faint={c.faint} quality={q} />
                 </group>
               </group>
             ))}
@@ -635,7 +640,9 @@ export function Model3D() {
           <SafariPinch />
           <Picker />
           <Reveal ownerOf={ownerOf} />
-          <Renderer quality={quality} draw={draw} />
+          <Renderer quality={q} draw={draw} />
+          {/* A phone that wasn't recognized as low-end but can't keep up drops to the light setup, for good */}
+          {touch && q === 'high' && <PerformanceMonitor bounds={() => [25, 50]} onDecline={() => setQuality('low')} />}
           <Wake on={[view.selection, view.highlight]} />
           <Capture draw={draw} />
         </Canvas>
