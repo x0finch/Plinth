@@ -585,5 +585,9 @@
   "core_cap_view_focus": "Show you",
   "core_cap_view_screenshot": "Screenshot",
   "core_cap_comments_list": "Read comments",
-  "core_cap_comment_reply": "Reply to comment"
+  "core_cap_comment_reply": "Reply to comment",
+  "model3d_fit": "Fit all",
+  "model3d_top": "Top view",
+  "model3d_perspective": "Perspective",
+  "model3d_hint": "Trackpad: swipe with two fingers to rotate, pinch to zoom, hold Shift and swipe to pan · Mouse: drag to rotate, scroll to zoom, right-drag to pan"
 }

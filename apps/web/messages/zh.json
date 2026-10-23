@@ -585,5 +585,9 @@
   "core_cap_view_focus": "指给你看",
   "core_cap_view_screenshot": "截图",
   "core_cap_comments_list": "看评论",
-  "core_cap_comment_reply": "回复评论"
+  "core_cap_comment_reply": "回复评论",
+  "model3d_fit": "回到全景",
+  "model3d_top": "俯视",
+  "model3d_perspective": "斜视",
+  "model3d_hint": "触控板：双指滑动旋转，捏合缩放，按住 Shift 双指滑动平移 · 鼠标：拖动旋转，滚轮缩放，右键拖动平移"
 }

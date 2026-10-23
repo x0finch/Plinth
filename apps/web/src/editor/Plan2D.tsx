@@ -1,9 +1,7 @@
-/** Floor plan: SVG in millimetres. Picking, zoom/pan, hop on select and change, compare with before. */
+/** Floor plan: SVG in millimetres. Picking, zoom/pan, selection and change highlights, compare with before. */
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
 import { wallBody, wallLength, type Point } from '@plinth/core';
-import { hopCurve, hops, PROFILE } from '@/canvas/hop';
-import { useReducedMotion } from '@/canvas/HopDriver';
 import { levelShapes, polyPath } from './plan-geometry';
 import { useEditor } from './store';
 import { m } from '@/lib/i18n';
@@ -34,30 +32,6 @@ const SPACE_FILL: Record<string, string> = {
   indoor: 'var(--card)', 'semi-outdoor': 'var(--muted)', outdoor: 'var(--secondary)', 'roof-terrace': 'var(--accent)', void: 'url(#hatch)',
 };
 
-/** The plan is viewed from above, so a "hop" is drawn as lifting toward you: slight scale-up plus shadow. Wall hit areas are transparent, filled with wall color while hopping */
-const WALL_TOKEN: Record<string, string> = { bearing: '--foreground', partition: '--muted-foreground' };
-const LIFT = { transformBox: 'fill-box', transformOrigin: 'center' } as const;
-
-function useHop2D(svgRef: React.RefObject<SVGSVGElement | null>, wallKind: (id: string) => string | undefined) {
-  useEffect(() => hops.subscribe(h => {
-    const svg = svgRef.current;
-    const el = svg?.querySelector<SVGElement>(`[data-id="${CSS.escape(h.id)}"]`);
-    if (!svg || !el) return;
-    const cs = svg.ownerDocument.defaultView!.getComputedStyle(svg.ownerDocument.documentElement);
-    const shade = `color-mix(in oklch, ${cs.getPropertyValue('--foreground')} 28%, transparent)`;
-    const kind = wallKind(h.id);
-    const fill = kind ? { fill: cs.getPropertyValue(WALL_TOKEN[kind] ?? '--muted-foreground'), fillOpacity: 1 } : {};
-    const p = PROFILE[h.weight];
-    const frames = Array.from({ length: 13 }, (_, i) => {
-      const y = hopCurve(i / 12) * h.gain;
-      return { offset: i / 12, transform: `scale(${1 + (p.scale - 1) * y})`, filter: `drop-shadow(0 ${y * 160}px ${y * 220}px ${shade})`, ...fill };
-    });
-    frames[0].offset = 0;
-    frames[12].offset = 1;
-    el.animate(frames, { duration: p.ms, delay: Math.max(0, h.at - performance.now()), easing: 'linear' });
-  }), [svgRef, wallKind]);
-}
-
 export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | null> }) {
   const project = useEditor(s => s.project);
   const view = useEditor(s => s.view);
@@ -80,13 +54,20 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
   const font = Math.max(220, Math.min(420, (x1 - x0) / 45));
 
   const sel = new Set(view.selection);
-  // Selection doesn't change color, it hops; with reduced motion use a thin foreground outline
-  const reduced = useReducedMotion();
-  const isOn = (id: string) => reduced && sel.has(id);
   const localRef = useRef<SVGSVGElement>(null);
   const ref = svgRef ?? localRef;
-  const wallKind = useCallback((id: string) => project.walls.find(w => w.id === id)?.kind, [project]);
-  useHop2D(ref, wallKind);
+  // Outline of every pickable object, for the selection and change highlights
+  const outlines = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const { s: sp, d } of shapes.spaces) out.set(sp.id, d);
+    for (const { f, d } of shapes.furniture) out.set(f.id, d);
+    for (const { w, d } of shapes.walls) out.set(w.id, d);
+    for (const o of shapes.openings) out.set(o.id, `M${pts(o.outline).replaceAll(' ', 'L')}Z`);
+    return out;
+  }, [shapes]);
+  const thin = useMemo(() => new Set([...shapes.walls.map(x => x.w.id), ...shapes.openings.map(o => o.id)]), [shapes]);
+  // A new highlight restarts the fade: the token goes into the overlay keys
+  const changeToken = useMemo(() => Date.now(), [view.highlight]);
 
   const pick = useCallback(
     (id: string) => (e: React.MouseEvent) => {
@@ -129,14 +110,13 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
 
           {/* Spaces */}
           {shapes.spaces.map(({ s, d }) => (
-            <path key={s.id} d={d} fill={SPACE_FILL[s.kind]} stroke={isOn(s.id) ? 'var(--foreground)' : 'none'} strokeWidth={isOn(s.id) ? 1.5 : 0}
-              vectorEffect="non-scaling-stroke" onClick={pick(s.id)} className="cursor-pointer" data-id={s.id} style={LIFT} />
+            <path key={s.id} d={d} fill={SPACE_FILL[s.kind]} vectorEffect="non-scaling-stroke" onClick={pick(s.id)} className="plan-hit cursor-pointer" data-id={s.id} />
           ))}
 
           {/* Furniture */}
           {view.layers.furniture && shapes.furniture.map(({ f, d }) => (
-            <path key={f.id} d={d} fill="var(--background)" fillOpacity={0.6} stroke={isOn(f.id) ? 'var(--foreground)' : 'var(--muted-foreground)'}
-              strokeWidth={isOn(f.id) ? 2 : 1} vectorEffect="non-scaling-stroke" onClick={pick(f.id)} className="cursor-pointer" data-id={f.id} style={LIFT} />
+            <path key={f.id} d={d} fill="var(--background)" fillOpacity={0.6} stroke="var(--muted-foreground)" strokeWidth={1}
+              vectorEffect="non-scaling-stroke" onClick={pick(f.id)} className="plan-hit cursor-pointer" data-id={f.id} />
           ))}
 
           {/* Walls */}
@@ -146,17 +126,15 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
           {shapes.railings.map(({ w, d }) => (
             <path key={w.id} d={d} fill="none" stroke="var(--foreground)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" pointerEvents="none" />
           ))}
-          {/* Wall hit areas; filled with wall color while hopping */}
+          {/* Wall hit areas */}
           {shapes.walls.map(({ w, d }) => (
-            <path key={w.id} d={d} fill="transparent" fillOpacity={0} stroke={isOn(w.id) ? 'var(--foreground)' : 'none'} strokeWidth={1.5}
-              vectorEffect="non-scaling-stroke" onClick={pick(w.id)} className="cursor-pointer" data-id={w.id} style={LIFT} />
+            <path key={w.id} d={d} fill="transparent" fillOpacity={0} vectorEffect="non-scaling-stroke" onClick={pick(w.id)} className="plan-hit cursor-pointer" data-id={w.id} />
           ))}
 
           {/* Doors and windows */}
           {shapes.openings.map(o => (
-            <g key={o.id} onClick={pick(o.id)} className="cursor-pointer" data-id={o.id} style={LIFT}>
-              <polygon points={pts(o.outline)} fill={o.glassBlock ? 'url(#glassblock)' : 'transparent'}
-                stroke={isOn(o.id) ? 'var(--foreground)' : 'none'} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+            <g key={o.id} onClick={pick(o.id)} className="cursor-pointer" data-id={o.id}>
+              <polygon points={pts(o.outline)} fill={o.glassBlock ? 'url(#glassblock)' : 'transparent'} vectorEffect="non-scaling-stroke" className="plan-hit" />
               {o.lines.map((l, i) => (
                 <polyline key={i} points={pts(l)} fill="none" stroke="var(--foreground)" strokeWidth={1.2}
                   strokeDasharray={o.dashed ? '6 4' : undefined} vectorEffect="non-scaling-stroke" />
@@ -166,6 +144,17 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
               ))}
             </g>
           ))}
+
+          {/* Just changed (or pointed at by the agent): a tint that fades out. Selected: tinted with an outline until deselected */}
+          <g pointerEvents="none" data-feedback>
+            {view.highlight.filter(id => outlines.has(id) && !sel.has(id)).map(id => (
+              <path key={`${id}-${changeToken}`} d={outlines.get(id)} fill="var(--chart-1)" className="plan-changed" />
+            ))}
+            {view.selection.filter(id => outlines.has(id)).map(id => (
+              // Walls, doors and windows are thin: fill them nearly solid so the color reads; rooms and furniture get a light wash
+              <path key={id} d={outlines.get(id)} fill="var(--chart-2)" fillOpacity={thin.has(id) ? 0.85 : 0.25} stroke="var(--chart-2)" strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
+            ))}
+          </g>
 
           {/* Walls before the change: dashed */}
           {before && (
