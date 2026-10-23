@@ -69,7 +69,6 @@ export const openingRemove = defineEdit({
   apply: (p, i) => {
     const { w, o } = getOpening(p, i.opening);
     w.openings = w.openings.filter(x => x.id !== o.id);
-    p.constraints = p.constraints.filter(c => !c.targets.includes(o.id));
     return { removed: o.id };
   },
 });

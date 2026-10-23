@@ -86,7 +86,6 @@ export const wallRemove = defineEdit({
     const w = getWall(p, i.wall);
     if (w.kind === 'bearing') throw new TxError('structural', text('err_remove_bearing_wall', '{wall} is a bearing wall: removing it affects structural safety and needs professional review. Confirm with the owner and change it to a partition before removing it', { wall: w.name }));
     p.walls = p.walls.filter(x => x.id !== w.id);
-    p.constraints = p.constraints.filter(c => !c.targets.includes(w.id) && !w.openings.some(o => c.targets.includes(o.id)));
     return { removed: w.id };
   },
 });

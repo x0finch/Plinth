@@ -94,7 +94,6 @@ export const spaceRemove = defineEdit({
       p.walls = p.walls.filter(w => !removed.includes(w.id));
     }
     p.spaces = p.spaces.filter(x => x.id !== s.id);
-    p.constraints = p.constraints.filter(c => !c.targets.includes(s.id));
     return { removed: [s.id, ...removed] };
   },
 });
@@ -113,7 +112,7 @@ export const spaceMerge = defineEdit({
     p.walls = p.walls.filter(w => !between.includes(w));
     const keep = ss[0];
     keep.shape = union(ss.flatMap(s => s.shape));
-    if (i.name) keep.name = i.name;
+    if (i.name) keep.name = uniqueName(p.spaces.filter(x => x.level === level && !ss.includes(x)).map(x => x.name), i.name, p.language);
     p.spaces = p.spaces.filter(s => s === keep || !ss.includes(s));
     renameWalls(p, level);
     return { id: keep.id, removedWalls: between.map(w => w.id) };

@@ -53,13 +53,11 @@ export function getOpening(p: Project, ref: string) {
 /** Find an object of any type by name or ID */
 export function findAny(p: Project, ref: string): Id {
   const kinds: Kind[] = ['space', 'wall', 'opening', 'furniture', 'element', 'level', 'constraint'];
-  const errors: string[] = [];
   for (const k of kinds) {
     try {
       return resolve(p, k, ref).id;
     } catch (e) {
       if (e instanceof TxError && e.code === 'ambiguous-ref') throw e;
-      errors.push(k);
     }
   }
   throw new TxError('not-found', text('err_object_not_found', 'Cannot find “{ref}”. Try searching with find_objects first', { ref }));
