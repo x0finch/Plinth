@@ -7,7 +7,7 @@
 import { Edges, OrbitControls, PerformanceMonitor } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { findObject, projectBoxes, type Box, type Project, type Space } from '@plinth/core';
-import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { m } from '@/lib/i18n';
 import { useCanvasDocument } from '@/canvas/CanvasFrame';
@@ -27,7 +27,7 @@ const unitBox = new THREE.BoxGeometry(1, 1, 1);
 const useColors = () =>
   useThemeColors({
     backdrop: '--canvas-backdrop', sun: '--canvas-sun', skylight: '--canvas-skylight', wall: '--card', furn: '--muted',
-    glass: '--canvas-glass', frame: '--foreground', page: '--canvas-backdrop', shadow: '--canvas-shadow', sel: '--chart-2', changed: '--chart-1',
+    page: '--canvas-backdrop', shadow: '--canvas-shadow', sel: '--chart-2', changed: '--chart-1',
   }, useCanvasDocument());
 
 /** Selected objects are tinted with the selection color and outlined; just-changed objects get a tint that fades out */
@@ -109,7 +109,7 @@ function Reveal({ ownerOf }: { ownerOf: (id: string) => string | undefined }) {
     invalidate();
   }, [selection]);
 
-  /** Whether the first solid hit from the camera to this point is the target itself (glass does not occlude) */
+  /** Whether the first solid hit from the camera to this point is the target itself (see-through surfaces do not occlude) */
   const visible = (p: THREE.Vector3, target: string) => {
     const ray = new THREE.Raycaster(camera.position, p.clone().sub(camera.position).normalize());
     const far = camera.position.distanceTo(p);
@@ -144,27 +144,7 @@ function Reveal({ ownerOf }: { ownerOf: (id: string) => string | undefined }) {
 /** No outlines on the model, except the selected object's edges in the selection color */
 type Outline = { sel?: string };
 
-/** A window or glass door's frame: four dark bars around the pane, in real sizes (not scaled with the pane) */
-const FRAME = { width: 50, depth: 60 };
-function WindowFrame({ b, base, color }: { b: Box; base: number; color: string }) {
-  const { width: w, depth: d } = FRAME;
-  // x, y from the pane's centre, length, height
-  const bars: [number, number, number, number][] = [
-    [0, b.height / 2 - w / 2, b.length, w], [0, -b.height / 2 + w / 2, b.length, w],
-    [b.length / 2 - w / 2, 0, w, b.height], [-b.length / 2 + w / 2, 0, w, b.height],
-  ];
-  return (
-    <group position={[b.center[0] * M, (base + b.z + b.height / 2) * M, b.center[1] * M]} rotation={[0, -b.angle, 0]}>
-      {bars.map(([x, y, len, h], i) => (
-        <mesh key={i} geometry={unitBox} position={[x * M, y * M, 0]} scale={[len * M, h * M, d * M]} raycast={() => null}>
-          <meshStandardMaterial color={color} roughness={0.6} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-function BoxMesh({ b, base, color, glass, ...o }: Outline & { b: Box; base: number; color: string; glass?: boolean }) {
+function BoxMesh({ b, base, color, ...o }: Outline & { b: Box; base: number; color: string }) {
   const y = (base + b.z + b.height / 2) * M;
   const ref = useFeedback<THREE.Mesh>(b.id, color, !!o.sel);
   return (
@@ -174,7 +154,7 @@ function BoxMesh({ b, base, color, glass, ...o }: Outline & { b: Box; base: numb
       position={[b.center[0] * M, y, b.center[1] * M]}
       rotation={[0, -b.angle, 0]}
       scale={[b.length * M, b.height * M, b.thickness * M]}
-      castShadow={!glass}
+      castShadow
       receiveShadow
       userData={{ id: b.id, restY: y }}
     >
@@ -634,11 +614,8 @@ export function Model3D() {
                         color={c.wall} sel={sel.has(s.id) ? c.sel : undefined} />
                     ))}
                     {boxes.filter(b => b.level === l.id).map((b, i) => (
-                      // Glass is a solid light-blue pane with a dark frame: see-through surfaces don't mix with the occlusion pass
-                      <Fragment key={`${b.id}-${i}`}>
-                        <BoxMesh b={b} base={elev.get(l.id) ?? 0} sel={sel.has(b.id) ? c.sel : undefined} color={b.kind === 'glass' ? c.glass : c.wall} glass={b.kind === 'glass'} />
-                        {b.kind === 'glass' && <WindowFrame b={b} base={elev.get(l.id) ?? 0} color={c.frame} />}
-                      </Fragment>
+                      // Openings are left open; a glass-block infill is part of the white model like the walls
+                      <BoxMesh key={`${b.id}-${i}`} b={b} base={elev.get(l.id) ?? 0} sel={sel.has(b.id) ? c.sel : undefined} color={c.wall} />
                     ))}
                     {view.layers.furniture && project.furniture.filter(f => f.level === l.id).map(f => (
                       <Furniture key={f.id} f={f} base={elev.get(l.id) ?? 0} color={c.furn} sel={sel.has(f.id) ? c.sel : undefined} />

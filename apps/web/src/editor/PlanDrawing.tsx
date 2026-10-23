@@ -1,7 +1,7 @@
 /**
  * The plan's drawing, shared by the plan view and the 3D floors (so 3D grows out of exactly the plan): paper (the site's white
  * plinth, room fills), ink (walls, furniture, doors and windows) and labels. Drawn like the white model seen from above: a gray
- * backdrop, soft lavender shadows, gray walls, light-blue glass. Coordinates in millimetres. Interaction (picking) is optional.
+ * backdrop, soft lavender shadows, gray walls. Coordinates in millimetres. Interaction (picking) is optional.
  */
 import type { Project } from '@plinth/core';
 import { isGroundLevel, plinthRect, type LevelShapes } from './plan-geometry';
@@ -12,9 +12,6 @@ const pts = (p: [number, number][]) => p.map(([x, y]) => `${x},${y}`).join(' ');
 const SPACE_FILL: Record<string, string> = {
   indoor: 'var(--card)', 'semi-outdoor': 'var(--muted)', outdoor: 'var(--card)', 'roof-terrace': 'var(--card)', void: 'url(#hatch)',
 };
-
-/** Glazed openings show their glass; doors and plain openings are gaps in the wall */
-const GLAZED = new Set(['window', 'sliding-door']);
 
 /**
  * Stroke props for a line `width` screen pixels wide (dashes too). The plan keeps them that wide at any zoom (non-scaling strokes);
@@ -90,7 +87,7 @@ export function PlanInk({ shapes, furniture, line, pick }: { shapes: LevelShapes
       {shapes.openings.map(o => (
         <g key={o.id} {...(pick ? { onClick: pick(o.id), className: 'cursor-pointer', 'data-id': o.id } : {})}>
           <polygon points={pts(o.outline)} className={pick ? 'plan-hit' : undefined}
-            {...(o.glassBlock ? { fill: 'url(#glassblock)' } : GLAZED.has(o.kind) ? { fill: 'var(--canvas-glass)', stroke: 'var(--foreground)', ...line(1) } : { fill: 'transparent' })} />
+            fill={o.glassBlock ? 'url(#glassblock)' : 'transparent'} />
           {o.lines.map((l, i) => <polyline key={i} points={pts(l)} fill="none" stroke="var(--foreground)" {...line(1, o.dashed ? [6, 4] : undefined)} />)}
           {o.arcs.map((a, i) => <path key={i} d={a} fill="none" stroke="var(--muted-foreground)" {...line(1, [4, 3])} />)}
         </g>
