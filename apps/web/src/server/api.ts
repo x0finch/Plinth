@@ -56,14 +56,21 @@ const requireUser = (c: C) => {
   return u;
 };
 
-async function requireRole(c: C, projectId: string, min: Role) {
-  const u = c.get('user');
-  const role = await repo.getRole(projectId, u?.id ?? null);
-  if (!can(role, min)) throw new HTTPException(role ? 403 : 404, { message: role ? m.server_err_forbidden() : m.server_err_project_not_accessible() });
-  return { user: u!, role: role! };
-}
+/** Routes under /projects/:id; each one declares the minimum role it needs with minRole() */
+type ProjectEnv = { Variables: Vars & { projectId: string; role: Role } };
+const project = new Hono<ProjectEnv>();
 
-const body = async <T extends z.ZodType>(c: C, schema: T): Promise<z.output<T>> => {
+/** Let only project members with at least this role through (404 for non-members, 403 for too low a role) */
+const minRole = (min: Role): MiddlewareHandler<ProjectEnv> => async (c, next) => {
+  const id = c.req.param('id')!;
+  const role = await repo.getRole(id, c.get('user')?.id ?? null);
+  if (!can(role, min)) throw new HTTPException(role ? 403 : 404, { message: role ? m.server_err_forbidden() : m.server_err_project_not_accessible() });
+  c.set('projectId', id);
+  c.set('role', role!);
+  await next();
+};
+
+const body = async <T extends z.ZodType>(c: Pick<Context, 'req'>, schema: T): Promise<z.output<T>> => {
   const parsed = schema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) throw new HTTPException(400, { message: z.prettifyError(parsed.error) });
   return parsed.data;
@@ -107,9 +114,9 @@ api.post('/projects', async c => {
   return c.json({ id });
 });
 
-api.get('/projects/:id', async c => {
-  const id = c.req.param('id');
-  const { role } = await requireRole(c, id, 'viewer');
+project.get('/', minRole('viewer'), async c => {
+  const id = c.var.projectId;
+  const role = c.var.role;
   const [p, v] = await Promise.all([repo.getProject(id), repo.getVersion(id)]);
   if (!p || !v) throw new HTTPException(404, { message: m.server_err_project_not_found() });
   const model = p.model_config_id ? await repo.getModelConfig(p.model_config_id) : null;
@@ -120,9 +127,9 @@ api.get('/projects/:id', async c => {
   });
 });
 
-api.put('/projects/:id', async c => {
-  const id = c.req.param('id');
-  const { user } = await requireRole(c, id, 'editor');
+project.put('/', minRole('editor'), async c => {
+  const id = c.var.projectId;
+  const user = c.var.user!;
   const raw = await c.req.text();
   if (raw.length > MAX_CONTENT) throw new HTTPException(413, { message: m.server_err_project_too_large() });
   const b = z.object({ base: z.number().int(), summary: z.string().max(200).default(() => m.server_version_saved()), content: z.unknown() }).parse(JSON.parse(raw));
@@ -135,39 +142,34 @@ api.put('/projects/:id', async c => {
   return c.json({ version });
 });
 
-api.patch('/projects/:id', async c => {
-  const id = c.req.param('id');
-  await requireRole(c, id, 'editor');
+project.patch('/', minRole('editor'), async c => {
+  const id = c.var.projectId;
   const b = await body(c, z.object({ name: z.string().trim().min(1).max(60) }));
   await repo.renameProject(id, b.name);
   return c.json({ ok: true });
 });
 
-api.delete('/projects/:id', async c => {
-  const id = c.req.param('id');
-  await requireRole(c, id, 'owner');
+project.delete('/', minRole('owner'), async c => {
+  const id = c.var.projectId;
   await repo.deleteProject(id);
   return c.json({ ok: true });
 });
 
-api.put('/projects/:id/thumbnail', async c => {
-  const id = c.req.param('id');
-  await requireRole(c, id, 'editor');
+project.put('/thumbnail', minRole('editor'), async c => {
+  const id = c.var.projectId;
   const svg = await c.req.text();
   if (svg.length > 200_000 || !svg.startsWith('<svg')) throw new HTTPException(400, { message: m.server_err_invalid_thumbnail() });
   await repo.setThumbnail(id, svg);
   return c.json({ ok: true });
 });
 
-api.get('/projects/:id/versions', async c => {
-  const id = c.req.param('id');
-  await requireRole(c, id, 'viewer');
+project.get('/versions', minRole('viewer'), async c => {
+  const id = c.var.projectId;
   return c.json(await repo.listVersions(id));
 });
 
-api.get('/projects/:id/versions/:v', async c => {
-  const id = c.req.param('id');
-  await requireRole(c, id, 'viewer');
+project.get('/versions/:v', minRole('viewer'), async c => {
+  const id = c.var.projectId;
   const v = await repo.getVersion(id, Number(c.req.param('v')));
   if (!v) throw new HTTPException(404, { message: m.server_err_version_not_found() });
   return c.json({ ...v, content: JSON.parse(v.content) });
@@ -177,9 +179,9 @@ api.get('/projects/:id/versions/:v', async c => {
 
 const zShareRole = z.enum(SHARE_ROLES);
 
-api.get('/projects/:id/sharing', async c => {
-  const id = c.req.param('id');
-  const { role } = await requireRole(c, id, 'viewer');
+project.get('/sharing', minRole('viewer'), async c => {
+  const id = c.var.projectId;
+  const role = c.var.role;
   const [members, links, invites] = await Promise.all([
     repo.listMembers(id),
     role === 'owner' ? repo.listShareLinks(id) : [],
@@ -188,48 +190,45 @@ api.get('/projects/:id/sharing', async c => {
   return c.json({ members, links, invites });
 });
 
-api.post('/projects/:id/links', async c => {
-  const id = c.req.param('id');
-  const { user } = await requireRole(c, id, 'owner');
+project.post('/links', minRole('owner'), async c => {
+  const id = c.var.projectId;
+  const user = c.var.user!;
   const b = await body(c, z.object({ role: zShareRole }));
   return c.json({ token: await repo.createShareLink(id, b.role, user.id) });
 });
 
-api.delete('/projects/:id/links/:token', async c => {
-  const id = c.req.param('id');
-  await requireRole(c, id, 'owner');
+project.delete('/links/:token', minRole('owner'), async c => {
+  const id = c.var.projectId;
   await repo.revokeShareLink(id, c.req.param('token'));
   return c.json({ ok: true });
 });
 
-api.post('/projects/:id/invites', async c => {
-  const id = c.req.param('id');
-  const { user } = await requireRole(c, id, 'owner');
+project.post('/invites', minRole('owner'), async c => {
+  const id = c.var.projectId;
+  const user = c.var.user!;
   const b = await body(c, z.object({ email: z.email(), role: zShareRole }));
   return c.json({ id: await repo.createInvite(id, b.email, b.role, user.id) });
 });
 
-api.delete('/projects/:id/invites/:inviteId', async c => {
-  const id = c.req.param('id');
-  await requireRole(c, id, 'owner');
+project.delete('/invites/:inviteId', minRole('owner'), async c => {
+  const id = c.var.projectId;
   await repo.deleteInvite(id, c.req.param('inviteId'));
   return c.json({ ok: true });
 });
 
-api.patch('/projects/:id/members/:userId', async c => {
-  const id = c.req.param('id');
-  await requireRole(c, id, 'owner');
+project.patch('/members/:userId', minRole('owner'), async c => {
+  const id = c.var.projectId;
   const b = await body(c, z.object({ role: zShareRole }));
   await repo.setMemberRole(id, c.req.param('userId'), b.role);
   return c.json({ ok: true });
 });
 
-api.delete('/projects/:id/members/:userId', async c => {
-  const id = c.req.param('id');
-  const { user } = await requireRole(c, id, 'viewer');
+project.delete('/members/:userId', minRole('viewer'), async c => {
+  const id = c.var.projectId;
+  const user = c.var.user!;
   const target = c.req.param('userId');
   // The owner can remove others; anyone can leave
-  if (target !== user.id) await requireRole(c, id, 'owner');
+  if (target !== user.id && !can(c.var.role, 'owner')) throw new HTTPException(403, { message: m.server_err_forbidden() });
   await repo.removeMember(id, target);
   return c.json({ ok: true });
 });
@@ -250,15 +249,14 @@ api.post('/share/:token/accept', async c => {
 
 // ---------- Comments ----------
 
-api.get('/projects/:id/comments', async c => {
-  const id = c.req.param('id');
-  await requireRole(c, id, 'viewer');
+project.get('/comments', minRole('viewer'), async c => {
+  const id = c.var.projectId;
   return c.json(await repo.listComments(id));
 });
 
-api.post('/projects/:id/comments', async c => {
-  const id = c.req.param('id');
-  const { user } = await requireRole(c, id, 'commenter');
+project.post('/comments', minRole('commenter'), async c => {
+  const id = c.var.projectId;
+  const user = c.var.user!;
   const b = await body(c, z.object({
     body: z.string().trim().min(1).max(2000), targetId: z.string().max(100).nullish(), targetName: z.string().max(100).nullish(),
     parentId: z.string().max(40).nullish(), status: z.enum(['open', 'pending-confirm']).optional(),
@@ -266,17 +264,17 @@ api.post('/projects/:id/comments', async c => {
   return c.json({ id: await repo.addComment(id, user.id, b) });
 });
 
-api.patch('/projects/:id/comments/:cid', async c => {
-  const id = c.req.param('id');
-  await requireRole(c, id, 'commenter');
+project.patch('/comments/:cid', minRole('commenter'), async c => {
+  const id = c.var.projectId;
   const b = await body(c, z.object({ status: z.enum(COMMENT_STATUSES) }));
   await repo.setCommentStatus(id, c.req.param('cid'), b.status);
   return c.json({ ok: true });
 });
 
-api.delete('/projects/:id/comments/:cid', async c => {
-  const id = c.req.param('id');
-  const { user, role } = await requireRole(c, id, 'commenter');
+project.delete('/comments/:cid', minRole('commenter'), async c => {
+  const id = c.var.projectId;
+  const user = c.var.user!;
+  const role = c.var.role;
   const cm = await repo.getComment(id, c.req.param('cid'));
   if (!cm) throw new HTTPException(404, { message: m.server_err_comment_not_found() });
   if (cm.author_id !== user.id && role !== 'owner') throw new HTTPException(403, { message: m.server_err_comment_delete_own_only() });
@@ -309,9 +307,9 @@ api.delete('/models/:id', async c => {
   return c.json({ ok: true });
 });
 
-api.put('/projects/:id/model', async c => {
-  const id = c.req.param('id');
-  const { user } = await requireRole(c, id, 'owner');
+project.put('/model', minRole('owner'), async c => {
+  const id = c.var.projectId;
+  const user = c.var.user!;
   const b = await body(c, z.object({ modelConfigId: z.string().nullable() }));
   if (b.modelConfigId) {
     const cfg = await repo.getModelConfig(b.modelConfigId);
@@ -321,17 +319,16 @@ api.put('/projects/:id/model', async c => {
   return c.json({ ok: true });
 });
 
-api.get('/projects/:id/usage', async c => {
-  const id = c.req.param('id');
-  await requireRole(c, id, 'owner');
+project.get('/usage', minRole('owner'), async c => {
+  const id = c.var.projectId;
   return c.json(await repo.projectUsage(id));
 });
 
 // ---------- agent ----------
 
-api.post('/projects/:id/chat', async c => {
-  const id = c.req.param('id');
-  const { user } = await requireRole(c, id, 'editor');
+project.post('/chat', minRole('editor'), async c => {
+  const id = c.var.projectId;
+  const user = c.var.user!;
   await limit(env.RL_CHAT, user.id);
   const p = await repo.getProject(id);
   if (!p?.model_config_id) throw new HTTPException(400, { message: m.server_err_no_model() });
@@ -344,20 +341,23 @@ api.post('/projects/:id/chat', async c => {
   });
 });
 
-api.get('/projects/:id/chat-thread', async c => {
-  const id = c.req.param('id');
-  const { user } = await requireRole(c, id, 'viewer');
+project.get('/chat-thread', minRole('viewer'), async c => {
+  const id = c.var.projectId;
+  const user = c.var.user!;
   const t = await repo.getChat(id, user.id);
   return c.json(t ? JSON.parse(t.messages) : []);
 });
 
-api.put('/projects/:id/chat-thread', async c => {
-  const id = c.req.param('id');
-  const { user } = await requireRole(c, id, 'editor');
+project.put('/chat-thread', minRole('editor'), async c => {
+  const id = c.var.projectId;
+  const user = c.var.user!;
   const raw = await c.req.text();
   if (raw.length > 800_000) throw new HTTPException(413, { message: m.server_err_chat_too_long() });
   await repo.putChat(id, user.id, raw);
   return c.json({ ok: true });
 });
+
+// Mounted last: Hono copies a sub-app's routes when it is mounted
+api.route('/projects/:id', project);
 
 api.notFound(c => c.json({ error: m.server_err_api_not_found() }, 404));

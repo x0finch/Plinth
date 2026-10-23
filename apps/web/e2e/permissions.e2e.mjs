@@ -1,6 +1,8 @@
 // API permission matrix: every route × every role (signed out, signed-in stranger, viewer, commenter, editor, owner) → allowed or denied.
 // Needs only the dev server (no browser, no model). "Allowed" means the request got past the permission check (any status
 // but 401/403/404); validation errors and conflicts still count as allowed.
+import { readFileSync } from 'node:fs';
+
 const BASE = process.env.BASE ?? 'http://localhost:3000';
 const check = (ok, msg) => {
   console.log(`${ok ? '✓' : '✗'} ${msg}`);
@@ -107,9 +109,8 @@ for (const [method, path, min, body, type] of ROUTES) {
 }
 
 // Every route the API registers is in the matrix (share links are checked in setup and below)
-import { readFileSync } from 'node:fs';
-const registered = [...readFileSync(new URL('../src/server/api.ts', import.meta.url), 'utf8').matchAll(/api\.(get|post|put|patch|delete)\('([^']+)'/g)]
-  .map(([, m, p]) => `${m.toUpperCase()} ${p.replace(/:\w+/g, ':_')}`)
+const registered = [...readFileSync(new URL('../src/server/api.ts', import.meta.url), 'utf8').matchAll(/(api|project)\.(get|post|put|patch|delete)\('([^']+)'/g)]
+  .map(([, app, m, p]) => `${m.toUpperCase()} ${(app === 'project' ? `/projects/:id${p === '/' ? '' : p}` : p).replace(/:\w+/g, ':_')}`)
   .filter(r => !r.includes('/share/'));
 const covered = new Set([...ROUTES, ['DELETE', `/projects/${id}`]].map(([m, p]) => `${m} ${p.replace(id, ':_').replace(comment, ':_').replace(otherUser, ':_').replace(/\/(links|invites|models)\/nope/, '/$1/:_').replace(/\/versions\/1$/, '/versions/:_')}`));
 const missing = registered.filter(r => !covered.has(r));
