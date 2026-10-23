@@ -360,3 +360,90 @@ export function planSymbol(recipe: Recipe, parts: BuiltPart[], size: RecipeSize)
   items.sort((a, b) => a.top - b.top);
   return { items: items.map(({ ring, fill }) => ({ ring, fill })), lines };
 }
+
+// --- Inspection (for the agent's self-check) ---
+
+/** Axis-aligned bounds of a built part (mm) */
+export function partBounds(p: BuiltPart): [Vec3, Vec3] | null {
+  const pts: Vec3[] = [];
+  const pad = (c: Vec3, r: [number, number, number]) => { pts.push([c[0] - r[0], c[1] - r[1], c[2] - r[2]], [c[0] + r[0], c[1] + r[1], c[2] + r[2]]); };
+  switch (p.kind) {
+    case 'box': {
+      const [w, h, d] = p.size;
+      for (const x of [-w / 2, w / 2]) for (const y of [-h / 2, h / 2]) for (const z of [-d / 2, d / 2]) {
+        const [rx, ry, rz] = rotateXYZ([x, y, z], p.rot);
+        pts.push([p.at[0] + rx, p.at[1] + ry, p.at[2] + rz]);
+      }
+      break;
+    }
+    case 'cylinder': {
+      const R = Math.max(p.r, p.r2), [sx, sy, sz] = p.scale, half = p.h / 2;
+      if (p.axis === 'y') pad(p.at, [R * sx, half * sy, R * sz]);
+      else if (p.axis === 'x') pad(p.at, [half * sy, R * sx, R * sz]);
+      else pad(p.at, [R * sx, R * sz, half * sy]);
+      break;
+    }
+    case 'sphere': pad(p.at, [p.r * p.scale[0], p.r * p.scale[1], p.r * p.scale[2]]); break;
+    case 'lathe': {
+      const R = Math.max(...p.profile.map(q => q[0])), ys = p.profile.map(q => q[1]);
+      pts.push([p.at[0] - R * p.scale[0], p.at[1] + Math.min(...ys) * p.scale[1], p.at[2] - R * p.scale[2]], [p.at[0] + R * p.scale[0], p.at[1] + Math.max(...ys) * p.scale[1], p.at[2] + R * p.scale[2]]);
+      break;
+    }
+    case 'rod': pad(p.from, [p.r, p.r, p.r]); pad(p.to, [p.r, p.r, p.r]); break;
+    case 'ring': pad(p.at, p.axis === 'y' ? [p.R + p.r, p.r, p.R + p.r] : [p.R + p.r, p.R + p.r, p.r]); break;
+    case 'tube': for (const q of p.points) pad(q, [p.r, p.r, p.r]); break;
+    case 'panel': pts.push([Math.min(p.from[0], p.to[0]) - p.t / 2, p.y, Math.min(p.from[1], p.to[1]) - p.t / 2], [Math.max(p.from[0], p.to[0]) + p.t / 2, p.y + p.h, Math.max(p.from[1], p.to[1]) + p.t / 2]); break;
+    case 'extrude': {
+      const q = profilePoints(p.profile), xs = q.map(v => v[0]), ys = q.map(v => v[1]), b = p.bevel;
+      if (p.plane === 'side') pts.push([p.at[0] + Math.min(...xs) - b, p.at[1] + Math.min(...ys) - b, p.at[2] - p.depth / 2 - b], [p.at[0] + Math.max(...xs) + b, p.at[1] + Math.max(...ys) + b, p.at[2] + p.depth / 2 + b]);
+      else pts.push([p.at[0] + Math.min(...xs) - b, p.at[1] - b, p.at[2] + Math.min(...ys) - b], [p.at[0] + Math.max(...xs) + b, p.at[1] + p.depth + b, p.at[2] + Math.max(...ys) + b]);
+      break;
+    }
+    default: return null;
+  }
+  return [[0, 1, 2].map(k => Math.min(...pts.map(q => q[k]))) as Vec3, [0, 1, 2].map(k => Math.max(...pts.map(q => q[k]))) as Vec3];
+}
+
+export interface RecipeInspection {
+  parts: number;
+  /** Parts per material */
+  materials: Record<string, number>;
+  /** Extent of all parts (mm) */
+  bounds: { x: [number, number]; y: [number, number]; z: [number, number] };
+  /** Parts that stick out of the w × d footprint or above h by more than 20 mm */
+  outside: string[];
+  /** Parts that neither stand on the floor nor touch another part */
+  floating: string[];
+  /** Coarse character drawings: top (x right, z down = front), front (x right, y up), side (z right = front, y up); # is filled */
+  views: { top: string; front: string; side: string };
+}
+
+/** What a recipe builds at a size, for checking it without seeing it: extent, parts out of bounds or floating, rough views */
+export function inspectRecipe(recipe: Recipe, size: RecipeSize): RecipeInspection {
+  const parts = buildRecipe(recipe, size).filter(p => p.kind !== 'base');
+  const boxes = parts.map((p, i) => ({ i, p, b: partBounds(p)! })).filter(x => x.b);
+  const describe = ({ i, p }: { i: number; p: BuiltPart }) => `#${i} ${p.kind}${'mat' in p ? ` (${p.mat})` : ''}`;
+  const tol = 20, touch = 10;
+  const outside = boxes.filter(({ b: [lo, hi] }) => lo[0] < -size.w / 2 - tol || hi[0] > size.w / 2 + tol || lo[2] < -size.d / 2 - tol || hi[2] > size.d / 2 + tol || hi[1] > size.h + tol || lo[1] < -tol).map(describe);
+  const overlaps = (a: [Vec3, Vec3], b: [Vec3, Vec3]) => [0, 1, 2].every(k => a[0][k] <= b[1][k] + touch && b[0][k] <= a[1][k] + touch);
+  const floating = boxes.filter(x => x.b[0][1] > touch && !boxes.some(y => y !== x && overlaps(x.b, y.b))).map(describe);
+  const materials: Record<string, number> = {};
+  for (const p of parts) if ('mat' in p) materials[p.mat] = (materials[p.mat] ?? 0) + 1;
+  const all = boxes.map(x => x.b);
+  const ext = (k: 0 | 1 | 2): [number, number] => all.length ? [Math.round(Math.min(...all.map(b => b[0][k]))), Math.round(Math.max(...all.map(b => b[1][k])))] : [0, 0];
+  const draw = (u: 0 | 2, v: 1 | 2, uRange: [number, number], vRange: [number, number], flipV: boolean) => {
+    const W = 32, H = 14, grid = Array.from({ length: H }, () => Array(W).fill('.'));
+    for (const [lo, hi] of all) {
+      const c0 = Math.floor(((lo[u] - uRange[0]) / (uRange[1] - uRange[0])) * W), c1 = Math.ceil(((hi[u] - uRange[0]) / (uRange[1] - uRange[0])) * W) - 1;
+      let r0 = Math.floor(((lo[v] - vRange[0]) / (vRange[1] - vRange[0])) * H), r1 = Math.ceil(((hi[v] - vRange[0]) / (vRange[1] - vRange[0])) * H) - 1;
+      if (flipV) [r0, r1] = [H - 1 - r1, H - 1 - r0];
+      for (let r = Math.max(0, r0); r <= Math.min(H - 1, r1); r++) for (let c = Math.max(0, c0); c <= Math.min(W - 1, c1); c++) grid[r][c] = '#';
+    }
+    return grid.map(row => row.join('')).join('\n');
+  };
+  const xr: [number, number] = [-size.w / 2, size.w / 2], zr: [number, number] = [-size.d / 2, size.d / 2], yr: [number, number] = [0, size.h];
+  return {
+    parts: parts.length, materials, bounds: { x: ext(0), y: ext(1), z: ext(2) }, outside, floating,
+    views: { top: draw(0, 2, xr, zr, false), front: draw(0, 1, xr, yr, true), side: draw(2, 1, zr, yr, true) },
+  };
+}

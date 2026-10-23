@@ -7,6 +7,7 @@ import { createContext, useContext } from 'react';
 import { createStore, useStore } from 'zustand';
 import { registry } from '@/agent/registry';
 import type { CommentsHost, ViewHost, ViewState } from '@/agent/view-capabilities';
+import type { LooksHost } from '@/agent/look-capabilities';
 import { api, ApiError } from '@/lib/api';
 import { can, type Role } from '@/shared/roles';
 import { m } from '@/lib/i18n';
@@ -53,6 +54,8 @@ export interface EditorState {
   pendingLabels: string[];
   conflict: { version: number; content: Project } | null;
   lastChange: LastChange | null;
+  /** The look just added or changed (by the agent or the user), for the chat's preview card */
+  lookChange: { id: string; isNew: boolean; at: number } | null;
   compare: boolean;
   /** Screenshot function registered by the canvas */
   capture: (() => Promise<{ dataUrl: string; width: number; height: number }>) | null;
@@ -85,6 +88,8 @@ export interface EditorActions {
   save(opts?: { force?: boolean; checkpoint?: boolean }): Promise<void>;
   resolveConflict(keep: 'mine' | 'theirs'): Promise<void>;
   setCompare(on: boolean): void;
+  /** Close the look preview card */
+  clearLookChange(): void;
   setCapture(fn: EditorState['capture']): void;
   loadVersion(version: number | null): Promise<void>;
   /** Make an earlier version the latest one (saved as a new version) */
@@ -152,6 +157,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
       pendingLabels: [],
       conflict: null,
       lastChange: null,
+      lookChange: null,
       compare: false,
       capture: null,
       ask: null,
@@ -167,7 +173,12 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
           return { ok: false, error: { code: 'forbidden', message: get().readOnlyVersion != null ? m.store_readonly_history() : m.store_readonly_viewer() } };
         }
         const before = session.project;
-        const r = await registry.call(name, input, { session, actor, host: { view: get().viewHost(), comments: commentsHost(get().projectId) } });
+        const r = await registry.call(name, input, { session, actor, host: { view: get().viewHost(), comments: commentsHost(get().projectId), looks: looksHost } });
+        if (r.ok && LOOK_EDITS.has(name)) {
+          const res = r.result as { id?: string; look?: string };
+          const id = name === 'furniture_type_add' ? res.look : res.id;
+          if (id) set({ lookChange: { id, isNew: name !== 'look_update', at: Date.now() } });
+        }
         if (r.ok && cap?.mode === 'edit' && r.changed?.length) {
           set(s => ({
             pendingLabels: [...s.pendingLabels, session.log.at(-1)?.label ?? capabilityTitle(cap)],
@@ -177,13 +188,16 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
             },
             view: { ...s.view, highlight: r.changed! },
           }));
+        } else if (r.ok && cap?.mode === 'edit' && session.project !== before) {
+          // A change to no object (e.g. a look in the library) still names the next saved version
+          set(s => ({ pendingLabels: [...s.pendingLabels, session.log.at(-1)?.label ?? capabilityTitle(cap)] }));
         }
         return r;
       },
 
       async preview(name, input) {
         const scratch = new Session(session.project);
-        const r = await registry.call(name, input, { session: scratch, actor: { kind: 'user' }, host: { view: get().viewHost(), comments: commentsHost(get().projectId) } });
+        const r = await registry.call(name, input, { session: scratch, actor: { kind: 'user' }, host: { view: get().viewHost(), comments: commentsHost(get().projectId), looks: looksHost } });
         return r.ok ? scratch.project : null;
       },
 
@@ -273,6 +287,9 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
         }
       },
 
+      clearLookChange() {
+        set({ lookChange: null });
+      },
       setCompare(on) {
         set({ compare: on });
       },
@@ -335,6 +352,12 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
   });
   return store;
 }
+
+/** Capabilities that add or change a look: the chat shows it with a preview */
+const LOOK_EDITS = new Set(['look_add', 'look_update', 'furniture_type_add']);
+
+/** Draws look previews for the agent's self-check and the chat (three.js loads on demand) */
+const looksHost: LooksHost = { preview: async (recipe, size) => (await import('./model3d/look-preview')).renderLookPreview(recipe, size) };
 
 /** Agent reads/writes comments via the server API and refreshes the comments panel after replying */
 function commentsHost(projectId: string): CommentsHost {

@@ -5,8 +5,8 @@
 import { findObject, type Project } from '@plinth/core';
 import type { ToolApprovalInterrupt } from '@tanstack/ai-client';
 import { Link } from '@tanstack/react-router';
-import { ArrowUpIcon, CircleStopIcon, ShieldQuestionIcon, SparklesIcon, SettingsIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ArrowUpIcon, CircleStopIcon, ImagePlusIcon, ShieldQuestionIcon, SparklesIcon, SettingsIcon, XIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from '@/components/ai-elements/conversation';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -20,6 +20,7 @@ import { AUTONOMIES, autonomyHint, autonomyLabel, getAutonomy, getChatModel, set
 import type { Autonomy } from '@/agent/policy';
 import { can } from '@/shared/roles';
 import { ChangeCard } from './chat/ChangeCard';
+import { LookCard } from './chat/LookCard';
 import { titleOf, type ToolResultPart } from './chat/common';
 import { MessageView } from './chat/MessageView';
 import { useAgentChat } from './chat/useAgentChat';
@@ -39,6 +40,24 @@ function describeCall(name: string, args: unknown, project: Project) {
   return m.chat_call_fallback({ title: titleOf(name), args: JSON.stringify(args) });
 }
 
+/** A photo or sketch scaled down to at most 1024 px, as a JPEG data URL, so threads stay small */
+function downscale(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1024 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k);
+      c.height = Math.round(img.height * k);
+      c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(img.src);
+      resolve(c.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export function ChatPanel() {
   const role = useEditor(s => s.role);
   const projectId = useEditor(s => s.projectId);
@@ -49,6 +68,9 @@ export function ChatPanel() {
   const readOnly = useEditor(s => s.readOnlyVersion != null);
   const [autonomy, setAuto] = useState<Autonomy>('balanced');
   const [input, setInput] = useState('');
+  // Photos and sketches to send with the next message (downscaled JPEG data URLs)
+  const [images, setImages] = useState<string[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
   const editable = can(role, 'editor') && !readOnly;
   // The model picked in this chat; falls back to the project's model when unset or no longer available
   const [picked, setPicked] = useState<string | null>(null);
@@ -63,9 +85,15 @@ export function ChatPanel() {
 
   const { messages, send: sendText, isLoading, stop, error, interrupts, shots } = useAgentChat({ autonomy, editable, modelId: model?.id });
   const send = (text: string) => {
-    if (!text.trim() || isLoading) return;
+    if ((!text.trim() && !images.length) || isLoading) return;
     setInput('');
-    sendText(text);
+    setImages([]);
+    sendText(text, images);
+  };
+  const attach = async (files: FileList | null) => {
+    const picked = await Promise.all([...(files ?? [])].filter(f => f.type.startsWith('image/')).slice(0, 4).map(downscale));
+    setImages(s => [...s, ...picked].slice(0, 4));
+    if (fileRef.current) fileRef.current.value = '';
   };
 
   const selection = view.selection.map(id => findObject(project, id)?.name).filter(Boolean);
@@ -172,6 +200,7 @@ export function ChatPanel() {
         </Alert>
       ))}
 
+      <LookCard />
       <ChangeCard />
 
       <form
@@ -186,6 +215,19 @@ export function ChatPanel() {
             {selection.slice(0, 4).map(n => <Badge key={n} variant="secondary">{m.chat_selected({ name: n ?? '' })}</Badge>)}
           </div>
         )}
+        {images.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {images.map((src, i) => (
+              <div key={i} className="relative">
+                <img src={src} alt={m.chat_attachment_alt()} className="size-16 rounded-md border object-cover" />
+                <Button type="button" size="icon-xs" variant="secondary" className="absolute -top-2 -right-2 rounded-full" onClick={() => setImages(s => s.filter((_, k) => k !== i))} aria-label={m.chat_attachment_remove()}>
+                  <XIcon />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+        <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={e => void attach(e.target.files)} />
         <InputGroup>
           <InputGroupTextarea
             value={input}
@@ -201,13 +243,16 @@ export function ChatPanel() {
             rows={2}
             className="max-h-40"
           />
-          <InputGroupAddon align="block-end" className="justify-end">
+          <InputGroupAddon align="block-end" className="justify-between">
+            <InputGroupButton size="icon-sm" variant="ghost" disabled={!editable || !model} onClick={() => fileRef.current?.click()} aria-label={m.chat_attach()}>
+              <ImagePlusIcon />
+            </InputGroupButton>
             {isLoading ? (
               <InputGroupButton size="icon-sm" variant="secondary" onClick={() => stop()} aria-label={m.chat_stop()}>
                 <CircleStopIcon />
               </InputGroupButton>
             ) : (
-              <InputGroupButton type="submit" size="icon-sm" variant="default" disabled={!input.trim() || !editable || !model} aria-label={m.chat_send()}>
+              <InputGroupButton type="submit" size="icon-sm" variant="default" disabled={(!input.trim() && !images.length) || !editable || !model} aria-label={m.chat_send()}>
                 <ArrowUpIcon />
               </InputGroupButton>
             )}

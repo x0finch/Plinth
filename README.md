@@ -39,7 +39,7 @@ npm run fake-llm &                     # fake model (OpenAI-compatible API, scri
 npm run dev > dev.log &
 node e2e/permissions.e2e.mjs           # API permission matrix: every route × every role (also runs in CI)
 node e2e/versions.e2e.mjs              # version history: quick autosaves by one author merge into one version (also runs in CI)
-DEV_LOG=dev.log npm run e2e            # end to end: permissions, agent chat, approvals, starting from scratch, sharing, comments, versions, mobile layout, dragging in the plan, email/password sign-in (OTP codes read from dev.log)
+DEV_LOG=dev.log npm run e2e            # end to end: permissions, agent chat, approvals, starting from scratch, sharing, comments, versions, mobile layout, dragging in the plan, the agent making looks, email/password sign-in (OTP codes read from dev.log)
 ```
 
 ## Deployment (Cloudflare Workers free plan, via GitHub Actions)

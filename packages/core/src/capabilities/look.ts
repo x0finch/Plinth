@@ -4,9 +4,10 @@
  * recipe never reaches the canvas.
  */
 import { z } from 'zod';
-import { defineEdit } from '../capability.js';
+import { defineEdit, defineRead } from '../capability.js';
 import { text } from '../i18n.js';
-import { elementTarget, furnitureTarget, openingTarget, targetSize } from '../looks/resolve.js';
+import { DEFAULT_LOOKS, type LookTarget } from '../looks/index.js';
+import { elementTarget, furnitureTarget, lookOf, openingTarget, targetSize } from '../looks/resolve.js';
 import { checkRecipe, type Recipe } from '../recipe.js';
 import { resolve, type Kind } from '../refs.js';
 import { OPENING_KINDS, type Look, type Project } from '../schema.js';
@@ -184,5 +185,24 @@ export const furnitureTypeAdd = defineEdit({
     p.library.looks = { ...(p.library.looks ?? {}), [id]: { name: i.name, for: [target], recipe, version: 1 } };
     p.library.use = { ...(p.library.use ?? {}), [target]: id };
     return { type: i.type, look: id };
+  },
+});
+
+export const lookGet = defineRead({
+  name: 'look_get', title: 'Read a look',
+  description: 'Read the recipe that draws a target in this design (its look, or the default one) or a look by ID or name, with the size it is usually built at. Start from it to change what something looks like.',
+  input: z.object({ target: zTarget.optional(), look: z.string().optional().describe('Look ID or name') }),
+  run: (i, ctx) => {
+    const p = ctx.session.project;
+    if (i.look) {
+      const look = getLook(p, i.look);
+      return { id: lookId(p, i.look), name: look.name, for: look.for, version: look.version, size: targetSize(p, look.for[0]), recipe: look.recipe };
+    }
+    if (!i.target) throw new TxError('invalid-input', text('err_look_get_input', 'Give a target or a look'));
+    checkTarget(p, i.target);
+    const id = lookOf(p, i.target as LookTarget);
+    if (id) return { id, name: p.library.looks![id].name, for: p.library.looks![id].for, size: targetSize(p, i.target), recipe: p.library.looks![id].recipe };
+    const recipe = DEFAULT_LOOKS[i.target as LookTarget];
+    return { id: null, default: true, size: targetSize(p, i.target), recipe: recipe ?? null };
   },
 });
