@@ -210,22 +210,39 @@ function Capture() {
 
 type Orbit = { target: THREE.Vector3; enabled: boolean; update(): void };
 type Pose = { pos: THREE.Vector3; target: THREE.Vector3 };
-/** What the camera orbits: the middle of the shown model at eye height above the current floor, and how far the model reaches from there */
-type Frame = { target: THREE.Vector3; radius: number };
-
 const FOV = 40;
-const EYE = 0.8;
+/** How much of the view the framed model fills (in its tighter direction) */
+const FILL = 0.86;
 /** Default viewing direction: from the south-east, looking down at about 35° */
 const BIRD = new THREE.Vector3(0.9, 0.8, 1.1).normalize();
 /** The last 3D camera per project, so coming back from the plan returns to it */
 const lastPose = new Map<string, Pose>();
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 
-/** Camera at a distance where the whole model fits the view from this direction */
-function framed(f: Frame, aspect: number, dir: THREE.Vector3): Pose {
-  const v = THREE.MathUtils.degToRad(FOV), h = 2 * Math.atan(Math.tan(v / 2) * aspect);
-  const dist = (f.radius * 1.1) / Math.sin(Math.min(v, h) / 2);
-  return { target: f.target.clone(), pos: f.target.clone().addScaledVector(dir, dist) };
+/**
+ * Camera looking from this direction at the model's box: close enough that the box fills the view, and aimed so its outline
+ * sits in the middle of the screen. The aim point is where the camera then orbits, so the model stays centered while rotating.
+ */
+function framed(box: THREE.Box3, aspect: number, dir: THREE.Vector3): Pose {
+  const ty = Math.tan(THREE.MathUtils.degToRad(FOV) / 2) * FILL, tx = ty * aspect;
+  const back = dir.clone().normalize();
+  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), back).normalize();
+  const up = new THREE.Vector3().crossVectors(back, right);
+  const corners = [box.min, box.max].flatMap(a => [box.min, box.max].flatMap(b => [box.min, box.max].map(c => new THREE.Vector3(a.x, b.y, c.z))));
+  const target = box.getCenter(new THREE.Vector3());
+  let dist = 1;
+  // Perspective makes the outline's middle drift from the box center: fit, measure the outline on screen, re-aim, repeat
+  for (let i = 0; i < 4; i++) {
+    const rel = corners.map(p => {
+      const o = p.clone().sub(target);
+      return { x: o.dot(right), y: o.dot(up), d: o.dot(back) };
+    });
+    dist = Math.max(...rel.map(r => r.d + Math.max(Math.abs(r.x) / tx, Math.abs(r.y) / ty)));
+    const sx = rel.map(r => r.x / (dist - r.d)), sy = rel.map(r => r.y / (dist - r.d));
+    const mx = (Math.min(...sx) + Math.max(...sx)) / 2, my = (Math.min(...sy) + Math.max(...sy)) / 2;
+    target.addScaledVector(right, mx * dist).addScaledVector(up, my * dist);
+  }
+  return { target, pos: target.clone().addScaledVector(back, dist) };
 }
 
 type ViewCommand = { kind: 'fit' | 'top' | 'perspective'; n: number };
@@ -235,11 +252,13 @@ type ViewCommand = { kind: 'fit' | 'top' | 'perspective'; n: number };
  * Entering 3D swings the camera down from the plan's top view while the model rises; switching levels lifts the orbit point to the
  * new floor; the view buttons frame the model again or swing to a top or perspective view.
  */
-function CameraRig({ frame, projectId, command, model }: { frame: Frame; projectId: string; command: ViewCommand | null; model: React.RefObject<THREE.Group | null> }) {
+function CameraRig({ box, levels, projectId, command, model }: {
+  box: THREE.Box3; levels: string; projectId: string; command: ViewCommand | null; model: React.RefObject<THREE.Group | null>;
+}) {
   const { camera, controls, size } = useThree();
   const orbit = controls as unknown as Orbit | null;
   const anim = useRef<{ elapsed: number; ms: number; from: Pose; to: Pose; grow: boolean } | null>(null);
-  const floorY = useRef(frame.target.y);
+  const shownLevels = useRef(levels);
 
   const run = (to: Pose, ms: number, grow = false) => {
     if (!orbit) return;
@@ -250,9 +269,10 @@ function CameraRig({ frame, projectId, command, model }: { frame: Frame; project
   // Entering 3D: from straight above (where the plan was) to the last 3D view, or the default one
   useEffect(() => {
     if (!orbit) return;
-    const to = lastPose.get(projectId) ?? framed(frame, size.width / size.height, BIRD);
+    const aspect = size.width / size.height;
+    const to = lastPose.get(projectId) ?? framed(box, aspect, BIRD);
     // North up, like the plan
-    const top = framed({ ...frame, target: to.target }, size.width / size.height, new THREE.Vector3(0, 1, 0.01).normalize());
+    const top = framed(box, aspect, new THREE.Vector3(0, 1, 0.01));
     camera.position.copy(top.pos);
     orbit.target.copy(top.target);
     orbit.update();
@@ -262,20 +282,18 @@ function CameraRig({ frame, projectId, command, model }: { frame: Frame; project
     return () => void lastPose.set(projectId, anim.current?.to ?? { pos: camera.position.clone(), target: orbit.target.clone() });
   }, [orbit]);
 
-  // Another level: lift (or lower) the camera and the orbit point to its floor
+  // Another level shows different floors: frame them again from the same direction (edits don't move the camera)
   useEffect(() => {
-    const dy = frame.target.y - floorY.current;
-    floorY.current = frame.target.y;
-    if (!orbit || !dy) return;
-    const base = anim.current?.to ?? { pos: camera.position, target: orbit.target };
-    run({ pos: base.pos.clone().setY(base.pos.y + dy), target: base.target.clone().setY(base.target.y + dy) }, 600);
-  }, [frame.target.y]);
+    if (shownLevels.current === levels) return;
+    shownLevels.current = levels;
+    if (orbit) run(framed(box, size.width / size.height, direction()), 600);
+  }, [levels]);
 
   useEffect(() => {
     if (!command || !orbit) return;
     if (command.kind === 'fit') {
       const dir = direction();
-      return run(framed(frame, size.width / size.height, dir.y > 0.99 ? BIRD : dir), 600);
+      return run(framed(box, size.width / size.height, dir.y > 0.99 ? BIRD : dir), 600);
     }
     const s = new THREE.Spherical().setFromVector3(camera.position.clone().sub(orbit.target));
     s.phi = command.kind === 'top' ? 0.01 : 0.95;
@@ -406,10 +424,9 @@ export function Model3D() {
   }, [project.site.boundary]);
   const cx = ((x0 + x1) / 2) * M, cz = ((y0 + y1) / 2) * M, span = Math.max(x1 - x0, y1 - y0) * M;
 
-  // The orbit point: the middle of the shown floors' footprint, at eye height above the current floor
-  const floor = current?.elevation ?? 0;
+  // The shown floors' extent, for framing the camera
   const shownIds = shown.map(l => l.id).join();
-  const frame = useMemo<Frame>(() => {
+  const box = useMemo(() => {
     const ids = new Set(shownIds.split(','));
     const box = new THREE.Box3();
     for (const b of boxes) {
@@ -424,11 +441,9 @@ export function Model3D() {
       for (const p of sp.shape) for (const [x, z] of p.outer) box.expandByPoint(new THREE.Vector3(x * M, (elev.get(sp.level) ?? 0) * M, z * M));
     }
     if (box.isEmpty()) box.set(new THREE.Vector3(x0 * M, 0, y0 * M), new THREE.Vector3(x1 * M, 3, y1 * M));
-    const center = box.getCenter(new THREE.Vector3());
-    const target = new THREE.Vector3(center.x, floor * M + EYE, center.z);
-    const corners = [box.min, box.max].flatMap(a => [box.min, box.max].flatMap(b => [box.min, box.max].map(c => new THREE.Vector3(a.x, b.y, c.z))));
-    return { target, radius: Math.max(2, ...corners.map(p => p.distanceTo(target))) };
-  }, [boxes, project.spaces, shownIds, floor, x0, y0, x1, y1]);
+    return box;
+  }, [boxes, project.spaces, shownIds, x0, y0, x1, y1]);
+  const radius = Math.max(2, box.getSize(new THREE.Vector3()).length() / 2);
 
   return (
     <div className="relative size-full">
@@ -439,11 +454,13 @@ export function Model3D() {
           camera={{ position: [cx + span * 0.9, span * 0.8, cz + span * 1.1], fov: FOV, near: 0.1, far: 2000 }}
           style={{ background: c.bg }}
         >
+          {/* The ground fades into the background in the distance, so it has no visible edge */}
+          <fog attach="fog" args={[c.bg, radius * 5, radius * 14]} />
           <hemisphereLight args={[c.sky, c.edge, 1.1]} />
           <directionalLight position={[cx - 20, 40, cz + 25]} intensity={1.6} castShadow shadow-mapSize={[2048, 2048]}
             shadow-camera-left={-40} shadow-camera-right={40} shadow-camera-top={40} shadow-camera-bottom={-40} />
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, project.site.groundLevel * M - 0.01, cz]} receiveShadow>
-            <planeGeometry args={[span * 4, span * 4]} />
+            <planeGeometry args={[Math.max(span, radius) * 40, Math.max(span, radius) * 40]} />
             <meshStandardMaterial color={c.ground} roughness={1} />
           </mesh>
 
@@ -465,8 +482,8 @@ export function Model3D() {
             ))}
           </group>
           <OrbitControls makeDefault enableDamping dampingFactor={0.09} maxPolarAngle={Math.PI / 2 - 0.05}
-            minDistance={Math.max(1.5, frame.radius * 0.15)} maxDistance={frame.radius * 6} />
-          <CameraRig frame={frame} projectId={projectId} command={command} model={model} />
+            minDistance={Math.max(1.5, radius * 0.15)} maxDistance={radius * 6} />
+          <CameraRig box={box} levels={shownIds} projectId={projectId} command={command} model={model} />
           <SafariPinch />
           <Picker />
           <Reveal ownerOf={ownerOf} />
