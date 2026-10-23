@@ -8,9 +8,9 @@ import type { LevelShapes } from './plan-geometry';
 
 const pts = (p: [number, number][]) => p.map(([x, y]) => `${x},${y}`).join(' ');
 
-/** Indoor rooms are white; outside areas light gray, covered ones lighter */
+/** White like the model: rooms, yards and terraces alike (the walls tell them apart), so the plinth reads as one white board; covered outside areas a faint gray */
 const SPACE_FILL: Record<string, string> = {
-  indoor: 'var(--card)', 'semi-outdoor': 'var(--muted)', outdoor: 'var(--secondary)', 'roof-terrace': 'var(--secondary)', void: 'url(#hatch)',
+  indoor: 'var(--card)', 'semi-outdoor': 'var(--muted)', outdoor: 'var(--card)', 'roof-terrace': 'var(--card)', void: 'url(#hatch)',
 };
 
 /** Glazed openings show their glass; doors and plain openings are gaps in the wall */
