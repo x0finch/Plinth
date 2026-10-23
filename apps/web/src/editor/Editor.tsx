@@ -356,8 +356,9 @@ export function Editor({ initial, search }: { initial: InitialProject; search: {
   // Shortcuts; save before leaving
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement;
-      if (t.closest('input, textarea, [contenteditable]')) return;
+      // The target can be the document or window (no closest) when nothing has focus
+      const t = e.target as Partial<HTMLElement> | null;
+      if (t?.closest?.('input, textarea, [contenteditable]')) return;
       const s = store.getState();
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
