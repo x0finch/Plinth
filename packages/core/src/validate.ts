@@ -53,5 +53,11 @@ export function validate(p: Project): ValidationIssue[] {
     if (!levels.has(f.level)) issues.push({ path: at, message: text('validate_missing_level', 'Level {level} does not exist', { level: f.level }) });
     if (!(f.type in lib.furniture)) issues.push({ path: at, message: text('validate_unknown_furniture', 'Furniture type {type} is not registered', { type: f.type }) });
   });
+  // Looks: references must exist (a missing look would silently fall back to the default)
+  const looks = lib.looks ?? {};
+  for (const [target, id] of Object.entries(lib.use ?? {}))
+    if (!looks[id]) issues.push({ path: `library.use.${target}`, message: text('validate_unknown_look', 'Look {look} does not exist', { look: id }) });
+  for (const o of [...p.furniture, ...p.elements, ...p.walls.flatMap(w => w.openings)])
+    if (o.look && !looks[o.look]) issues.push({ path: `${o.name}`, message: text('validate_unknown_look', 'Look {look} does not exist', { look: o.look }) });
   return issues;
 }

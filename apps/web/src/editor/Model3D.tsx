@@ -690,7 +690,7 @@ export function Model3D() {
   const lc = useLookColors();
   // An element's own geometry in the materials its look gives each kind of solid
   const solidColor = (s: Solid) => {
-    const e = project.elements.find(x => x.id === s.id), recipe = e && lookRecipe(project, elementTarget(e));
+    const e = project.elements.find(x => x.id === s.id), recipe = e && lookRecipe(project, elementTarget(e), e.look);
     const own = recipe?.parts.find(p => p.kind === 'base'), mat = own?.kind === 'base' ? own.mats[s.kind] : undefined;
     return mat ? lc[mat] : s.kind === 'water' ? c.furn : s.kind === 'grate' ? c.grate : c.wall;
   };
@@ -807,19 +807,19 @@ export function Model3D() {
                       <WallMesh key={w.id} w={w} project={project} base={elev.get(l.id) ?? 0} sel={sel.has(w.id) ? c.sel : undefined} color={c.wall} />
                     ))}
                     {openings.filter(fr => fr.level === l.id).map(fr => (
-                      <OpeningLook key={fr.id} fr={fr} recipe={lookRecipe(project, openingTarget(fr.opening))} base={elev.get(l.id) ?? 0} sel={sel.has(fr.wall) ? c.sel : undefined} />
+                      <OpeningLook key={fr.id} fr={fr} recipe={lookRecipe(project, openingTarget(fr.opening), fr.opening.look)} base={elev.get(l.id) ?? 0} sel={sel.has(fr.wall) ? c.sel : undefined} />
                     ))}
                     {solids.filter(s => s.level === l.id).map((s, i) => (
                       <SolidMesh key={`${s.id}-${i}`} s={s} base={elev.get(l.id) ?? 0} sel={sel.has(s.id) ? c.sel : undefined} color={solidColor(s)} />
                     ))}
                     {project.elements.filter(e => e.level === l.id).map(e => {
-                      const recipe = lookRecipe(project, elementTarget(e)), own = solids.filter(s => s.id === e.id);
+                      const recipe = lookRecipe(project, elementTarget(e), e.look), own = solids.filter(s => s.id === e.id);
                       return recipe && own.length && recipe.parts.some(p => p.kind !== 'base')
                         ? <ElementExtras key={e.id} e={e} solids={own} recipe={recipe} base={elev.get(l.id) ?? 0} sel={sel.has(e.id) ? c.sel : undefined} />
                         : null;
                     })}
                     {view.layers.furniture && project.furniture.filter(f => f.level === l.id).map(f => (
-                      <Furniture key={f.id} f={f} recipe={lookRecipe(project, furnitureTarget(f))} base={elev.get(l.id) ?? 0} color={c.furn} sel={sel.has(f.id) ? c.sel : undefined} />
+                      <Furniture key={f.id} f={f} recipe={lookRecipe(project, furnitureTarget(f), f.look)} base={elev.get(l.id) ?? 0} color={c.furn} sel={sel.has(f.id) ? c.sel : undefined} />
                     ))}
                   </group>
                 </group>

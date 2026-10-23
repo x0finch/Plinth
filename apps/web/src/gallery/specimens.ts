@@ -32,7 +32,11 @@ function wall(id: string, name: string, kind: WallKind, start: Point, end: Point
   return { id, name, level: 'L1', kind, start, end, thickness, openings: [], ...o };
 }
 
-export function specimenProject(lang: Project['language']): { project: Project; labels: GroundLabelSpec[] } {
+/**
+ * With `from`, the first row shows that design's own looks (library.looks), each on the first thing it fits, named after the
+ * look; its custom furniture types come along
+ */
+export function specimenProject(lang: Project['language'], from?: Project): { project: Project; labels: GroundLabelSpec[] } {
   // A second, empty level gives the stair a storey to climb; the gallery shows 3D only, with no level switcher
   const p = createProject({ id: 'gallery', name: m.gallery_title(), language: lang, floors: 2, floorHeight: STOREY });
   p.levels = p.levels.filter(l => !l.roof);
@@ -44,6 +48,39 @@ export function specimenProject(lang: Project['language']): { project: Project; 
   };
 
   const rows: Tile[][] = [];
+
+  // The design's own looks
+  if (from?.library.looks) {
+    p.library.looks = structuredClone(from.library.looks);
+    for (const [type, def] of Object.entries(from.library.furniture)) p.library.furniture[type] ??= structuredClone(def);
+    const tiles: Tile[] = [];
+    for (const [look, def] of Object.entries(from.library.looks)) {
+      const [kind, type] = def.for[0].split(':');
+      if (kind === 'furniture' && p.library.furniture[type]) {
+        const size = p.library.furniture[type].size;
+        const w = Math.max(2200, Math.ceil((size.w + 800) / 100) * 100), h = Math.ceil((size.d + 400) / 100) * 100;
+        tiles.push({
+          w, h,
+          fill(p, x, y, id) {
+            p.furniture.push({ id: `${id}-f`, name: def.name, type, level: 'L1', position: [x + w / 2, y + h / 2], rotation: 0, size: { ...size }, look });
+            return [def.name, `${id}-f`];
+          },
+        });
+      } else if (kind === 'opening') {
+        const glassBlock = type === 'glass-block', okind = (glassBlock ? 'window' : type) as Opening['kind'], door = ['door', 'gate', 'opening'].includes(okind);
+        tiles.push({
+          w: 2800, h: 2000,
+          fill(p, x, y, id) {
+            const wl = wall(`${id}-w`, def.name, okind === 'gate' ? 'fence' : 'bearing', [x + 200, y + 1000], [x + 2600, y + 1000]);
+            wl.openings.push({ id: `${id}-o`, name: def.name, kind: okind, at: 1200, width: door ? 900 : 1200, height: door ? 2100 : 1500, sill: door ? 0 : 900, look, ...(glassBlock ? { glazing: 'glass-block' as const } : {}) });
+            p.walls.push(wl);
+            return [def.name, `${id}-o`];
+          },
+        });
+      }
+    }
+    if (tiles.length) rows.push(tiles);
+  }
 
   // Walls of each kind
   rows.push((['bearing', 'partition', 'fence', 'parapet', 'railing'] as const).map(kind => ({

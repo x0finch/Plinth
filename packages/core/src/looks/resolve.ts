@@ -7,14 +7,41 @@ export const furnitureTarget = (f: Pick<Furniture, 'type'>): LookTarget => `furn
 export const openingTarget = (o: Pick<Opening, 'kind' | 'glazing'>): LookTarget => (o.glazing === 'glass-block' ? 'opening:glass-block' : `opening:${o.kind}`);
 export const elementTarget = (e: Pick<Element, 'type'>): LookTarget => `element:${e.type}`;
 
-/** The recipe for a target in a project, or null when none draws it (a furniture type without a look is drawn as a block) */
-export function lookRecipe(_p: Project, target: LookTarget): Recipe | null {
+/**
+ * The recipe that draws an object, like a font resolving a character: the object's own look, else the look the design uses for
+ * its target, else the default set; null when none draws it (a furniture type without a look is drawn as a block). A look that
+ * doesn't fit the target is skipped.
+ */
+export function lookRecipe(p: Project, target: LookTarget, own?: string): Recipe | null {
+  const looks = p.library.looks ?? {};
+  for (const id of [own, p.library.use?.[target]]) {
+    const look = id ? looks[id] : undefined;
+    if (look && look.for.includes(target)) return look.recipe;
+  }
   return DEFAULT_LOOKS[target] ?? null;
+}
+
+/** The look ID an object is drawn with (its own, the design's for its target), or null for the default */
+export function lookOf(p: Project, target: LookTarget, own?: string): string | null {
+  const looks = p.library.looks ?? {};
+  for (const id of [own, p.library.use?.[target]]) if (id && looks[id]?.for.includes(target)) return id;
+  return null;
+}
+
+/** The looks of this design that fit a target */
+export const looksFor = (p: Project, target: LookTarget) => Object.entries(p.library.looks ?? {}).filter(([, l]) => l.for.includes(target));
+
+/** A size to check a recipe at for a target: the furniture type's size, or a typical opening or element */
+export function targetSize(p: Project, target: string): { w: number; d: number; h: number } {
+  const [kind, type] = target.split(':');
+  if (kind === 'furniture') return p.library.furniture[type]?.size ?? { w: 1000, d: 600, h: 800 };
+  if (kind === 'opening') return type === 'door' || type === 'gate' || type === 'opening' ? { w: 900, d: 240, h: 2100 } : { w: 1200, d: 240, h: 1500 };
+  return { w: 2000, d: 2000, h: 3000 };
 }
 
 /** A piece of furniture's plan symbol (outlines seen from above, lowest first), in plan coordinates; null if it has no look */
 export function furniturePlan(p: Project, f: Furniture): PlanSymbol | null {
-  const recipe = lookRecipe(p, furnitureTarget(f));
+  const recipe = lookRecipe(p, furnitureTarget(f), f.look);
   if (!recipe) return null;
   let sym: PlanSymbol;
   try {

@@ -1357,6 +1357,228 @@ exports[`capability descriptions are stable 1`] = `
     "title": "Operation log",
   },
   {
+    "description": "Add a look to the design: a recipe that draws furniture, doors and windows, or elements, like a font draws characters. Everyone who opens the design sees it. With use, every object of those targets switches to it; otherwise set it per object with look_set. Recipe format (JSON, millimetres, angles in degrees): { seed?, let?: {name: expr}, parts: Part[], plan?: [...] }. Numbers may be expressions of w, d, h (the object's width, depth, height) and names from let/repeat: + - * / %, comparisons, && || !, a ? b : c, min max abs sqrt floor ceil round sin cos tan atan2 hypot clamp lerp rnd(k) (pseudo-random 0..1, fixed per seed). Local frame: origin at the centre of the footprint on the floor (an opening: the centre of its sill; x along the wall, z across it), x across w, z across d with +z the front, y up. Every part has mat (fabric cushion linen bedding canvas canvas2 wood woodDark lacquer gold red cabinet countertop ceramic ceramicShade appliance plaster stone stoneDark terracotta soil iron dark glass book1-4 flower tube bark leaf leaf2 carBody carGlass tyre metal headlight taillight frame glassBlock wall water grate) and optional plan:false (left out of the plan symbol). Kinds: box {size:[w,h,d], at:[x,y,z] centre, r? edge radius, rot?:[rx,ry,rz]}; cylinder {r, r2? top radius, h, at centre, axis? x|y|z, scale?}; sphere {r, at, scale?}; lathe {profile:[[r,y]...] from the axis out and back, at base, scale?}; rod {from, to, r}; ring {R, r, at, axis? y|z}; tube {points:[[x,y,z]...], r}; panel {from:[x,z], to:[x,z], y, h, t}; extrude {plane: side (profile in x,y extruded across z) | plan (profile in x,z extruded up), profile: [[x,y] | {arc:[cx,cy,r,a0,a1,clockwise]} | {curve:[cx,cy,x,y]}], depth, bevel?, at?}; repeat {count, as? (default i), let?, parts}; if {when, parts, else?}; base {mats:{structure,water,grate}} (an element's own geometry). The plan symbol is the parts seen from above unless plan gives rings/lines/circles. Keep parts inside the w × d footprint and under h.",
+    "examples": [],
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "for": {
+          "items": {
+            "description": "What a look draws: 'furniture:<type>' (a furniture type), 'opening:<door|sliding-door|gate|window|opening|glass-block>' or 'element:<stair|pond|drain>'",
+            "pattern": "^(furniture|opening|element):[A-Za-z0-9_-]+$",
+            "type": "string",
+          },
+          "minItems": 1,
+          "type": "array",
+        },
+        "name": {
+          "description": "Name of the look, in the language the project data uses",
+          "minLength": 1,
+          "type": "string",
+        },
+        "recipe": {
+          "description": "A recipe (see the recipe format in look_add)",
+        },
+        "use": {
+          "default": false,
+          "description": "Use it for every object of these targets",
+          "type": "boolean",
+        },
+      },
+      "required": [
+        "name",
+        "for",
+        "recipe",
+      ],
+      "type": "object",
+    },
+    "kind": "edit",
+    "name": "look_add",
+    "permission": "reversible",
+    "runtime": "any",
+    "title": "Add a look",
+  },
+  {
+    "description": "Change a look of the design: its name, the targets it fits or its recipe (format in look_add). Every object drawn with it changes.",
+    "examples": [],
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "for": {
+          "items": {
+            "description": "What a look draws: 'furniture:<type>' (a furniture type), 'opening:<door|sliding-door|gate|window|opening|glass-block>' or 'element:<stair|pond|drain>'",
+            "pattern": "^(furniture|opening|element):[A-Za-z0-9_-]+$",
+            "type": "string",
+          },
+          "minItems": 1,
+          "type": "array",
+        },
+        "look": {
+          "description": "Look ID or name",
+          "type": "string",
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "recipe": {
+          "description": "A recipe (see the recipe format in look_add)",
+        },
+      },
+      "required": [
+        "look",
+      ],
+      "type": "object",
+    },
+    "kind": "edit",
+    "name": "look_update",
+    "permission": "reversible",
+    "runtime": "any",
+    "title": "Change a look",
+  },
+  {
+    "description": "Remove a look from the design; objects drawn with it go back to the default look.",
+    "examples": [],
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "look": {
+          "description": "Look ID or name",
+          "type": "string",
+        },
+      },
+      "required": [
+        "look",
+      ],
+      "type": "object",
+    },
+    "kind": "edit",
+    "name": "look_remove",
+    "permission": "reversible",
+    "runtime": "any",
+    "title": "Remove a look",
+  },
+  {
+    "description": "Choose the look every object of a target uses in this design (like choosing the font of a whole text); look null goes back to the default. Objects with their own look keep it.",
+    "examples": [],
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "look": {
+          "description": "Look ID or name, or null for the default",
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "target": {
+          "description": "What a look draws: 'furniture:<type>' (a furniture type), 'opening:<door|sliding-door|gate|window|opening|glass-block>' or 'element:<stair|pond|drain>'",
+          "pattern": "^(furniture|opening|element):[A-Za-z0-9_-]+$",
+          "type": "string",
+        },
+      },
+      "required": [
+        "target",
+        "look",
+      ],
+      "type": "object",
+    },
+    "kind": "edit",
+    "name": "look_use",
+    "permission": "reversible",
+    "runtime": "any",
+    "title": "Use a look for a target",
+  },
+  {
+    "description": "Give one piece of furniture, door, window or element its own look (like setting one word in another font); look null goes back to the look of its target.",
+    "examples": [],
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "look": {
+          "description": "Look ID or name, or null",
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "object": {
+          "description": "ID or name of the furniture, opening or element",
+          "type": "string",
+        },
+      },
+      "required": [
+        "object",
+        "look",
+      ],
+      "type": "object",
+    },
+    "kind": "edit",
+    "name": "look_set",
+    "permission": "reversible",
+    "runtime": "any",
+    "title": "Give an object its own look",
+  },
+  {
+    "description": "Add a new furniture type to the design (a fish tank, a mahjong table…), with its default size and, optionally, a recipe for its look (format in look_add). Then place it with furniture_add.",
+    "examples": [],
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "group": {
+          "description": "Group name shown in the catalog, in the project language",
+          "type": "string",
+        },
+        "name": {
+          "description": "Display name, in the language the project data uses",
+          "minLength": 1,
+          "type": "string",
+        },
+        "recipe": {
+          "description": "A recipe (see the recipe format in look_add)",
+        },
+        "size": {
+          "properties": {
+            "d": {
+              "exclusiveMinimum": 0,
+              "type": "number",
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "type": "number",
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "type": "number",
+            },
+          },
+          "required": [
+            "w",
+            "d",
+            "h",
+          ],
+          "type": "object",
+        },
+        "type": {
+          "description": "Type key, lowercase English (e.g. fish-tank)",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "type": "string",
+        },
+      },
+      "required": [
+        "type",
+        "name",
+        "size",
+      ],
+      "type": "object",
+    },
+    "kind": "edit",
+    "name": "furniture_type_add",
+    "permission": "reversible",
+    "runtime": "any",
+    "title": "Add a furniture type",
+  },
+  {
     "description": "Run several edit capabilities as one step: all succeed or all roll back, and they undo together. Use for large changes or building a design from scratch.",
     "examples": [],
     "input": {

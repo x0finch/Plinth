@@ -11,6 +11,8 @@ const MIGRATIONS: Record<number, (doc: any) => any> = {
   1: doc => ({ ...doc, language: doc.language ?? 'zh' }),
   // v3: the legacy page's stair becomes proper U-shaped stairs, one per storey
   2: doc => upgradeLegacyStairs(doc),
+  // v4 adds looks (library.looks, library.use, an object's own look); all optional, nothing to convert
+  3: doc => doc,
 };
 
 export class SchemaError extends Error {}
