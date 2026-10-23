@@ -10,10 +10,16 @@ const check = (ok, msg) => {
 /** A client with its own cookie jar */
 function client() {
   const jar = new Map();
-  const call = async (method, path, body, type = 'application/json') => {
+  const call = async (method, path, body, type = 'application/json', retried = false) => {
     const headers = { Origin: BASE, Cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; ') };
     if (body !== undefined) headers['Content-Type'] = type;
     const res = await fetch(`${BASE}/api${path}`, { method, headers, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body) });
+    // The local dev server now and then fails to reach the Worker ("fetch failed") and answers with a non-JSON 500.
+    // The API's own errors are always JSON, so only that infrastructure error is retried, once.
+    if (res.status >= 500 && !res.headers.get('content-type')?.includes('application/json') && !retried) {
+      console.log(`  (dev server error on ${method} ${path}, retrying)`);
+      return call(method, path, body, type, true);
+    }
     for (const c of res.headers.getSetCookie()) {
       const [pair] = c.split(';');
       const i = pair.indexOf('=');
@@ -29,9 +35,13 @@ function client() {
 
 const actors = { anon: client(), stranger: client(), viewer: client(), commenter: client(), editor: client(), owner: client() };
 for (const k of ['stranger', 'viewer', 'commenter', 'editor', 'owner']) {
-  const { status } = await actors[k].signIn();
-  // Sign-ins are rate-limited to 10 a minute per IP: running this twice in a row hits the limit
-  if (status === 429) throw new Error('Sign-in rate limit reached; wait a minute and run again');
+  let { status } = await actors[k].signIn();
+  // Sign-ins are rate-limited to 10 a minute per IP (other e2e scripts sign in too): wait for the window to reset, once
+  if (status === 429) {
+    console.log('  (sign-in rate limit reached, waiting a minute)');
+    await new Promise(r => setTimeout(r, 61_000));
+    ({ status } = await actors[k].signIn());
+  }
   check(status === 200, `${k} signed in`);
 }
 const me = async k => (await actors[k].call('GET', '/me')).data.user.id;
