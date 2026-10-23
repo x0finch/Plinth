@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createProject, createRegistry, migrate, openingCenter, Session, setTranslator, spaceNetArea, type CallResult, type Project, type Translator } from '../src/index.js';
+import { createProject, createRegistry, migrate, mutates, openingCenter, Session, setTranslator, spaceNetArea, type CallResult, type Project, type Translator } from '../src/index.js';
 
 /** Core messages of the web app: the core_* keys in apps/web/messages/<locale>.json */
 const readMessages = (locale: string): Record<string, string> =>
@@ -188,5 +188,108 @@ describe('capability registry', () => {
       expect(en[`core_cap_${c.name}`], c.name).toBe(c.title);
     }
     expect(Object.keys(zh).sort()).toEqual(Object.keys(en).sort());
+  });
+});
+
+describe('small correctness fixes', () => {
+  it('space_merge keeps names unique on the level', async () => {
+    const h = harness(createProject({ id: 't', name: 'test', language: 'en' }));
+    await h.ok('room_add', { level: 'L1', name: 'A', rect: [0, 0, 3000, 3000] });
+    await h.ok('room_add', { level: 'L1', name: 'B', rect: [3000, 0, 3000, 3000] });
+    await h.ok('room_add', { level: 'L1', name: 'Hall', rect: [6000, 0, 3000, 3000] });
+    await h.ok('space_merge', { spaces: ['A', 'B'], name: 'Hall' });
+    const names = h.session.project.spaces.map(s => s.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names).toContain('Hall (2)');
+  });
+
+  it('space_merge may reuse the name of a merged space', async () => {
+    const h = harness(createProject({ id: 't', name: 'test', language: 'en' }));
+    await h.ok('room_add', { level: 'L1', name: 'A', rect: [0, 0, 3000, 3000] });
+    await h.ok('room_add', { level: 'L1', name: 'B', rect: [3000, 0, 3000, 3000] });
+    await h.ok('space_merge', { spaces: ['A', 'B'], name: 'B' });
+    expect(h.session.project.spaces.map(s => s.name)).toEqual(['B']);
+  });
+
+  it('Session.load clears the operation log', async () => {
+    const h = harness(createProject({ id: 't', name: 'test', language: 'en' }));
+    await h.ok('room_add', { level: 'L1', name: 'A', rect: [0, 0, 3000, 3000] });
+    expect(h.session.log).toHaveLength(1);
+    h.session.load(createProject({ id: 't', name: 'test', language: 'en' }));
+    expect((await h.ok('history_log')).result).toEqual([]);
+  });
+});
+
+describe('capability modes', () => {
+  it('marks undo and redo as mutating, so read-only hosts block them', () => {
+    expect(mutates(registry.get('history_undo')!)).toBe(true);
+    expect(mutates(registry.get('history_redo')!)).toBe(true);
+    expect(mutates(registry.get('project_summary')!)).toBe(false);
+  });
+
+  it('has no read-mode capability of kind edit', () => {
+    expect(registry.list().filter(c => c.mode === 'read' && c.kind === 'edit').map(c => c.name)).toEqual([]);
+  });
+
+  it('still undoes and redoes through the registry', async () => {
+    const h = harness(createProject({ id: 't', name: 'test', language: 'en' }));
+    await h.ok('room_add', { level: 'L1', name: 'A', rect: [0, 0, 4000, 4000] });
+    expect((await h.ok('history_undo')).result).toMatchObject({ undone: expect.any(String) });
+    expect(h.session.project.spaces).toHaveLength(0);
+    await h.ok('history_redo');
+    expect(h.session.project.spaces).toHaveLength(1);
+  });
+
+  it('refuses to batch a session operation', async () => {
+    const h = harness(createProject({ id: 't', name: 'test', language: 'en' }));
+    const r = await h.call('batch', { label: 'x', calls: [{ name: 'history_undo' }] });
+    expect(r.error?.code).toBe('invalid-input');
+  });
+});
+
+describe('deleting objects removes the constraints that target them', () => {
+  let h: ReturnType<typeof harness>;
+  beforeEach(async () => {
+    h = harness(createProject({ id: 't', name: 'test', floors: 2, language: 'en' }));
+    await h.ok('room_add', { level: 'L2', name: 'A', rect: [0, 0, 4000, 4000] });
+    await h.ok('room_add', { level: 'L2', name: 'B', rect: [4000, 0, 3000, 4000], door: { side: 'west' } });
+  });
+  const hard = (targets: string[], type = 'size-target', params: Record<string, unknown> = { area: 14 }) =>
+    h.ok('constraint_add', { type, targets, params, hard: true });
+
+  it('level_remove succeeds despite a hard constraint on that level', async () => {
+    await hard(['A']);
+    await h.ok('level_remove', { level: 'L2' });
+    expect(h.session.project.constraints).toEqual([]);
+  });
+
+  it('space_remove with walls drops constraints on the removed space and walls', async () => {
+    await hard(['A']);
+    await hard(['A west wall'], 'align', {});
+    await h.ok('space_remove', { space: 'A', walls: true });
+    expect(h.session.project.constraints).toEqual([]);
+  });
+
+  it('space_merge drops constraints on the merged-away space and the removed partition', async () => {
+    await hard(['B'], 'size-target', { area: 11.3, tolerance: 1 });
+    const door = h.session.project.walls.flatMap(w => w.openings)[0];
+    await hard([door.id, 'B'], 'center', {});
+    await h.ok('space_merge', { spaces: ['A', 'B'] });
+    expect(h.session.project.constraints).toEqual([]);
+  });
+
+  it('wall_remove and opening_remove drop their constraints, other constraints stay', async () => {
+    const door = h.session.project.walls.flatMap(w => w.openings)[0];
+    await hard([door.id, 'B'], 'center', {});
+    await hard(['A'], 'size-target', { area: 14, tolerance: 2 });
+    await h.ok('opening_remove', { opening: door.id });
+    expect(h.session.project.constraints.map(c => c.type)).toEqual(['size-target']);
+  });
+
+  it('undo restores the removed constraint', async () => {
+    await hard(['A']);
+    await h.ok('level_remove', { level: 'L2' });
+    await h.ok('history_undo');
+    expect(h.session.project.constraints).toHaveLength(1);
   });
 });
