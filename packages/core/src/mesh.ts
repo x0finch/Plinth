@@ -66,3 +66,33 @@ export function wallBoxes(p: Project, w: Wall): Box[] {
 }
 
 export const projectBoxes = (p: Project) => p.walls.flatMap(w => wallBoxes(p, w));
+
+/** Where an opening sits in 3D: the centre of its sill in plan, its height above the floor, size, and the wall's direction */
+export interface OpeningFrame {
+  id: Id;
+  wall: Id;
+  level: Id;
+  center: [number, number];
+  z: number;
+  width: number;
+  height: number;
+  /** The wall's thickness */
+  thickness: number;
+  /** Angle between the wall direction and the x axis (radians, y points south) */
+  angle: number;
+}
+
+/** Every opening's frame (clipped to its wall, like the boxes above) */
+export function openingFrames(p: Project): (OpeningFrame & { opening: Wall['openings'][number] })[] {
+  return p.walls.flatMap(w => {
+    const L = wallLength(w), d = wallDir(w), H = wallHeight(p, w);
+    const ext = w.kind === 'bearing' || w.kind === 'partition' ? w.thickness / 2 : 0;
+    return w.openings.map(o => {
+      const a = Math.max(-ext, o.at - o.width / 2), b = Math.min(L + ext, o.at + o.width / 2), mid = (a + b) / 2;
+      return {
+        id: o.id, wall: w.id, level: w.level, opening: o, center: [w.start[0] + d[0] * mid, w.start[1] + d[1] * mid] as [number, number],
+        z: o.sill, width: b - a, height: Math.min(H, o.sill + o.height) - o.sill, thickness: w.thickness, angle: Math.atan2(d[1], d[0]),
+      };
+    }).filter(f => f.width > 1 && f.height > 1);
+  });
+}

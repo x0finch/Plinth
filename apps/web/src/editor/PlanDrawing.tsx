@@ -80,7 +80,14 @@ export function PlanInk({ shapes, furniture, line, pick }: { shapes: LevelShapes
   return (
     <>
       <PlanElements shapes={shapes} line={line} pick={pick} />
-      {furniture && shapes.furniture.map(({ f, d }) => (
+      {furniture && shapes.furniture.map(({ f, d, symbol }) => symbol ? (
+        // Its look seen from above, under a hit area the size of its footprint
+        <g key={f.id}>
+          {symbol.items.map((it, i) => <path key={i} d={it.d} fill={it.fill ? 'var(--card)' : 'none'} stroke="var(--foreground)" {...line(0.5)} />)}
+          {symbol.lines && <path d={symbol.lines} fill="none" stroke="var(--foreground)" {...line(0.5)} />}
+          <path d={d} fill="transparent" {...hit(pick, f.id)} />
+        </g>
+      ) : (
         <path key={f.id} d={d} fill="var(--card)" stroke="var(--foreground)" {...line(0.8)} {...hit(pick, f.id)} />
       ))}
       {/* Walls cut by the section: solid black with a heavy outline; fences and parapets, lower than the cut, seen from above */}

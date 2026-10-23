@@ -18,3 +18,7 @@ export * from './i18n.js';
 export * from './names.js';
 export * from './project-index.js';
 export * from './derived.js';
+export * from './expr.js';
+export * from './recipe.js';
+export * from './looks/index.js';
+export * from './looks/resolve.js';

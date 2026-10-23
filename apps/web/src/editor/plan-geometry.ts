@@ -1,6 +1,6 @@
 /** Shapes the plan draws: derived from project data, cached per floor. */
 import {
-  add, derived, difference, furnitureFootprint, projectElements, ringArea, scale, union, wallBody, wallDir, wallNormal, pointAt,
+  add, derived, difference, furnitureFootprint, furniturePlan, projectElements, ringArea, scale, union, wallBody, wallDir, wallNormal, pointAt,
   type ElementPlan, type Furniture, type Opening, type Point, type Polygon, type Project, type Space, type Wall,
 } from '@plinth/core';
 import polylabel from 'polylabel';
@@ -29,7 +29,8 @@ export interface LevelShapes {
   railings: { w: Wall; d: string }[];
   walls: { w: Wall; d: string }[];
   openings: OpeningShape[];
-  furniture: { f: Furniture; d: string }[];
+  /** Each piece's footprint and, when it has a look, its plan symbol: outlines seen from above (lowest first) and lines */
+  furniture: { f: Furniture; d: string; symbol?: { items: { d: string; fill: boolean }[]; lines: string } }[];
   /** Elements (stairs, ponds, drains) drawn on this level, including stairs seen from the level they arrive at */
   elements: ElementPlan[];
 }
@@ -154,7 +155,13 @@ export function levelShapes(p: Project, level: string): LevelShapes {
     railings: walls.filter(w => w.kind === 'railing').map(w => ({ w, d: polyPath([wallBody(w)]) })),
     walls: walls.map(w => ({ w, d: polyPath([wallBody(w)]) })),
     openings: walls.flatMap(w => w.openings.map(o => openingShape(w, o))),
-    furniture: p.furniture.filter(f => f.level === level).map(f => ({ f, d: polyPath([furnitureFootprint(f)]) })),
+    furniture: p.furniture.filter(f => f.level === level).map(f => {
+      const sym = furniturePlan(p, f);
+      return {
+        f, d: polyPath([furnitureFootprint(f)]),
+        symbol: sym ? { items: sym.items.map(it => ({ d: polyPath([{ outer: it.ring }]), fill: it.fill })), lines: sym.lines.map(l => `M${l.map(q => q.join(' ')).join('L')}`).join('') } : undefined,
+      };
+    }),
     elements: levelElements(p, level),
   };
   m.set(level, shapes);
