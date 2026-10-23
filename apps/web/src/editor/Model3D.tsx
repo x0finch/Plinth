@@ -579,7 +579,7 @@ export function Model3D() {
         >
           {/* The ground fades into the backdrop in the distance, so it has no visible edge */}
           <fog attach="fog" args={[c.backdrop, radius * 4, radius * 12]} />
-          {/* A warm sun and a cool sky: lit faces are white, shadows a soft lavender (three.js divides diffuse light by π,
+          {/* A warm white sun and sky: lit faces are white, shadows a soft warm gray (three.js divides diffuse light by π,
               hence the strong intensities) */}
           <hemisphereLight args={[c.skylight, c.wall, 2.2]} />
           <primitive object={sunTarget} position={center} />

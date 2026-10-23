@@ -53,12 +53,12 @@
     --shadow-xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 8px 10px -1px hsl(0 0% 0% / 0.18);
     --shadow-2xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.45);
     --tracking-normal: 0em;
-    /* 3D canvas, a white model: a gray backdrop, a warm sun and a cool sky light (shadows read lavender).
+    /* 3D canvas, a white model: a neutral gray backdrop, a warm white sun and sky light (shadows read warm gray).
        The plan's outside areas use the ground color. */
-    --canvas-backdrop: oklch(0.78 0.006 285);
+    --canvas-backdrop: oklch(0.78 0 0);
     --canvas-sun: oklch(0.99 0.012 85);
-    --canvas-skylight: oklch(0.80 0.05 285);
+    --canvas-skylight: oklch(0.80 0.015 85);
     --canvas-ground: oklch(0.93 0.014 115);
-    /* Shadows in the plan, matching the 3D view's lavender shade */
-    --canvas-shadow: oklch(0.45 0.06 285);
+    /* Shadows in the plan, matching the 3D view's warm gray shade */
+    --canvas-shadow: oklch(0.45 0.012 85);
 }
