@@ -590,5 +590,7 @@
   "model3d_fit": "回到全景",
   "model3d_top": "俯视",
   "model3d_perspective": "斜视",
+  "model3d_cutaway": "只看当前层及以下",
+  "model3d_whole": "显示整栋",
   "model3d_hint": "拖动旋转视角，双指或滚轮缩放，按住 Shift 拖动或右键拖动平移"
 }

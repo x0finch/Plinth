@@ -12,7 +12,8 @@ const check = (ok, msg) => {
 };
 
 // English locale: localStorage for the browser runtime, cookie for the server
-const context = await b.newContext({ viewport: { width: 1400, height: 900 } });
+// A 2x screen, like most phones and laptops: the 3D canvas must still fit its frame
+const context = await b.newContext({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 2 });
 await context.addInitScript(() => localStorage.setItem('PARAGLIDE_LOCALE', 'en'));
 await context.addCookies([{ name: 'PARAGLIDE_LOCALE', value: 'en', url: BASE }]);
 const page = await context.newPage();
@@ -39,6 +40,11 @@ await threeBtn.click();
 const gl = await canvas.locator('canvas').first().waitFor({ timeout: 20000 }).then(() => true, () => false);
 check(gl, 'switching to 3D renders a WebGL canvas');
 await page.screenshot({ path: `${OUT}/en-3d.png` });
+const fits = await page.frames().find(f => f !== page.mainFrame()).evaluate(() => {
+  const c = document.querySelector('canvas'), r = c.getBoundingClientRect(), p = c.parentElement.getBoundingClientRect();
+  return Math.abs(r.width - p.width) < 1 && Math.abs(r.height - p.height) < 1;
+});
+check(fits, 'the 3D canvas fits its frame on a 2x screen');
 // Clicking the model in 3D selects what is under the pointer (after the entry animation settles)
 await page.waitForTimeout(2500);
 const frameBox = await page.locator('iframe[title="Canvas"]').boundingBox();
