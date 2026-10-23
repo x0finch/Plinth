@@ -1,16 +1,17 @@
 /**
  * The plan's drawing, shared by the plan view and the 3D floors (so 3D grows out of exactly the plan): paper (the site's white
- * plinth, room fills), ink (walls, furniture, doors and windows) and labels. Drawn like the white model seen from above: a gray
- * backdrop, soft warm gray shadows, gray walls. Coordinates in millimetres. Interaction (picking) is optional.
+ * plinth, room fills), ink (walls, furniture, doors and windows) and labels. Drawn like SketchUp's plan view, the model seen
+ * from above through a section cut: walls cut solid black, everything below the cut white with thin black edges, the plinth
+ * outlined like a profile. Coordinates in millimetres. Interaction (picking) is optional.
  */
 import type { Project } from '@plinth/core';
 import { isGroundLevel, plinthRect, type LevelShapes } from './plan-geometry';
 
 const pts = (p: [number, number][]) => p.map(([x, y]) => `${x},${y}`).join(' ');
 
-/** White like the model: rooms, yards and terraces alike (the walls tell them apart), so the plinth reads as one white board; covered outside areas a faint gray */
+/** White like the model's floors seen from above, whatever the room; a void is hatched */
 const SPACE_FILL: Record<string, string> = {
-  indoor: 'var(--card)', 'semi-outdoor': 'var(--muted)', outdoor: 'var(--card)', 'roof-terrace': 'var(--card)', void: 'url(#hatch)',
+  indoor: 'var(--card)', 'semi-outdoor': 'var(--card)', outdoor: 'var(--card)', 'roof-terrace': 'var(--card)', void: 'url(#hatch)',
 };
 
 /**
@@ -31,13 +32,6 @@ const hit = (pick: Pick | undefined, id: string) => (pick ? { onClick: pick(id),
 export function PlanDefs() {
   return (
     <defs>
-      {/* Soft shadows, as if lit from the upper left like the 3D view; sizes in millimetres, so they scale with the drawing */}
-      <filter id="plan-plinth-shadow" x="-10%" y="-10%" width="125%" height="125%">
-        <feDropShadow dx="150" dy="220" stdDeviation="260" floodColor="var(--canvas-shadow)" floodOpacity="0.5" />
-      </filter>
-      <filter id="plan-wall-shadow" x="-5%" y="-5%" width="115%" height="115%">
-        <feDropShadow dx="45" dy="70" stdDeviation="55" floodColor="var(--canvas-shadow)" floodOpacity="0.45" />
-      </filter>
       <pattern id="hatch" width="200" height="200" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
         <line x1="0" y1="0" x2="0" y2="200" stroke="var(--muted-foreground)" strokeWidth="20" />
       </pattern>
@@ -58,7 +52,7 @@ export function PlanPaper({ project, level, shapes, line, pick }: { project: Pro
     <>
       {isGroundLevel(project, level) && (
         <>
-          <rect x={x0} y={y0} width={x1 - x0} height={y1 - y0} fill="var(--card)" filter="url(#plan-plinth-shadow)" />
+          <rect x={x0} y={y0} width={x1 - x0} height={y1 - y0} fill="var(--card)" stroke="var(--foreground)" {...line(2)} />
           <polygon points={pts(project.site.boundary)} fill="none" stroke="var(--chart-3)" {...line(0.8, [6, 4])} />
         </>
       )}
@@ -72,7 +66,7 @@ function PlanElements({ shapes, line, pick }: { shapes: LevelShapes; line: Line;
   return shapes.elements.map((e, i) => (
     <g key={`${e.id}-${i}`} opacity={e.faint ? 0.5 : undefined} {...(e.faint ? { pointerEvents: 'none' } : hit(pick, e.id))}>
       {e.fills.map((f, k) => (
-        <polygon key={k} points={pts(f.ring)} fill={f.kind === 'water' ? 'var(--muted)' : 'var(--card)'} stroke="var(--muted-foreground)" {...line(0.8)} />
+        <polygon key={k} points={pts(f.ring)} fill={f.kind === 'water' ? 'var(--muted)' : 'var(--card)'} stroke="var(--foreground)" {...line(0.8)} />
       ))}
       {e.lines.map((l, k) => <polyline key={k} points={pts(l.points)} fill="none" stroke="var(--foreground)" {...line(0.8, l.dashed ? [4, 3] : undefined)} />)}
     </g>
@@ -85,13 +79,13 @@ export function PlanInk({ shapes, furniture, line, pick }: { shapes: LevelShapes
     <>
       <PlanElements shapes={shapes} line={line} pick={pick} />
       {furniture && shapes.furniture.map(({ f, d }) => (
-        <path key={f.id} d={d} fill="var(--card)" fillOpacity={0.85} stroke="var(--muted-foreground)" {...line(0.8)} {...hit(pick, f.id)} />
+        <path key={f.id} d={d} fill="var(--card)" stroke="var(--foreground)" {...line(0.8)} {...hit(pick, f.id)} />
       ))}
-      {/* Walls: load-bearing dark gray, partitions lighter, fences and parapets lightest; each casts a soft shadow */}
-      <g filter="url(#plan-wall-shadow)" pointerEvents="none">
-        <path d={shapes.light} fill="var(--chart-4)" stroke="var(--chart-3)" {...line(0.8)} />
-        <path d={shapes.solid} fill="var(--chart-3)" />
-        <path d={shapes.bearing} fill="var(--chart-5)" />
+      {/* Walls cut by the section: solid black with a heavy outline; fences and parapets, lower than the cut, seen from above */}
+      <g pointerEvents="none">
+        <path d={shapes.light} fill="var(--card)" stroke="var(--foreground)" {...line(1)} />
+        <path d={shapes.solid} fill="var(--foreground)" stroke="var(--foreground)" {...line(1.5)} />
+        <path d={shapes.bearing} fill="var(--foreground)" stroke="var(--foreground)" {...line(1.5)} />
       </g>
       {shapes.railings.map(({ w, d }) => (
         <path key={w.id} d={d} fill="none" stroke="var(--foreground)" {...line(1.5)} pointerEvents="none" />
