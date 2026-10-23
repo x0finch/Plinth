@@ -215,6 +215,8 @@ describe('capability modes', () => {
     const h = harness(createProject({ id: 't', name: 'test', language: 'en' }));
     const r = await h.call('batch', { label: 'x', calls: [{ name: 'history_undo' }] });
     expect(r.error?.code).toBe('invalid-input');
+  });
+});
 
 describe('deleting objects removes the constraints that target them', () => {
   let h: ReturnType<typeof harness>;
