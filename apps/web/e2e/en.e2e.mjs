@@ -80,11 +80,15 @@ await page.waitForURL(/\/gallery/);
 check(await page.getByRole('heading', { name: 'Style gallery', exact: true }).isVisible(), 'the style gallery opens from Settings');
 check(!(await page.getByRole('button', { name: 'Plan', exact: true }).isVisible()) && !(await page.getByText('Level 2', { exact: true }).isVisible()),
   'the gallery is 3D only: no switch to the plan, no level buttons');
-// The names are written on the ground in WebGL, so pick a specimen in the model itself: in this 1400×900 window the furniture
-// rows cover this spot, once the model has grown
+// The names are written on the ground in WebGL, so pick a specimen in the model itself: tap across the middle of this
+// 1400×900 window, where the furniture rows are, until one is picked (once the model has grown)
 await page.waitForTimeout(6000);
-await page.mouse.click(545, 330);
-const picked3 = await page.locator('main h3').innerText({ timeout: 10000 }).catch(() => '');
+let picked3 = '';
+for (const [x, y] of [[600, 510], [545, 330], [700, 420], [820, 380], [650, 600], [900, 330]]) {
+  await page.mouse.click(x, y);
+  picked3 = await page.locator('main h3').innerText({ timeout: 1500 }).catch(() => '');
+  if (picked3) break;
+}
 check(/^[\x20-\x7e]+$/.test(picked3), `clicking a specimen shows its English name in the details (${picked3})`);
 await page.screenshot({ path: `${OUT}/en-gallery.png` });
 

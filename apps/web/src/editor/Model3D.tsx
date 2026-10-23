@@ -15,6 +15,7 @@ import { hops, REVEAL } from '@/canvas/hop';
 import { useThemeColors } from '@/lib/theme';
 import { FloorDrawing, PlanSheet } from './model3d/FloorDrawing';
 import { useFloorTexture } from './model3d/floor-textures';
+import { FURNITURE_MATERIALS, furnitureModel, hasModel, type FurnitureMaterial } from './model3d/furniture-models';
 import { detectQuality, isTouchDevice, Renderer, type Quality } from './model3d/Renderer';
 import { GroundLabels, type GroundLabelSpec } from './ground-labels';
 import { modelStyle } from './model-style';
@@ -59,25 +60,25 @@ const TintColors = createContext<{ sel: THREE.Color; changed: THREE.Color }>({ s
  * Per-frame feedback for one object (see canvas/hop.ts): its color (selected, or fading after a change) and the one-time hop.
  * userData.restY and userData.baseColor record the resting state; screenshots put objects back to it first.
  */
-function useFeedback<T extends THREE.Mesh>(id: string, color: string, selected: boolean) {
+function useFeedback<T extends THREE.Object3D>(id: string, color: string | null, selected: boolean) {
   const ref = useRef<T>(null);
   const tints = useContext(TintColors);
-  const base = useMemo(() => new THREE.Color(color), [color]);
+  const base = useMemo(() => color && new THREE.Color(color), [color]);
   useFrame(({ camera, size, invalidate }) => {
     const o = ref.current;
     if (!o) return;
     const now = performance.now();
-    const mat = o.material as THREE.MeshStandardMaterial;
-    o.userData.baseColor = base;
-    mat.color.copy(base);
-    if (selected) mat.color.lerp(tints.sel, SELECTED_TINT);
-    else {
-      const k = hops.changeTint(id, now);
-      if (k > 0) {
-        mat.color.lerp(tints.changed, CHANGED_TINT * k);
-        invalidate();
-      }
-    }
+    // A mesh in its color, or a group (a furniture model) whose parts carry their own colors in userData.baseColor
+    if (base) o.userData.baseColor = base;
+    const k = selected ? 0 : hops.changeTint(id, now);
+    if (k > 0) invalidate();
+    o.traverse(part => {
+      if (!(part as THREE.Mesh).isMesh || !part.userData.baseColor) return;
+      const mat = (part as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      mat.color.copy(part.userData.baseColor);
+      if (selected) mat.color.lerp(tints.sel, SELECTED_TINT);
+      else if (k > 0) mat.color.lerp(tints.changed, CHANGED_TINT * k);
+    });
     const px = hops.lift(id, now);
     o.position.y = o.userData.restY;
     if (!px) return;
@@ -312,6 +313,7 @@ function SolidMesh({ s, base, color, ...o }: Outline & { s: Solid; base: number;
 }
 
 function Furniture({ f, base, color, ...o }: Outline & { f: Project['furniture'][number]; base: number; color: string }) {
+  if (hasModel(f.type)) return <FurnitureModel f={f} base={base} {...o} />;
   const y = (base + (f.elevation ?? 0) + f.size.h / 2) * M;
   const ref = useFeedback<THREE.Mesh>(f.id, color, !!o.sel);
   return (
@@ -321,6 +323,34 @@ function Furniture({ f, base, color, ...o }: Outline & { f: Project['furniture']
       <meshStandardMaterial color={color} roughness={0.95} />
       {o.sel && <Edges threshold={20} color={o.sel} lineWidth={2} />}
     </mesh>
+  );
+}
+
+/** The furniture materials' colors, read from the theme */
+const FURN_TOKENS = Object.fromEntries(Object.entries(FURNITURE_MATERIALS).map(([k, v]) => [k, v.color])) as Record<FurnitureMaterial, string>;
+
+/** A piece of furniture with a model (see model3d/furniture-models.ts); selected, it is outlined by its bounding box */
+function FurnitureModel({ f, base, ...o }: Outline & { f: Project['furniture'][number]; base: number }) {
+  const colors = useThemeColors(FURN_TOKENS, useCanvasDocument());
+  const y = (base + (f.elevation ?? 0)) * M;
+  const ref = useFeedback<THREE.Group>(f.id, null, !!o.sel);
+  const { w, d, h } = f.size;
+  const parts = useMemo(() => furnitureModel(f.type, { w, d, h }) ?? [], [f.type, w, d, h]);
+  useEffect(() => () => parts.forEach(([, g]) => g.dispose()), [parts]);
+  return (
+    <group ref={ref} position={[f.position[0] * M, y, f.position[1] * M]} rotation={[0, (-f.rotation * Math.PI) / 180, 0]} userData={{ restY: y }}>
+      {parts.map(([mat, g]) => (
+        <mesh key={mat} geometry={g} castShadow receiveShadow userData={{ id: f.id, baseColor: new THREE.Color(colors[mat]) }}>
+          <meshStandardMaterial color={colors[mat]} roughness={FURNITURE_MATERIALS[mat].roughness} metalness={FURNITURE_MATERIALS[mat].metalness} />
+        </mesh>
+      ))}
+      {o.sel && (
+        <mesh geometry={unitBox} position={[0, (h / 2) * M, 0]} scale={[w * M, h * M, d * M]} raycast={() => null} userData={{ noEdges: true }}>
+          <meshBasicMaterial visible={false} />
+          <Edges color={o.sel} lineWidth={2} />
+        </mesh>
+      )}
+    </group>
   );
 }
 
