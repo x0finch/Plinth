@@ -1,5 +1,5 @@
 /** Server API (Hono). Pages are served by the static assets layer; only /api/* comes here. */
-import { createProject as newProjectData, migrate, type Project } from '@plinth/core';
+import { createProject as newProjectData, migrate, validate, type Project, type ValidationIssue } from '@plinth/core';
 import { env } from 'cloudflare:workers';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -85,6 +85,31 @@ function checkContent(json: unknown): Project {
   }
 }
 
+const parseJson = (raw: string): unknown => {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new HTTPException(400, { message: m.server_err_invalid_json() });
+  }
+};
+
+const issueKey = (i: ValidationIssue) => `${i.path}\n${i.message}`;
+
+/**
+ * Reject structurally invalid data (duplicate IDs, missing levels, zero-length walls…). Only issues the base version
+ * didn't already have are rejected, so a project saved before this check can still be edited.
+ */
+async function checkStructure(id: string, base: number, content: Project) {
+  const issues = validate(content);
+  if (!issues.length) return;
+  const prev = await repo.getVersion(id, base);
+  const known = new Set(prev ? validate(checkContent(JSON.parse(prev.content))).map(issueKey) : []);
+  const fresh = issues.filter(i => !known.has(issueKey(i)));
+  if (fresh.length) {
+    throw new HTTPException(400, { message: m.server_err_project_invalid({ issues: fresh.slice(0, 5).map(i => `${i.path}: ${i.message}`).join('; ') }) });
+  }
+}
+
 // ---------- Account ----------
 
 api.get('/me', async c => {
@@ -132,12 +157,15 @@ project.put('/', minRole('editor'), async c => {
   const user = c.var.user!;
   const raw = await c.req.text();
   if (raw.length > MAX_CONTENT) throw new HTTPException(413, { message: m.server_err_project_too_large() });
-  const b = z.object({
+  const parsed = z.object({
     base: z.number().int(), summary: z.string().max(200).default(() => m.server_version_saved()), content: z.unknown(),
     /** A deliberate save (e.g. restoring a version) that must not absorb the version before it */
     checkpoint: z.boolean().optional(),
-  }).parse(JSON.parse(raw));
+  }).safeParse(parseJson(raw));
+  if (!parsed.success) throw new HTTPException(400, { message: z.prettifyError(parsed.error) });
+  const b = parsed.data;
   const content = checkContent(b.content);
+  await checkStructure(id, b.base, content);
   const version = await repo.saveVersion(id, user.id, b.base, JSON.stringify(content), b.summary, { name: content.name, checkpoint: b.checkpoint });
   if (!version) {
     const head = await repo.getVersion(id);
@@ -349,7 +377,13 @@ project.get('/chat-thread', minRole('viewer'), async c => {
   const id = c.var.projectId;
   const user = c.var.user!;
   const t = await repo.getChat(id, user.id);
-  return c.json(t ? JSON.parse(t.messages) : []);
+  let messages: unknown = [];
+  try {
+    if (t) messages = JSON.parse(t.messages);
+  } catch {
+    // A corrupt stored thread starts over instead of failing the editor
+  }
+  return c.json(Array.isArray(messages) ? messages : []);
 });
 
 project.put('/chat-thread', minRole('editor'), async c => {
@@ -357,6 +391,7 @@ project.put('/chat-thread', minRole('editor'), async c => {
   const user = c.var.user!;
   const raw = await c.req.text();
   if (raw.length > 800_000) throw new HTTPException(413, { message: m.server_err_chat_too_long() });
+  if (!Array.isArray(parseJson(raw))) throw new HTTPException(400, { message: m.server_err_invalid_chat() });
   await repo.putChat(id, user.id, raw);
   return c.json({ ok: true });
 });

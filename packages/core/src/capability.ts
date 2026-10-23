@@ -45,7 +45,16 @@ export interface ReadCapability<I extends z.ZodType = z.ZodType, R = unknown> ex
   run: (input: z.output<I>, ctx: CapabilityContext) => R | Promise<R>;
 }
 
-export type Capability = EditCapability<any, any> | ReadCapability<any, any>;
+/** Session operation: changes the project outside a transaction (undo, redo replay recorded patches), so it is gated like an edit */
+export interface SessionCapability<I extends z.ZodType = z.ZodType, R = unknown> extends Base<I> {
+  mode: 'session';
+  run: (input: z.output<I>, ctx: CapabilityContext) => R | Promise<R>;
+}
+
+export type Capability = EditCapability<any, any> | ReadCapability<any, any> | SessionCapability<any, any>;
+
+/** Whether calling the capability can change the project (edits and session operations) */
+export const mutates = (c: Capability) => c.mode !== 'read';
 
 /** Capability title in the UI language (`title` itself is the English title, also used for the LLM) */
 export const capabilityTitle = (c: { name: string; title: string }) => text(`cap_${c.name}`, c.title);
@@ -59,6 +68,9 @@ export const defineEdit = <I extends z.ZodType, R>(c: Definition<EditCapability<
 /** Read capability; defaults: kind query, permission read, runtime any */
 export const defineRead = <I extends z.ZodType, R>(c: Definition<ReadCapability<I, R>>): ReadCapability<I, R> =>
   ({ kind: 'query', permission: 'read', runtime: 'any', ...c, mode: 'read' });
+/** Session operation (undo, redo); defaults like an edit: kind edit, permission reversible, runtime any */
+export const defineSession = <I extends z.ZodType, R>(c: Definition<SessionCapability<I, R>>): SessionCapability<I, R> =>
+  ({ kind: 'edit', permission: 'reversible', runtime: 'any', ...c, mode: 'session' });
 
 export interface CallResult {
   ok: boolean;
@@ -115,7 +127,7 @@ export class Registry {
       return { ok: false, error: { code: 'invalid-input', message: z.prettifyError(parsed.error) } };
     }
     try {
-      if (c.mode === 'read') return { ok: true, result: await c.run(parsed.data, ctx) };
+      if (c.mode !== 'edit') return { ok: true, result: await c.run(parsed.data, ctx) };
       const tx = ctx.session.transact(c.label(parsed.data, ctx.session.project), ctx.actor, d => c.apply(d, parsed.data, ctx));
       if (!tx.ok) return { ok: false, error: { code: tx.error!.code, message: tx.error!.message, details: tx.error!.issues } };
       return {

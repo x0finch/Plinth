@@ -1,10 +1,9 @@
 /** Undo, redo and the operation log. */
 import { z } from 'zod';
-import { defineRead } from '../capability.js';
+import { defineRead, defineSession } from '../capability.js';
 
-
-export const historyUndo = defineRead({
-  name: 'history_undo', title: 'Undo', kind: 'edit', permission: 'reversible',
+export const historyUndo = defineSession({
+  name: 'history_undo', title: 'Undo',
   description: 'Undo the last change.',
   input: z.object({}),
   run: (_, { session }) => {
@@ -13,8 +12,8 @@ export const historyUndo = defineRead({
   },
 });
 
-export const historyRedo = defineRead({
-  name: 'history_redo', title: 'Redo', kind: 'edit', permission: 'reversible',
+export const historyRedo = defineSession({
+  name: 'history_redo', title: 'Redo',
   description: 'Redo the change just undone.',
   input: z.object({}),
   run: (_, { session }) => {

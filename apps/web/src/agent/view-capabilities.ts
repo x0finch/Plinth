@@ -2,7 +2,7 @@
  * View capabilities that run only in the browser: switch view, focus, screenshot.
  * View state is data too: camera, level, selection and change highlights are all readable/writable. The server only uses their definitions to build tool descriptions.
  */
-import { defineRead, findObject, type CapabilityContext } from '@plinth/core';
+import { defineRead, findObject, resolveLevel, type CapabilityContext } from '@plinth/core';
 import { z } from 'zod';
 import { m } from '@/lib/i18n';
 import { COMMENT_STATUSES, type CommentRow, type CommentStatus } from '@/shared/comments';
@@ -50,7 +50,8 @@ export const viewSet = defineRead({
   }),
   run: (i, ctx) => {
     const v = host(ctx);
-    const lv = i.level ? ctx.session.project.levels.find(l => l.id === i.level || l.name === i.level)?.id : undefined;
+    // Throws not-found (listing the existing levels) instead of silently keeping the current level
+    const lv = i.level ? resolveLevel(ctx.session.project, i.level).id : undefined;
     return v.set({ ...(i.mode ? { mode: i.mode } : {}), ...(lv ? { level: lv } : {}), ...(i.layers ? { layers: { ...v.get().layers, ...i.layers } as ViewState['layers'] } : {}) });
   },
 });
