@@ -695,5 +695,6 @@
   "looks_no_libraries": "还没有模型库。在“设置”里新建一个。",
   "looks_library": "模型库",
   "looks_import_use": "添加并使用",
-  "looks_imported": "已添加“{name}”"
+  "looks_imported": "已添加“{name}”",
+  "libraries_builtin": "内置"
 }

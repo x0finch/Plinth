@@ -59,19 +59,19 @@ const counter: Recipe = {
   ],
 };
 
-/** A wood-fired stove: a tiled masonry body, two iron woks (one under a wooden lid), fire openings in front */
+/** A wood-fired stove (IKEA style): white cabinets under a birch top with two black cast-iron wok rings and black fire doors */
 const woodstove: Recipe = {
   let: { r: 'min(300, d * 0.38, w * 0.15)', fh: 'min(240, h * 0.32)' },
   parts: [
-    block('plaster', ['w', 'h - 50', 'd'], 0, 0, 0, 40),
-    block('countertop', ['w + 20', 50, 'd + 20'], 0, 'h - 50', 0, 20),
+    ...cabinets('d', 'h - 40', 0, 1),
+    block('birch', ['w', 40, 'd'], 0, 'h - 40', 0, 4),
     pair(
-      { kind: 'ring', mat: 'iron', R: 'r', r: 20, at: ['s * w * 0.22', 'h + 5', 0] },
+      { kind: 'ring', mat: 'dark', R: 'r', r: 18, at: ['s * w * 0.22', 'h + 5', 0] },
       { kind: 'cylinder', mat: 'iron', r: 'r', h: 4, at: ['s * w * 0.22', 'h', 0], seg: 32 },
-      block('dark', [260, 'fh', 20], 's * w * 0.22', 120, 'd / 2 + 2', 60),
+      block('dark', [300, 'fh', 8], 's * w * 0.22', 140, 'd / 2 + 2', 6),
     ),
-    { kind: 'lathe', mat: 'wood', profile: [[0, 'r * 0.03'], ['r * 0.65', 'r * 0.03'], ['r * 0.55', 'r * 0.08'], ['r * 0.35', 'r * 0.14'], [0, 'r * 0.17']], at: ['w * 0.22', 'h', 0] },
-    { kind: 'cylinder', mat: 'wood', r: 30, h: 50, at: ['w * 0.22', 'h + r * 0.22 + 25', 0] },
+    { kind: 'lathe', mat: 'birch', profile: [[0, 'r * 0.03'], ['r * 0.65', 'r * 0.03'], ['r * 0.55', 'r * 0.08'], ['r * 0.35', 'r * 0.14'], [0, 'r * 0.17']], at: ['w * 0.22', 'h', 0] },
+    { kind: 'cylinder', mat: 'birch', r: 30, h: 50, at: ['w * 0.22', 'h + r * 0.22 + 25', 0] },
   ],
 };
 
@@ -109,15 +109,15 @@ const barstool: Recipe = {
   ],
 };
 
-/** A fridge: freezer drawer below, door above, handles on the right */
+/** A fridge (IKEA style): flat white doors, freezer below, slim steel bar handles on the right */
 const fridge: Recipe = {
-  let: { split: 'h * 0.36', fz: 'd / 2 - 25' },
+  let: { split: 'h * 0.36', fz: 'd / 2 - 25', hx: 'w / 2 - 50' },
   parts: [
-    block('appliance', ['w', 'h - 20', 'd - 60'], 0, 20, -30, 30),
-    block('appliance', ['w - 6', 'split - 30', 50], 0, 25, 'fz', 20),
-    block('appliance', ['w - 6', 'h - split - 30', 50], 0, 'split + 5', 'fz', 20),
-    { kind: 'rod', mat: 'metal', from: ['w / 2 - 60', 'split - 80', 'fz + 40'], to: ['w / 2 - 60', 'split - 300', 'fz + 40'], r: 12 },
-    { kind: 'rod', mat: 'metal', from: ['w / 2 - 60', 'split + 100', 'fz + 40'], to: ['w / 2 - 60', 'split + 600', 'fz + 40'], r: 12 },
+    block('white', ['w', 'h - 20', 'd - 60'], 0, 20, -30, 12),
+    block('white', ['w - 4', 'split - 24', 50], 0, 22, 'fz', 8),
+    block('white', ['w - 4', 'h - split - 24', 50], 0, 'split + 2', 'fz', 8),
+    { kind: 'box', mat: 'metal', size: [16, 260, 20], at: ['hx', 'split - 170', 'fz + 35'], r: 6 },
+    { kind: 'box', mat: 'metal', size: [16, 520, 20], at: ['hx', 'split + 360', 'fz + 35'], r: 6 },
     block('dark', ['w - 100', 20, 'd - 100'], 0, 0, -30, 5),
   ],
 };

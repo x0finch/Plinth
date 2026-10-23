@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildRecipe, checkRecipe, DEFAULT_LOOKS, evalExpr, FURNITURE_TYPES, inspectRecipe, parseExpr, planSymbol, type Recipe } from '../src/index.js';
+import { BUILTIN_LIBRARIES, buildRecipe, checkRecipe, DEFAULT_LOOKS, evalExpr, FURNITURE_TYPES, inspectRecipe, parseExpr, planSymbol, type Recipe } from '../src/index.js';
 
 describe('expressions', () => {
   it('evaluates arithmetic, comparisons, ternaries and functions', () => {
@@ -35,6 +35,12 @@ describe('recipes', () => {
   it('every default look builds at its size, half and twice that size', () => {
     for (const [target, recipe] of Object.entries(DEFAULT_LOOKS)) {
       expect(checkRecipe(recipe, size(target)), target).toEqual([]);
+    }
+  });
+  it('every built-in library look builds for each of its targets', () => {
+    for (const lib of BUILTIN_LIBRARIES) for (const look of lib.looks) {
+      expect(look.for.length, look.id).toBeGreaterThan(0);
+      for (const t of look.for) expect(checkRecipe(look.recipe, size(t)), `${lib.id}/${look.id} ${t}`).toEqual([]);
     }
   });
   it('every catalog furniture type has a default look', () => {

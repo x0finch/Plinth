@@ -66,7 +66,7 @@ function LibraryCard({ lib }: { lib: LibrarySummary }) {
             <span className="truncate font-medium">{lib.name}</span>
             <span className="text-muted-foreground">{m.libraries_count({ count: lib.looks })}</span>
           </CollapsibleTrigger>
-          <Badge variant="secondary">{libraryRoleLabel(lib.role)}</Badge>
+          <Badge variant="secondary">{lib.builtin ? m.libraries_builtin() : libraryRoleLabel(lib.role)}</Badge>
         </div>
         <CollapsibleContent className="space-y-4 pt-3">
           {owner && (
@@ -87,7 +87,7 @@ function LibraryCard({ lib }: { lib: LibrarySummary }) {
               ))}
             </div>
           ) : <p className="text-sm text-muted-foreground">{m.libraries_empty()}</p>)}
-          {detail.data && (
+          {detail.data && !lib.builtin && (
             <div className="space-y-2">
               <p className="text-sm font-medium">{m.libraries_members()}</p>
               <ItemGroup className="gap-1">
@@ -135,7 +135,7 @@ function LibraryCard({ lib }: { lib: LibrarySummary }) {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            ) : detail.data && (
+            ) : detail.data && !lib.builtin && (
               <Button variant="outline" size="sm" disabled={!userId} onClick={() => void call(`/libraries/${lib.id}/members/${userId}`, { method: 'DELETE' })}>{m.libraries_leave()}</Button>
             )}
           </div>

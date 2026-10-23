@@ -2,16 +2,16 @@
 import type { Expr, Recipe, RecipePart } from '../recipe.js';
 import { block, pair } from './helpers.js';
 
-/** A toilet: a cistern against the wall (north), an oval bowl, seat and lid */
+/** A wall-hung toilet: a white in-wall cistern panel (north) with a flush plate, a bowl that floats off the floor, seat and lid */
 const toilet: Recipe = {
-  let: { tank: 'min(180, d * 0.26)', seat: 'min(400, h * 0.53)', r: 'min(w / 2, 200)', k: 'min(1.45, (d - tank + 20) / (2 * r))', bz: 'd / 2 - r * k' },
+  let: { tank: 'min(140, d * 0.2)', seat: 'min(420, h * 0.56)', r: 'min(w / 2, 190)', k: 'min(1.45, (d - tank + 20) / (2 * r))', bz: 'd / 2 - r * k', lift: 'min(160, seat * 0.38)' },
   parts: [
-    block('ceramic', ['w * 0.95', 'h - seat - 30', 'tank'], 0, 'seat', '-d / 2 + tank / 2', 30),
-    block('ceramic', ['w', 25, 'tank + 20'], 0, 'h - 30', '-d / 2 + tank / 2', 10),
-    { kind: 'lathe', mat: 'ceramic', profile: [[0, 0], ['r * 0.55', 0], ['r * 0.6', 'seat * 0.25'], ['r * 0.82', 'seat * 0.75'], ['r * 0.95', 'seat - 30'], [0, 'seat - 30']], at: [0, 0, 'bz'], scale: [1, 1, 'k'] },
+    block('white', ['w', 'h', 'tank'], 0, 0, '-d / 2 + tank / 2', 6),
+    { kind: 'box', mat: 'metal', size: [160, 110, 8], at: [0, 'h - 120', '-d / 2 + tank + 4'], r: 6 },
+    { kind: 'lathe', mat: 'ceramic', profile: [[0, 'lift'], ['r * 0.6', 'lift'], ['r * 0.85', 'lift + (seat - lift) * 0.55'], ['r * 0.95', 'seat - 30'], [0, 'seat - 30']], at: [0, 0, 'bz'], scale: [1, 1, 'k'] },
+    block('ceramic', ['r * 1.2', 'seat - lift - 30', 'tank'], 0, 'lift', '-d / 2 + tank * 1.5', 20),
     { kind: 'cylinder', mat: 'ceramic', r: 'r', h: 30, at: [0, 'seat - 15', 'bz'], scale: [1, 1, 'k'], seg: 32 },
     { kind: 'cylinder', mat: 'ceramic', r: 'r * 0.96', h: 20, at: [0, 'seat + 10', 'bz'], scale: [1, 1, 'k'], seg: 32 },
-    { kind: 'cylinder', mat: 'metal', r: 25, h: 10, at: [0, 'h - 5', '-d / 2 + tank / 2'] },
   ],
 };
 
@@ -31,32 +31,32 @@ const basin: Recipe = {
   ],
 };
 
-/** A shower: the tray, glass panels along `glass` (where there is no wall), a riser rail and head on the back wall */
+/** A shower (IKEA style): a white tray, clear glass in a slim matte black frame, glass panels along `glass` where there is no wall, a black riser rail and head on the back wall */
 function shower(tray: RecipePart, glass: [Expr, Expr][]): RecipePart[] {
   return [
     tray,
     ...glass.slice(1).flatMap((b, k): RecipePart[] => [
       { kind: 'panel', mat: 'glass', from: glass[k], to: b, y: 50, h: 'h - 50', t: 8 },
-      { kind: 'rod', mat: 'metal', from: [glass[k][0], 'h', glass[k][1]], to: [b[0], 'h', b[1]], r: 10, seg: 8 },
+      { kind: 'rod', mat: 'dark', from: [glass[k][0], 'h', glass[k][1]], to: [b[0], 'h', b[1]], r: 10, seg: 8 },
     ]),
-    ...glass.map(([x, z]): RecipePart => ({ kind: 'rod', mat: 'metal', from: [x, 50, z], to: [x, 'h', z], r: 10, seg: 8 })),
-    { kind: 'rod', mat: 'metal', from: ['-w * 0.15', 'min(900, h * 0.45)', '-d / 2 + 30'], to: ['-w * 0.15', 'h - 100', '-d / 2 + 30'], r: 12 },
-    { kind: 'rod', mat: 'metal', from: ['-w * 0.15', 'h - 100', '-d / 2 + 30'], to: ['-w * 0.15', 'h - 120', '-d / 2 + 230'], r: 10 },
-    { kind: 'cylinder', mat: 'metal', r: 90, h: 15, at: ['-w * 0.15', 'h - 127.5', '-d / 2 + 250'], seg: 28 },
-    { kind: 'cylinder', mat: 'metal', r: 30, h: 6, at: [0, 53, 50] },
+    ...glass.map(([x, z]): RecipePart => ({ kind: 'rod', mat: 'dark', from: [x, 50, z], to: [x, 'h', z], r: 10, seg: 8 })),
+    { kind: 'rod', mat: 'dark', from: ['-w * 0.15', 'min(900, h * 0.45)', '-d / 2 + 30'], to: ['-w * 0.15', 'h - 100', '-d / 2 + 30'], r: 12 },
+    { kind: 'rod', mat: 'dark', from: ['-w * 0.15', 'h - 100', '-d / 2 + 30'], to: ['-w * 0.15', 'h - 120', '-d / 2 + 230'], r: 10 },
+    { kind: 'cylinder', mat: 'dark', r: 90, h: 15, at: ['-w * 0.15', 'h - 127.5', '-d / 2 + 250'], seg: 28 },
+    { kind: 'cylinder', mat: 'dark', r: 30, h: 6, at: [0, 53, 50] },
   ];
 }
 
 /** A square shower in a corner (walls to the north and west), glass to the south and east */
 const showerSquare: Recipe = {
-  parts: shower(block('ceramic', ['w', 50, 'd'], 0, 0, 0, 10), [['-w / 2', 'd / 2'], ['w / 2', 'd / 2'], ['w / 2', '-d / 2']]),
+  parts: shower(block('white', ['w', 50, 'd'], 0, 0, 0, 10), [['-w / 2', 'd / 2'], ['w / 2', 'd / 2'], ['w / 2', '-d / 2']]),
 };
 
 /** A diamond shower: a corner shower with its outer corner cut by the door */
 const showerDiamond: Recipe = {
   let: { c: 'min(w, d) * 0.45' },
   parts: shower(
-    { kind: 'extrude', mat: 'ceramic', plane: 'plan', profile: [['-w / 2', '-d / 2'], ['w / 2', '-d / 2'], ['w / 2', 'd / 2 - c'], ['w / 2 - c', 'd / 2'], ['-w / 2', 'd / 2']], depth: 50 },
+    { kind: 'extrude', mat: 'white', plane: 'plan', profile: [['-w / 2', '-d / 2'], ['w / 2', '-d / 2'], ['w / 2', 'd / 2 - c'], ['w / 2 - c', 'd / 2'], ['-w / 2', 'd / 2']], depth: 50 },
     [['-w / 2', 'd / 2'], ['w / 2 - c', 'd / 2'], ['w / 2', 'd / 2 - c'], ['w / 2', '-d / 2']],
   ),
 };
@@ -85,8 +85,8 @@ const sos: Recipe = {
 const foldseat: Recipe = {
   let: { sd: '(d - 30) / 4' },
   parts: [
-    block('metal', ['w - 40', 140, 20], 0, 'h - 160', '-d / 2 + 10', 6),
-    { kind: 'repeat', count: 4, parts: [block('wood', ['w', 25, 'sd - 12'], 0, 'h - 25', '-d / 2 + 25 + sd * (i + 0.5)', 6)] },
+    block('white', ['w - 40', 140, 20], 0, 'h - 160', '-d / 2 + 10', 6),
+    { kind: 'repeat', count: 4, parts: [block('birch', ['w', 25, 'sd - 12'], 0, 'h - 25', '-d / 2 + 25 + sd * (i + 0.5)', 6)] },
     pair(
       { kind: 'rod', mat: 'metal', from: ['s * (w / 2 - 30)', 'h - 30', 'd / 2 - 50'], to: ['s * (w / 2 - 30)', 'h - 300', '-d / 2 + 20'], r: 10 },
       { kind: 'rod', mat: 'metal', from: ['s * (w / 2 - 30)', 'h - 30', '-d / 2 + 20'], to: ['s * (w / 2 - 30)', 'h - 30', 'd / 2 - 30'], r: 10 },
@@ -94,27 +94,28 @@ const foldseat: Recipe = {
   ],
 };
 
-/** A front-loading washing machine: control strip, round door */
+/** A front-loading washing machine (white): control strip, round door with a dark rim */
 const washer: Recipe = {
   let: { z: 'd / 2', dr: 'min(w, h)' },
   parts: [
-    block('appliance', ['w', 'h', 'd - 10'], 0, 0, -5, 25),
+    block('white', ['w', 'h', 'd - 10'], 0, 0, -5, 25),
     { kind: 'box', mat: 'dark', size: ['w * 0.4', 50, 4], at: ['-w * 0.15', 'h - 65', 'z - 8'], r: 4 },
     { kind: 'cylinder', mat: 'metal', r: 30, h: 20, axis: 'z', at: ['w * 0.3', 'h - 65', 'z'], seg: 28 },
-    { kind: 'ring', mat: 'metal', R: 'dr * 0.27', r: 25, axis: 'z', at: [0, 'h * 0.45', 'z'] },
+    { kind: 'ring', mat: 'dark', R: 'dr * 0.27', r: 25, axis: 'z', at: [0, 'h * 0.45', 'z'] },
     { kind: 'cylinder', mat: 'carGlass', r: 'dr * 0.25', h: 10, axis: 'z', at: [0, 'h * 0.45', 'z - 5'], seg: 28 },
   ],
 };
 
-/** A laundry sink: a deep tub with a ribbed washboard on a pedestal, a tap on the wall (north) */
+/** A laundry sink (IKEA style): a deep white ceramic sink on a white two-door cabinet, a wall tap (north) */
 const sink: Recipe = {
-  let: { tub: 'min(300, h * 0.38)', t: 35, y: 'h - tub', bd: '(d - 2 * t) * 0.45', slope: 'atan2(tub * 0.5, bd)', ribs: 'floor(bd / 30)' },
+  let: { tub: 'min(260, h * 0.33)', t: 30, y: 'h - tub', leg: 100 },
   parts: [
-    block('ceramic', ['w - 120', 'y', 'd - 140'], 0, 0, -30, 10),
+    block('white', ['w - 20', 'leg', 'd - 80'], 0, 0, -30, 3),
+    block('white', ['w', 'y - leg', 'd - 20'], 0, 'leg', -10, 4),
+    pair(block('white', ['w / 2 - 4', 'y - leg - 6', 16], 's * w / 4', 'leg + 3', 'd / 2 - 10', 2)),
+    pair(block('metal', [12, 120, 14], 's * 40', 'y - 180', 'd / 2 + 4', 4, { plan: false })),
     block('ceramic', ['w', 't', 'd'], 0, 'y', 0, 10),
     pair(block('ceramic', ['w', 'tub', 't'], 0, 'y', 's * (d / 2 - t / 2)', 12), block('ceramic', ['t', 'tub', 'd'], 's * (w / 2 - t / 2)', 'y', 0, 12)),
-    { kind: 'box', mat: 'ceramicShade', size: ['w - 2 * t', 20, 'bd / cos(slope)'], at: [0, 'h - tub * 0.25 - 20', '-d / 2 + t + bd / 2'], r: 5, rot: ['slope', 0, 0] },
-    { kind: 'repeat', count: 'ribs', let: { f: '(i + 0.5) / ribs' }, parts: [{ kind: 'box', mat: 'ceramic', size: ['w - 2 * t - 20', 10, 12], at: [0, 'h - 10 - f * tub * 0.5', '-d / 2 + t + f * bd'], r: 4, plan: false }] },
     { kind: 'rod', mat: 'metal', from: [0, 'h + 250', '-d / 2 + 5'], to: [0, 'h + 250', '-d / 2 + 120'], r: 12 },
     { kind: 'rod', mat: 'metal', from: [0, 'h + 250', '-d / 2 + 120'], to: [0, 'h + 180', '-d / 2 + 130'], r: 10 },
   ],

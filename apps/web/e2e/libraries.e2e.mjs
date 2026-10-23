@@ -1,5 +1,5 @@
 // E2E: look libraries (#81): create one in Settings, save a design's look to it, share it, another person adds the look to
-// their own design, an update shows as "newer" with before/after, deleting the library leaves designs unchanged
+// their own design together with one from the built-in Chinese library, an update shows as "newer" with before/after, deleting the library leaves designs unchanged
 import { chromium } from 'playwright';
 
 const BASE = process.env.BASE ?? 'http://localhost:3000';
@@ -37,8 +37,12 @@ const openLooks = async page => {
 
 const a = await person(), bob = await person();
 
-// A creates a library in Settings
-await a.page.goto(`${BASE}/settings`);
+// A opens Settings from the account menu and creates a library; the built-in Chinese library is listed too
+await a.page.goto(`${BASE}/projects`);
+await a.page.getByRole('button', { name: '账号' }).click();
+await a.page.getByRole('menuitem', { name: '设置' }).click();
+await a.page.waitForURL(/\/settings/);
+check(await a.page.getByText('中式物件').waitFor({ timeout: 15000 }).then(() => true, () => false), 'the account menu opens Settings, which lists the built-in library');
 await a.page.getByLabel('新模型库的名字').fill('家具库');
 await a.page.getByRole('button', { name: '新建模型库' }).click();
 await a.page.getByText('家具库').waitFor();
@@ -79,6 +83,17 @@ const bId = pb.library.use?.['furniture:dining'];
 check(bId && pb.library.looks[bId].source?.look === aLook.source.look, 'another person uses the same look in their design');
 check(JSON.stringify(pb.library.looks[bId].recipe) === JSON.stringify(aLook.recipe), 'both see the same look');
 
+// Bob also uses a look from the built-in Chinese library: one design, looks from two libraries
+await bob.page.getByRole('button', { name: '从模型库添加' }).click();
+await bob.page.getByRole('combobox', { name: '模型库' }).click();
+await bob.page.getByRole('option', { name: '中式物件' }).click();
+await bob.page.getByRole('dialog').locator('div.space-y-1', { hasText: '功夫茶台' }).getByRole('button', { name: '添加并使用' }).click();
+await bob.page.getByText('已添加“功夫茶台”').waitFor();
+pb = await project(bob.page);
+const tea = pb.library.looks[pb.library.use?.['furniture:teatable']];
+check(tea?.source?.library === 'builtin-chinese' && pb.library.looks[bId].source.library === aLook.source.library, 'one design uses looks from two different libraries');
+check((await a.page.evaluate(async () => (await fetch('/api/libraries/builtin-chinese', { method: 'DELETE' })).status)) === 403, 'the built-in library cannot be deleted');
+
 // A changes the look and saves a new version; Bob is told and updates after seeing before/after
 await a.page.goto(a.url);
 await a.page.waitForFunction(() => window.artifact?.ready);
@@ -106,12 +121,12 @@ check(pb.library.looks[bId].source.version === 2 && pb.library.looks[bId].recipe
 
 // Deleting the library leaves designs that copied from it unchanged
 const libs = await a.page.evaluate(async () => (await fetch('/api/libraries')).json());
-await a.page.evaluate(async id => fetch(`/api/libraries/${id}`, { method: 'DELETE' }), libs[0].id);
+await a.page.evaluate(async id => fetch(`/api/libraries/${id}`, { method: 'DELETE' }), libs.find(l => !l.builtin).id);
 await bob.page.waitForTimeout(2500);
 await bob.page.reload();
 await bob.page.waitForFunction(() => window.artifact?.ready);
 pb = await project(bob.page);
-check(!!pb.library.looks?.[bId], 'deleting the library keeps the designs’ copies');
+check(!!pb.library.looks?.[bId] && !!tea && !!pb.library.looks[tea && pb.library.use['furniture:teatable']], 'deleting the library keeps the designs’ copies');
 
 check(errors.length === 0, `no page errors${errors.length ? `: ${errors.slice(0, 3).join(' | ')}` : ''}`);
 await b.close();

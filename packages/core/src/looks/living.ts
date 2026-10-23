@@ -1,4 +1,4 @@
-/** Living room: sofas, lounge chair, coffee and tea tables, TV stand, side table, potted plant, ancestral shrine */
+/** Living room: sofas, lounge chair, coffee and tea tables, TV stand, side table, potted plant, memorial sideboard (the Chinese pieces are in builtin.ts) */
 import type { Recipe } from '../recipe.js';
 import { block, clump, legs, pair } from './helpers.js';
 
@@ -64,20 +64,6 @@ const coffee: Recipe = {
     block('book3', [280, 18, 200], '-w * 0.18', 130, 0, 3, { plan: false }),
   ],
 };
-/** A Chinese tea table: a heavy dark top with an apron, a stone tray, a teapot and cups */
-const teatable: Recipe = {
-  let: { tx: 'w * 0.1' },
-  parts: [
-    block('woodDark', ['w', 60, 'd'], 0, 'h - 60', 0, 10),
-    block('woodDark', ['w - 80', 80, 'd - 80'], 0, 'h - 140', 0, 5),
-    legs('woodDark', 50, 'h - 60', 30, { square: true }),
-    pair(block('woodDark', ['w - 100', 30, 30], 0, 100, 's * (d / 2 - 50)', 5)),
-    block('stoneDark', ['min(600, w * 0.45)', 30, 'min(340, d * 0.5)'], 'tx', 'h', 0, 10),
-    { kind: 'lathe', mat: 'ceramic', profile: [[0, 0], [40, 0], [65, 40], [50, 85], [15, 95], [15, 110], [0, 110]], at: ['tx - 120', 'h + 30', 0] },
-    { kind: 'repeat', count: 3, parts: [{ kind: 'lathe', mat: 'ceramic', profile: [[0, 0], [18, 0], [26, 35], [0, 35]], at: ['tx + 40 + i * 70', 'h + 30', 60] }] },
-  ],
-};
-
 /** A low media bench (IKEA style): a white case on slim steel legs, handleless push-open doors, a vase and books on top */
 const tvstand: Recipe = {
   let: { leg: 110, n: 'max(1, round(w / 600))', dw: 'w / n' },
@@ -118,23 +104,37 @@ const plant: Recipe = {
   ],
 };
 
-/** An ancestral shrine: a lacquered altar table with raised ends, a small shrine cabinet, an incense burner and candles */
-const shrine: Recipe = {
-  let: { ht: 'min(850, h * 0.68)', cw: 'min(700, w * 0.35)', cd: 'min(320, d * 0.65)', cz: '-d / 2 + cd / 2 + 30', top: 'h - ht', fz: 'd / 2 - 90' },
+/** A tea table (IKEA style): a birch top on a white frame with a slatted lower shelf, a birch tray with a white tea set */
+const teatable: Recipe = {
+  let: { tx: 'w * 0.12', ty: 'min(560, w * 0.4)', tz: 'min(320, d * 0.5)' },
   parts: [
-    block('lacquer', ['w', 50, 'd'], 0, 'ht - 50', 0, 10),
-    pair(block('lacquer', [140, 35, 'd'], 's * (w / 2 - 70)', 'ht', 0, 10)),
-    legs('lacquer', 50, 'ht - 50', 35, { square: true, w: 'w - 100' }),
-    block('lacquer', ['w - 300', 100, 25], 0, 'ht - 150', 'd / 2 - 60', 5),
-    block('lacquer', ['cw + 80', 40, 'cd + 40'], 0, 'ht', 'cz', 8),
-    block('lacquer', ['cw', 'top - 90', 'cd'], 0, 'ht + 40', 'cz', 6),
-    block('lacquer', ['cw + 160', 50, 'cd + 120'], 0, 'h - 50', 'cz', 10),
-    block('gold', ['cw * 0.7', '(top - 90) * 0.75', 10], 0, 'ht + 60', 'cz + cd / 2', 3),
-    { kind: 'lathe', mat: 'gold', profile: [[0, 0], [50, 0], [80, 30], [80, 70], [70, 80], [0, 80]], at: [0, 'ht', 'fz'] },
+    block('birch', ['w', 30, 'd'], 0, 'h - 30', 0, 6),
+    legs('white', 40, 'h - 30', 22, { square: true }),
+    pair(block('white', ['w - 80', 60, 20], 0, 'h - 90', 's * (d / 2 - 40)', 3)),
+    { kind: 'repeat', count: 'max(3, floor((d - 120) / 90))', let: { n: 'max(3, floor((d - 120) / 90))' }, parts: [
+      block('birch', ['w - 80', 18, '(d - 120) / n - 20'], 0, 140, '-(d - 120) / 2 + ((d - 120) / n) * (i + 0.5)', 3),
+    ] },
+    block('birch', ['ty', 18, 'tz'], 'tx', 'h', 0, 6),
+    { kind: 'lathe', mat: 'ceramic', profile: [[0, 0], [45, 0], [70, 45], [55, 90], [18, 100], [18, 115], [0, 115]], at: ['tx - ty * 0.25', 'h + 18', 0] },
+    { kind: 'repeat', count: 3, parts: [{ kind: 'lathe', mat: 'ceramic', profile: [[0, 0], [20, 0], [28, 40], [0, 40]], at: ['tx + ty * 0.05 + i * 70', 'h + 18', 'tz * 0.2'] }] },
+  ],
+};
+
+/** A memorial sideboard (IKEA style): a long white sideboard on birch legs, a small white cabinet with a glass door, white candles */
+const shrine: Recipe = {
+  let: { leg: 120, ht: 'min(800, h * 0.62)', n: 'max(2, round(w / 500))', dw: 'w / n', cw: 'min(600, w * 0.32)', cd: 'min(300, d * 0.6)', cz: '-d / 2 + cd / 2 + 20', top: 'h - ht' },
+  parts: [
+    legs('birch', 60, 'leg', 20),
+    block('white', ['w', 'ht - leg', 'd - 16'], 0, 'leg', -8, 6),
+    { kind: 'repeat', count: 'n', parts: [block('white', ['dw - 4', 'ht - leg - 4', 16], '-w / 2 + dw * (i + 0.5)', 'leg + 2', 'd / 2 - 8', 3)] },
+    block('white', ['cw', 'top', 'cd'], 0, 'ht', 'cz', 4),
+    { kind: 'box', mat: 'glass', size: ['cw - 40', 'top - 40', 6], at: [0, 'ht + top / 2', 'cz + cd / 2 + 3'], r: 2 },
+    block('birch', ['cw - 60', 20, 'cd - 40'], 0, 'ht + top * 0.45', 'cz', 2),
     pair(
-      { kind: 'cylinder', mat: 'gold', r: 45, r2: 30, h: 60, at: ['s * w * 0.3', 'ht + 30', 'fz'] },
-      { kind: 'cylinder', mat: 'red', r: 25, h: 200, at: ['s * w * 0.3', 'ht + 160', 'fz'] },
+      { kind: 'cylinder', mat: 'ceramic', r: 35, h: 30, at: ['s * w * 0.3', 'ht + 15', 'd / 2 - 110'] },
+      { kind: 'cylinder', mat: 'linen', r: 25, h: 180, at: ['s * w * 0.3', 'ht + 120', 'd / 2 - 110'] },
     ),
+    { kind: 'lathe', mat: 'ceramicShade', profile: [[0, 0], [60, 0], [70, 40], [55, 90], [0, 90]], at: [0, 'ht', 'd / 2 - 90'] },
   ],
 };
 
