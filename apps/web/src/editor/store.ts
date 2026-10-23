@@ -10,6 +10,7 @@ import type { CommentsHost, ViewHost, ViewState } from '@/agent/view-capabilitie
 import { api, ApiError } from '@/lib/api';
 import { can, type Role } from '@/shared/roles';
 import { m } from '@/lib/i18n';
+import { queryClient } from '@/lib/query';
 
 export interface LastChange {
   label: string;
@@ -40,6 +41,8 @@ export interface EditorState {
   compare: boolean;
   /** Screenshot function registered by the canvas */
   capture: (() => Promise<{ dataUrl: string; width: number; height: number }>) | null;
+  /** A message handed to the agent from elsewhere in the editor (e.g. a comment); the chat panel sends it */
+  ask: { text: string; at: number } | null;
 }
 
 export interface EditorActions {
@@ -54,6 +57,11 @@ export interface EditorActions {
   setCompare(on: boolean): void;
   setCapture(fn: EditorState['capture']): void;
   loadVersion(version: number | null): Promise<void>;
+  /** Make an earlier version the latest one (saved as a new version) */
+  restoreVersion(version: number): Promise<void>;
+  askAgent(text: string): void;
+  /** Follow session changes (mark dirty, autosave) while the editor is open; returns the disconnect function */
+  connect(): () => void;
   viewHost(): ViewHost;
   canEdit(): boolean;
 }
@@ -84,10 +92,6 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
       saveTimer = setTimeout(() => void get().save(), 1500);
     };
 
-    session.subscribe(p => {
-      set({ project: p, dirty: true });
-      scheduleSave();
-    });
 
     const view: ViewState = {
       mode: opts.mode ?? '2d',
@@ -116,6 +120,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
       lastChange: null,
       compare: false,
       capture: null,
+      ask: null,
 
       canEdit: () => can(get().role, 'editor') && get().readOnlyVersion == null,
 
@@ -234,6 +239,31 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
         set({ readOnlyVersion: version, dirty: false, lastChange: null });
       },
 
+      async restoreVersion(version) {
+        const r = await api<{ content: Project }>(`/projects/${get().projectId}/versions/${version}`);
+        await get().loadVersion(null);
+        session.load(r.content);
+        set({ dirty: true, pendingLabels: [m.panels_restore_label({ version })], lastChange: null });
+        await get().save();
+      },
+
+      askAgent(text) {
+        set({ ask: { text, at: Date.now() } });
+      },
+
+      connect() {
+        const unsubscribe = session.subscribe((p, reason) => {
+          // Loading a version or the other side of a conflict is not an edit: nothing to save
+          if (reason === 'load') return set({ project: p });
+          set({ project: p, dirty: true });
+          scheduleSave();
+        });
+        return () => {
+          unsubscribe();
+          if (saveTimer) clearTimeout(saveTimer);
+        };
+      },
+
       viewHost(): ViewHost {
         return {
           get: () => get().view,
@@ -258,7 +288,7 @@ function commentsHost(projectId: string): CommentsHost {
     async reply(parentId, body, status) {
       await api(`/projects/${projectId}/comments`, { method: 'POST', json: { body: m.store_agent_comment({ body }), parentId } });
       if (status) await api(`/projects/${projectId}/comments/${parentId}`, { method: 'PATCH', json: { status } });
-      window.dispatchEvent(new Event('plinth:comments-changed'));
+      await queryClient.invalidateQueries({ queryKey: ['comments', projectId] });
     },
   };
 }

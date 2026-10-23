@@ -7,6 +7,7 @@ import { useReducedMotion } from '@/canvas/HopDriver';
 import { levelShapes, polyPath } from './plan-geometry';
 import { useEditor } from './store';
 import { m } from '@/lib/i18n';
+import { standaloneSvg } from '@/lib/theme';
 
 const pts = (p: Point[]) => p.map(([x, y]) => `${x},${y}`).join(' ');
 
@@ -14,14 +15,8 @@ const pts = (p: Point[]) => p.map(([x, y]) => `${x},${y}`).join(' ');
 export async function svgToPng(svg: SVGSVGElement, width = 2000) {
   const vb = svg.viewBox.baseVal;
   const height = Math.round((width * vb.height) / vb.width);
-  const clone = svg.cloneNode(true) as SVGSVGElement;
-  clone.setAttribute('width', String(width));
-  clone.setAttribute('height', String(height));
-  // Resolve used CSS variables to concrete colors so it renders outside the page
   const cs = svg.ownerDocument.defaultView!.getComputedStyle(svg);
-  const vars = ['--background', '--card', '--muted', '--secondary', '--accent', '--foreground', '--muted-foreground', '--chart-1', '--chart-2', '--font-sans', '--font-mono'];
-  clone.setAttribute('style', vars.map(v => `${v}:${cs.getPropertyValue(v)}`).join(';'));
-  const data = new XMLSerializer().serializeToString(clone);
+  const data = standaloneSvg(svg, { width: String(width), height: String(height) });
   const img = new Image();
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(data)}`;
   await img.decode();

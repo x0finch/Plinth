@@ -15,6 +15,9 @@ const joinMessages = (items: string[]) => items.join(text('message_separator', '
 enablePatches();
 setAutoFreeze(false);
 
+/** Why the project changed: a transaction, undo / redo, or a whole new project loaded (not an edit) */
+export type ChangeReason = 'tx' | 'undo' | 'redo' | 'load';
+
 export type Actor = { kind: 'user' | 'agent' | 'external'; id?: string; name?: string };
 
 export interface LogEntry {
@@ -108,19 +111,19 @@ function diffAreas(a: ReturnType<typeof areaSnapshot>, b: ReturnType<typeof area
 export class Session {
   private past: HistoryEntry[] = [];
   private future: HistoryEntry[] = [];
-  private listeners = new Set<(p: Project) => void>();
+  private listeners = new Set<(p: Project, reason: ChangeReason) => void>();
   private seq = 0;
   readonly log: LogEntry[] = [];
 
   constructor(public project: Project) {}
 
-  subscribe(fn: (p: Project) => void) {
+  subscribe(fn: (p: Project, reason: ChangeReason) => void) {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
   }
 
-  private emit() {
-    for (const fn of this.listeners) fn(this.project);
+  private emit(reason: ChangeReason) {
+    for (const fn of this.listeners) fn(this.project, reason);
   }
 
   /** Replace the whole project (load a new version) and clear history */
@@ -128,7 +131,7 @@ export class Session {
     this.project = p;
     this.past = [];
     this.future = [];
-    this.emit();
+    this.emit('load');
   }
 
   get canUndo() { return this.past.length > 0; }
@@ -179,7 +182,7 @@ export class Session {
     this.past.push(entry);
     this.future = [];
     this.log.push({ id: entry.id, at: entry.at, actor, label, reason: opts.reason, changed });
-    this.emit();
+    this.emit('tx');
     return {
       ok: true, result, changed,
       warnings: fresh.filter(i => i.severity === 'warning'),
@@ -193,7 +196,7 @@ export class Session {
     if (!e) return null;
     this.project = applyPatches(this.project, e.inverse);
     this.future.push(e);
-    this.emit();
+    this.emit('undo');
     return e;
   }
 
@@ -202,7 +205,7 @@ export class Session {
     if (!e) return null;
     this.project = applyPatches(this.project, e.patches);
     this.past.push(e);
-    this.emit();
+    this.emit('redo');
     return e;
   }
 }

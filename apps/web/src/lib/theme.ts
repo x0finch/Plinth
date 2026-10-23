@@ -29,3 +29,17 @@ export function useThemeColors<const T extends Record<string, string>>(tokens: T
   }, [doc]);
   return colors;
 }
+
+/**
+ * Serialize an SVG so it renders on its own (PNG export, plan thumbnails): every theme variable it references
+ * gets its current value on the root element, read from the document the SVG lives in.
+ */
+export function standaloneSvg(svg: SVGSVGElement, attrs: Record<string, string> = {}): string {
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  for (const [k, v] of Object.entries(attrs)) clone.setAttribute(k, v);
+  const cs = svg.ownerDocument.defaultView!.getComputedStyle(svg);
+  const vars = [...new Set(clone.outerHTML.match(/--[\w-]+/g) ?? [])];
+  clone.setAttribute('style', vars.map(v => `${v}:${cs.getPropertyValue(v).trim()}`).join(';'));
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  return new XMLSerializer().serializeToString(clone);
+}
