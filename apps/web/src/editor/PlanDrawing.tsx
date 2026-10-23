@@ -1,7 +1,7 @@
 /**
  * The plan's drawing, shared by the plan view and the 3D floors (so 3D grows out of exactly the plan): paper (the site's white
  * plinth, room fills), ink (walls, furniture, doors and windows) and labels. Drawn like the white model seen from above: a gray
- * backdrop, soft lavender shadows, gray walls. Coordinates in millimetres. Interaction (picking) is optional.
+ * backdrop, soft warm gray shadows, gray walls. Coordinates in millimetres. Interaction (picking) is optional.
  */
 import type { Project } from '@plinth/core';
 import { isGroundLevel, plinthRect, type LevelShapes } from './plan-geometry';
