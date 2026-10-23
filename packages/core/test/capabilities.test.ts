@@ -190,3 +190,50 @@ describe('capability registry', () => {
     expect(Object.keys(zh).sort()).toEqual(Object.keys(en).sort());
   });
 });
+
+describe('deleting objects removes the constraints that target them', () => {
+  let h: ReturnType<typeof harness>;
+  beforeEach(async () => {
+    h = harness(createProject({ id: 't', name: 'test', floors: 2, language: 'en' }));
+    await h.ok('room_add', { level: 'L2', name: 'A', rect: [0, 0, 4000, 4000] });
+    await h.ok('room_add', { level: 'L2', name: 'B', rect: [4000, 0, 3000, 4000], door: { side: 'west' } });
+  });
+  const hard = (targets: string[], type = 'size-target', params: Record<string, unknown> = { area: 14 }) =>
+    h.ok('constraint_add', { type, targets, params, hard: true });
+
+  it('level_remove succeeds despite a hard constraint on that level', async () => {
+    await hard(['A']);
+    await h.ok('level_remove', { level: 'L2' });
+    expect(h.session.project.constraints).toEqual([]);
+  });
+
+  it('space_remove with walls drops constraints on the removed space and walls', async () => {
+    await hard(['A']);
+    await hard(['A west wall'], 'align', {});
+    await h.ok('space_remove', { space: 'A', walls: true });
+    expect(h.session.project.constraints).toEqual([]);
+  });
+
+  it('space_merge drops constraints on the merged-away space and the removed partition', async () => {
+    await hard(['B'], 'size-target', { area: 11.3, tolerance: 1 });
+    const door = h.session.project.walls.flatMap(w => w.openings)[0];
+    await hard([door.id, 'B'], 'center', {});
+    await h.ok('space_merge', { spaces: ['A', 'B'] });
+    expect(h.session.project.constraints).toEqual([]);
+  });
+
+  it('wall_remove and opening_remove drop their constraints, other constraints stay', async () => {
+    const door = h.session.project.walls.flatMap(w => w.openings)[0];
+    await hard([door.id, 'B'], 'center', {});
+    await hard(['A'], 'size-target', { area: 14, tolerance: 2 });
+    await h.ok('opening_remove', { opening: door.id });
+    expect(h.session.project.constraints.map(c => c.type)).toEqual(['size-target']);
+  });
+
+  it('undo restores the removed constraint', async () => {
+    await hard(['A']);
+    await h.ok('level_remove', { level: 'L2' });
+    await h.ok('history_undo');
+    expect(h.session.project.constraints).toHaveLength(1);
+  });
+});
