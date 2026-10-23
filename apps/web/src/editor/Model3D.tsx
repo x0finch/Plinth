@@ -15,7 +15,7 @@ import { hops, REVEAL } from '@/canvas/hop';
 import { useThemeColors } from '@/lib/theme';
 import { FloorDrawing, PlanSheet } from './model3d/FloorDrawing';
 import { useFloorTexture } from './model3d/floor-textures';
-import { FURNITURE_MATERIALS, furnitureModel, hasModel, type FurnitureMaterial } from './model3d/furniture-models';
+import { FURNITURE_MATERIALS, furnitureModel, hasModel, materialDef, type FurnitureMaterial } from './model3d/furniture-models';
 import { detectQuality, isTouchDevice, Renderer, type Quality } from './model3d/Renderer';
 import { GroundLabels, type GroundLabelSpec } from './ground-labels';
 import { modelStyle } from './model-style';
@@ -339,11 +339,15 @@ function FurnitureModel({ f, base, ...o }: Outline & { f: Project['furniture'][n
   useEffect(() => () => parts.forEach(([, g]) => g.dispose()), [parts]);
   return (
     <group ref={ref} position={[f.position[0] * M, y, f.position[1] * M]} rotation={[0, (-f.rotation * Math.PI) / 180, 0]} userData={{ restY: y }}>
-      {parts.map(([mat, g]) => (
-        <mesh key={mat} geometry={g} castShadow receiveShadow userData={{ id: f.id, baseColor: new THREE.Color(colors[mat]) }}>
-          <meshStandardMaterial color={colors[mat]} roughness={FURNITURE_MATERIALS[mat].roughness} metalness={FURNITURE_MATERIALS[mat].metalness} />
-        </mesh>
-      ))}
+      {parts.map(([mat, g]) => {
+        // Glass lets light through: see-through, no shadow
+        const { roughness, metalness, opacity = 1 } = materialDef(mat);
+        return (
+          <mesh key={mat} geometry={g} castShadow={opacity === 1} receiveShadow userData={{ id: f.id, baseColor: new THREE.Color(colors[mat]) }}>
+            <meshStandardMaterial color={colors[mat]} roughness={roughness} metalness={metalness} transparent={opacity < 1} opacity={opacity} depthWrite={opacity === 1} />
+          </mesh>
+        );
+      })}
       {o.sel && (
         <mesh geometry={unitBox} position={[0, (h / 2) * M, 0]} scale={[w * M, h * M, d * M]} raycast={() => null} userData={{ noEdges: true }}>
           <meshBasicMaterial visible={false} />
