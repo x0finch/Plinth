@@ -4,7 +4,7 @@
  */
 import { betterAuth } from 'better-auth';
 import { env } from 'cloudflare:workers';
-import { sendOtpMail } from './mail';
+import { mailEnabled, sendOtpMail } from './mail';
 import { DERIVED_LENGTH, hashPassword, verifyPassword } from './password';
 import { schemaPlugins } from './auth-schema';
 import { transferOwnership } from './repo';
@@ -21,16 +21,17 @@ function create() {
     secret: env.BETTER_AUTH_SECRET,
     database: env.DB,
     trustedOrigins: env.APP_URL ? [env.APP_URL] : [],
-    // Email + password: the received "password" is a 64-char hex string derived on the device; email must be verified with an OTP after sign-up
+    // Email + password: the received "password" is a 64-char hex string derived on the device.
+    // With a mail service, the email must be verified with an OTP after sign-up; without one, sign-up signs in directly.
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: true,
+      requireEmailVerification: mailEnabled(),
       minPasswordLength: DERIVED_LENGTH,
       maxPasswordLength: DERIVED_LENGTH,
       revokeSessionsOnPasswordReset: true,
       password: { hash: hashPassword, verify: verifyPassword },
     },
-    emailVerification: { sendOnSignUp: true, sendOnSignIn: true, autoSignInAfterVerification: true },
+    emailVerification: { sendOnSignUp: mailEnabled(), sendOnSignIn: mailEnabled(), autoSignInAfterVerification: true },
     socialProviders: google,
     session: {
       expiresIn: 60 * 60 * 24 * 30,

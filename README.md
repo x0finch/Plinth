@@ -76,6 +76,6 @@ Repository Settings → Secrets and variables → Actions:
 
 The slow password hash runs on the user's device (PBKDF2-SHA256, 600,000 iterations, salt `plinth:` + email). The server receives the derived value and stores a random salt + one SHA-256 of it. A free-plan Worker gets 10 ms CPU per request, too little for a slow hash; as a side effect the raw password never leaves the device.
 
-All OTP emails go through Resend. Without `RESEND_API_KEY`, production only offers guest trial and Google sign-in; locally the codes are printed to the terminal.
+All OTP emails go through Resend. Without `RESEND_API_KEY` + `MAIL_FROM`, production still offers email + password (sign-up signs in directly, no email verification), Google and guest trial; OTP sign-in and password reset are hidden until mail is configured. Locally the codes are printed to the terminal.
 
 Once configured, push to `main` or run the `deploy` workflow manually from the Actions page. After the first deploy the site is at `https://plinth.<your-subdomain>.workers.dev`.

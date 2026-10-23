@@ -1,9 +1,8 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { LoaderIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import { Logo } from '@/components/site/SiteHeader';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -98,7 +97,10 @@ function Login() {
   }, m.login_sign_in_failed());
   const signUp = run(m.login_busy_hashing(), async () => {
     const r = await authClient.signUp.email({ email, password: await derivePassword(email, password), name: email.split('@')[0] });
-    if (!r.error) go({ tab: 'password', at: 'verify' });
+    if (r.error) return r;
+    // Without a mail service there is no verification step: sign-up returns a session right away
+    if (r.data?.token) await done();
+    else go({ tab: 'password', at: 'verify' });
     return r;
   }, m.login_sign_up_failed());
   const verify = run(m.login_busy_verifying(), async () => {
@@ -151,8 +153,12 @@ function Login() {
   );
   const link = (label: string, s: Step) => <Button type="button" variant="link" className="h-auto p-0" onClick={() => go(s)}>{label}</Button>;
   const pw = step.tab === 'password' ? step.at : null;
-  // Production without a mail service: email sign-in can't deliver codes, so only offer the other methods
+  // Production without a mail service: codes can't be delivered, so only email + password (without
+  // verification or password reset) and Google are offered
   const mailOff = me.data?.mailEnabled === false;
+  useEffect(() => {
+    if (mailOff && step.tab === 'code') setStep({ tab: 'password', at: 'sign-in' });
+  }, [mailOff]);
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-4">
@@ -160,19 +166,15 @@ function Login() {
         <Logo />
         <div>
           <h1 className="text-xl font-semibold">{m.login_title()}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{guest ? m.login_guest_hint() : m.login_auto_create_hint()}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{guest ? m.login_guest_hint() : mailOff ? null : m.login_auto_create_hint()}</p>
         </div>
-        {mailOff ? (
-          <Alert>
-            <AlertTitle>{m.login_mail_off_title()}</AlertTitle>
-            <AlertDescription>{me.data?.googleEnabled ? m.login_mail_off_google() : m.login_mail_off_none()}</AlertDescription>
-          </Alert>
-        ) : (
         <Tabs value={step.tab} onValueChange={v => go(v === 'code' ? { tab: 'code', at: 'email' } : { tab: 'password', at: 'sign-in' })}>
-          <TabsList className="w-full">
-            <TabsTrigger value="code">{m.login_tab_code()}</TabsTrigger>
-            <TabsTrigger value="password">{m.login_tab_password()}</TabsTrigger>
-          </TabsList>
+          {!mailOff && (
+            <TabsList className="w-full">
+              <TabsTrigger value="code">{m.login_tab_code()}</TabsTrigger>
+              <TabsTrigger value="password">{m.login_tab_password()}</TabsTrigger>
+            </TabsList>
+          )}
 
           <TabsContent value="code" className="pt-4">
             {step.tab === 'code' && step.at === 'email' && (
@@ -192,7 +194,7 @@ function Login() {
                 {emailField}{passwordField(m.login_password(), false)}
                 {submit(m.login_submit(), !email || !password)}
                 <p className="flex justify-between text-sm text-muted-foreground">
-                  {link(m.login_sign_up_link(), { tab: 'password', at: 'sign-up' })}{link(m.login_forgot_link(), { tab: 'password', at: 'forgot' })}
+                  {link(m.login_sign_up_link(), { tab: 'password', at: 'sign-up' })}{!mailOff && link(m.login_forgot_link(), { tab: 'password', at: 'forgot' })}
                 </p>
               </form>
             )}
@@ -224,11 +226,10 @@ function Login() {
             )}
           </TabsContent>
         </Tabs>
-        )}
         {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
         {me.data?.googleEnabled && (
           <>
-            {!mailOff && <div className="flex items-center gap-3 text-xs text-muted-foreground"><Separator className="flex-1" />{m.login_or()}<Separator className="flex-1" /></div>}
+            <div className="flex items-center gap-3 text-xs text-muted-foreground"><Separator className="flex-1" />{m.login_or()}<Separator className="flex-1" /></div>
             <Button variant="outline" className="w-full" onClick={google}>{m.login_google()}</Button>
           </>
         )}
