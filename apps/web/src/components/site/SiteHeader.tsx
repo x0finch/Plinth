@@ -1,7 +1,7 @@
 import { Link, useNavigate } from '@tanstack/react-router';
 import { LogOutIcon, SettingsIcon, UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { authClient } from '@/lib/auth-client';
 import { m } from '@/lib/i18n';
 import { queryClient, useMe } from '@/lib/query';
@@ -34,7 +34,9 @@ export function SiteHeader() {
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={m.site_account()} />}><UserIcon /></DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel className="font-normal text-muted-foreground">{user.isAnonymous ? m.site_guest() : user.email}</DropdownMenuLabel>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="font-normal text-muted-foreground">{user.isAnonymous ? m.site_guest() : user.email}</DropdownMenuLabel>
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
               {user.isAnonymous && <DropdownMenuItem render={<Link to="/login" />}><UserIcon /> {m.site_sign_in_to_save()}</DropdownMenuItem>}
               <DropdownMenuItem render={<Link to="/settings" />}><SettingsIcon /> {m.site_settings()}</DropdownMenuItem>

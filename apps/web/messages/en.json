@@ -695,5 +695,6 @@
   "looks_no_libraries": "No libraries yet. Create one in Settings.",
   "looks_library": "Library",
   "looks_import_use": "Add and use",
-  "looks_imported": "“{name}” added"
+  "looks_imported": "“{name}” added",
+  "libraries_builtin": "Built-in"
 }

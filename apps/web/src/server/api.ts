@@ -11,6 +11,7 @@ import { handleChat } from './chat';
 import { decryptSecret, encryptSecret, keyHint } from './crypto';
 import { getLocale, m } from '@/lib/i18n';
 import { PROVIDERS, localizedProviders } from './providers';
+import { builtinDetail, builtinSummaries, builtinVersions, isBuiltinLibrary } from './builtin-libraries';
 import * as repo from './repo';
 import { COMMENT_STATUSES } from '@/shared/comments';
 import { can, SHARE_ROLES, type Role } from '@/shared/roles';
@@ -450,10 +451,10 @@ const zLibraryLook = z.object({
   types: z.record(z.string(), z.object({ name: z.string().min(1), group: z.string().optional(), size: z.object({ w: z.number().positive(), d: z.number().positive(), h: z.number().positive() }) })).optional(),
 });
 
-/** The library and the caller's role in it, if at least `min` (404 for non-members, 403 for too low a role) */
+/** The library and the caller's role in it, if at least `min` (404 for non-members, 403 for too low a role); built-in libraries are read-only */
 async function libraryAccess(c: C, min: LibraryRole) {
   const u = requireUser(c), id = c.req.param('lib')!;
-  const role = await repo.libraryRole(id, u.id);
+  const role = isBuiltinLibrary(id) ? 'viewer' : await repo.libraryRole(id, u.id);
   const rank = { viewer: 0, editor: 1, owner: 2 };
   if (!role || rank[role] < rank[min]) throw new HTTPException(role ? 403 : 404, { message: role ? m.server_err_forbidden() : m.server_err_library_not_found() });
   return { id, role, user: u };
@@ -470,7 +471,7 @@ function checkLibraryLook(l: z.output<typeof zLibraryLook>) {
   }
 }
 
-api.get('/libraries', async c => c.json(await repo.listLibraries(requireUser(c).id)));
+api.get('/libraries', async c => c.json([...(await repo.listLibraries(requireUser(c).id)), ...builtinSummaries()]));
 
 api.post('/libraries', async c => {
   const u = requireUser(c);
@@ -481,11 +482,13 @@ api.post('/libraries', async c => {
 api.post('/libraries/versions', async c => {
   const u = requireUser(c);
   const b = await body(c, z.object({ refs: z.array(z.object({ library: z.string(), look: z.string() })).max(100) }));
-  return c.json(await repo.lookVersions(u.id, b.refs));
+  return c.json([...(await repo.lookVersions(u.id, b.refs)), ...builtinVersions(b.refs)]);
 });
 
 api.get('/libraries/:lib', async c => {
   const { id, role } = await libraryAccess(c, 'viewer');
+  const builtin = builtinDetail(id);
+  if (builtin) return c.json(builtin);
   const lib = await repo.getLibrary(id);
   if (!lib) throw new HTTPException(404, { message: m.server_err_library_not_found() });
   return c.json({ ...lib, role });
@@ -541,8 +544,8 @@ api.post('/libraries/:lib/members', async c => {
 
 api.delete('/libraries/:lib/members/:userId', async c => {
   const { id, role, user } = await libraryAccess(c, 'viewer');
-  // The owner removes others; anyone can leave
-  if (c.req.param('userId') !== user.id && role !== 'owner') throw new HTTPException(403, { message: m.server_err_forbidden() });
+  // The owner removes others; anyone can leave, except a built-in library
+  if ((c.req.param('userId') !== user.id && role !== 'owner') || isBuiltinLibrary(id)) throw new HTTPException(403, { message: m.server_err_forbidden() });
   await repo.removeLibraryMember(id, c.req.param('userId'));
   return c.json({ ok: true });
 });

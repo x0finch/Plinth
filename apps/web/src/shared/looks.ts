@@ -10,6 +10,8 @@ export interface LibrarySummary {
   owner_name: string;
   looks: number;
   updated_at: number;
+  /** Shipped with the app; read-only for everyone */
+  builtin?: boolean;
 }
 
 /** A furniture type a look draws that the catalog doesn't have */
@@ -33,6 +35,7 @@ export interface LibraryDetail {
   id: string;
   name: string;
   role: LibraryRole;
+  builtin?: boolean;
   looks: LibraryLook[];
   members: { user_id: string; name: string; email: string; role: LibraryRole }[];
 }

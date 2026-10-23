@@ -21,4 +21,5 @@ export * from './derived.js';
 export * from './expr.js';
 export * from './recipe.js';
 export * from './looks/index.js';
+export * from './looks/builtin.js';
 export * from './looks/resolve.js';
