@@ -16,3 +16,4 @@ export * from './factory.js';
 export * from './i18n.js';
 export * from './names.js';
 export * from './project-index.js';
+export * from './derived.js';

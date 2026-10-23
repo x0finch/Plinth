@@ -1,5 +1,5 @@
 /** Side panels: selected object properties, areas, comments, versions. */
-import { areaReport, checkConstraints, checkRules, findObject, type ConstraintType, type OpeningKind, type SpaceKind, type WallKind } from '@plinth/core';
+import { derived, findObject, type ConstraintType, type OpeningKind, type SpaceKind, type WallKind } from '@plinth/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckIcon, EyeIcon, HistoryIcon, MessageSquareIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -63,7 +63,7 @@ export function PropsPanel() {
     };
   }, [sel[0], project]);
 
-  const issues = useMemo(() => checkRules(project), [project]);
+  const issues = derived(project).rules;
   const level = useEditor(s => s.view.level);
   const levelIssues = issues.filter(i => i.targets.some(t => findObject(project, t)?.level === level));
 
@@ -197,7 +197,7 @@ function ConstraintsList() {
   const canEdit = useEditor(s => s.canEdit());
   const call = useEditor(s => s.call);
   const focus = useEditor(s => s.focus);
-  const status = useMemo(() => new Map(checkConstraints(project).map(c => [c.id, c])), [project]);
+  const status = useMemo(() => new Map(derived(project).constraints.map(c => [c.id, c])), [project]);
   if (!project.constraints.length) return null;
   return (
     <>
@@ -228,7 +228,7 @@ function ConstraintsList() {
 export function AreasPanel() {
   const project = useEditor(s => s.project);
   const focus = useEditor(s => s.focus);
-  const report = useMemo(() => areaReport(project), [project]);
+  const report = derived(project).areas;
   return (
     <div className="space-y-4 p-4">
       <div>
