@@ -23,6 +23,9 @@ export const projectSummary = defineRead({
       site: { boundary: p.site.boundary },
       furnitureTypes: Object.fromEntries(Object.entries(p.library.furniture).map(([k, v]) => [k, v.name])),
       materials: Object.fromEntries(Object.entries(p.library.materials).map(([k, v]) => [k, v.name])),
+      // The design's own looks (beyond the default set) and which target uses which
+      looks: Object.fromEntries(Object.entries(p.library.looks ?? {}).map(([k, v]) => [k, { name: v.name, for: v.for }])),
+      lookUse: p.library.use ?? {},
     };
   },
 });

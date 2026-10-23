@@ -1,10 +1,12 @@
 /** Properties of the selected object; with nothing selected, the level's rule check and the constraints. */
-import { derived, findObject, objectInfo, type ObjectInfo } from '@plinth/core';
+import { derived, elementTarget, findObject, furnitureTarget, looksFor, objectInfo, openingTarget, type ObjectInfo } from '@plinth/core';
+import { Link } from '@tanstack/react-router';
 import { CheckIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { m } from '@/lib/i18n';
 import { fmtArea } from '@/lib/query';
@@ -72,6 +74,7 @@ function ObjectProps({ info }: { info: ObjectInfo }) {
       {info.type === 'opening' && <OpeningProps info={info} />}
       {info.type === 'furniture' && <FurnitureProps info={info} />}
       {info.type === 'element' && <ElementProps info={info} />}
+      {(info.type === 'furniture' || info.type === 'opening' || info.type === 'element') && <LookPicker id={info.id} />}
       {canEdit && (info.type === 'wall' || info.type === 'opening' || info.type === 'furniture') && (
         <p className="text-xs text-muted-foreground">{m.panels_drag_hint()}</p>
       )}
@@ -88,6 +91,52 @@ function ObjectProps({ info }: { info: ObjectInfo }) {
           {info.type === 'space' && <Button size="sm" variant="outline" onClick={() => run('space_remove', { space: info.id })}><Trash2Icon /> {m.panels_remove_space()}</Button>}
         </div>
       )}
+    </div>
+  );
+}
+
+const FOLLOW = '__follow__';
+
+/**
+ * The object's look, when the design has looks that fit it: the look of its type (like the font of the whole text), or its own
+ * one; and making its own look the one for its whole type
+ */
+function LookPicker({ id }: { id: string }) {
+  const project = useEditor(s => s.project);
+  const canEdit = useEditor(s => s.canEdit());
+  const run = useRun();
+  const projectId = useEditor(s => s.projectId);
+  const e = findObject(project, id);
+  if (!e || (e.kind !== 'furniture' && e.kind !== 'opening' && e.kind !== 'element')) return null;
+  const target = e.kind === 'furniture' ? furnitureTarget(e.obj) : e.kind === 'opening' ? openingTarget(e.obj) : elementTarget(e.obj);
+  const options = looksFor(project, target);
+  if (!options.length) return null;
+  const looks = project.library.looks ?? {};
+  const own = e.obj.look && looks[e.obj.look] ? e.obj.look : null;
+  const typeLook = project.library.use?.[target];
+  const typeName = typeLook && looks[typeLook] ? looks[typeLook].name : m.panels_look_default();
+  const label = (v: string) => (v === FOLLOW ? m.panels_look_follow({ name: typeName }) : looks[v]?.name ?? v);
+  const value = own ?? FOLLOW;
+  if (!canEdit) return <Row k={m.panels_look()} v={label(value)} />;
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs text-muted-foreground">{m.panels_look()}</p>
+      <Select value={value} onValueChange={v => run('look_set', { object: id, look: v === FOLLOW ? null : v })}>
+        <SelectTrigger className="w-full" aria-label={m.panels_look()}><SelectValue>{label(value)}</SelectValue></SelectTrigger>
+        <SelectContent>
+          <SelectItem value={FOLLOW}>{label(FOLLOW)}</SelectItem>
+          {options.map(([k, l]) => <SelectItem key={k} value={k}>{l.name}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <div className="flex flex-wrap gap-x-3">
+        {own && own !== typeLook && (
+          <Button variant="link" size="sm" className="h-auto px-0" onClick={() => run('look_use', { target, look: own })}>{m.panels_look_use_all({ name: looks[own].name })}</Button>
+        )}
+        {!own && typeLook && (
+          <Button variant="link" size="sm" className="h-auto px-0" onClick={() => run('look_use', { target, look: null })}>{m.panels_look_reset_all()}</Button>
+        )}
+        <Button variant="link" size="sm" className="h-auto px-0" nativeButton={false} render={<Link to="/gallery" search={{ p: projectId }} />}>{m.panels_look_gallery()}</Button>
+      </div>
     </div>
   );
 }

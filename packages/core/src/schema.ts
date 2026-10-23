@@ -9,8 +9,10 @@
  *   and is promoted to a proper field on its second use. Fields are added, removed or changed via `version` + a migration function (see migrate.ts).
  */
 
+import type { Recipe } from './recipe.js';
+
 export const SCHEMA = 'plinth/project' as const;
-export const SCHEMA_VERSION = 3 as const;
+export const SCHEMA_VERSION = 4 as const;
 
 /** Language of the names written into project data (levels, walls, openings, catalog); independent of the UI language */
 export type ProjectLanguage = 'zh' | 'en';
@@ -106,6 +108,8 @@ export interface Opening {
   /** Swing door: whether the hinge is at the start or end side, and which side of the wall it opens to (looking from start → end, plan north up) */
   swing?: { hinge: 'start' | 'end'; side: 'left' | 'right' };
   glazing?: 'glass-block';
+  /** This opening's own look (library.looks), instead of the one for its kind */
+  look?: Id;
   extras?: Extras;
 }
 
@@ -135,6 +139,8 @@ export interface Element {
   /** Top level of a multi-level element */
   topLevel?: Id;
   params: Record<string, unknown>;
+  /** This element's own look (library.looks), instead of the one for its type */
+  look?: Id;
   extras?: Extras;
 }
 
@@ -151,6 +157,8 @@ export interface Furniture {
   size: { w: Mm; d: Mm; h: Mm };
   /** Height above the floor (wall-mounted, suspended) */
   elevation?: Mm;
+  /** This piece's own look (library.looks), instead of the one for its type */
+  look?: Id;
   extras?: Extras;
 }
 
@@ -189,6 +197,25 @@ export interface Library {
   furniture: Record<string, { name: string; group?: string; size: { w: Mm; d: Mm; h: Mm } }>;
   materials: Record<string, { name: string; tileSize?: Mm }>;
   elements: Record<string, { name: string; version: number; note?: string }>;
+  /**
+   * Looks this design uses beyond the default set (looks/), like fonts embedded in a document: everyone who opens the design
+   * sees them. Added in v4.
+   */
+  looks?: Record<Id, Look>;
+  /** The look each target uses in this design, instead of the default: 'furniture:sofa3' → a look ID. Added in v4. */
+  use?: Record<string, Id>;
+}
+
+/** A look: a recipe and the targets it can draw */
+export interface Look {
+  name: string;
+  /** Targets it fits: 'furniture:<type>', 'opening:<kind>' (or 'opening:glass-block'), 'element:<type>' */
+  for: string[];
+  recipe: Recipe;
+  /** Bumped on every change */
+  version: number;
+  /** Where it was copied from: a look in a library, at a version */
+  source?: { library: string; look: string; version: number };
 }
 
 export interface Variant {

@@ -1,0 +1,188 @@
+/**
+ * Look capabilities: the looks a design carries beyond the default set (library.looks), the look each target uses
+ * (library.use), an object's own look, and new furniture types. A look's recipe is checked before it is stored, so a broken
+ * recipe never reaches the canvas.
+ */
+import { z } from 'zod';
+import { defineEdit } from '../capability.js';
+import { text } from '../i18n.js';
+import { elementTarget, furnitureTarget, openingTarget, targetSize } from '../looks/resolve.js';
+import { checkRecipe, type Recipe } from '../recipe.js';
+import { resolve, type Kind } from '../refs.js';
+import { OPENING_KINDS, type Look, type Project } from '../schema.js';
+import { TxError } from '../session.js';
+
+const RECIPE_HELP = 'A recipe (see the recipe format in look_add)';
+
+export const zTarget = z.string().regex(/^(furniture|opening|element):[A-Za-z0-9_-]+$/)
+  .describe("What a look draws: 'furniture:<type>' (a furniture type), 'opening:<door|sliding-door|gate|window|opening|glass-block>' or 'element:<stair|pond|drain>'");
+
+function checkTarget(p: Project, target: string) {
+  const [kind, type] = target.split(':');
+  const ok = kind === 'furniture' ? type in p.library.furniture
+    : kind === 'opening' ? [...OPENING_KINDS, 'glass-block'].includes(type as never)
+      : type in p.library.elements;
+  if (!ok) throw new TxError('invalid-input', text('err_look_target', 'Unknown target {target}', { target }));
+}
+
+/** The recipe if it builds for every target it is meant for; otherwise an error the caller can act on */
+function checkedRecipe(p: Project, recipe: unknown, targets: string[]): Recipe {
+  for (const t of targets) {
+    const problems = checkRecipe(recipe, targetSize(p, t));
+    if (problems.length) throw new TxError('invalid-input', text('err_recipe', 'The recipe has problems: {problems}', { problems: problems.join('; ') }));
+  }
+  return recipe as Recipe;
+}
+
+function getLook(p: Project, id: string): Look {
+  const look = p.library.looks?.[id] ?? Object.values(p.library.looks ?? {}).find(l => l.name === id);
+  if (!look) throw new TxError('not-found', text('err_look_not_found', 'Cannot find look “{look}”', { look: id }));
+  return look;
+}
+const lookId = (p: Project, ref: string) => (p.library.looks?.[ref] ? ref : Object.entries(p.library.looks ?? {}).find(([, l]) => l.name === ref)?.[0] ?? ref);
+
+function nextLookId(p: Project) {
+  const used = new Set(Object.keys(p.library.looks ?? {}));
+  let n = used.size + 1;
+  while (used.has(`look-${n}`)) n++;
+  return `look-${n}`;
+}
+
+/** An object that has a look (furniture, opening or element) and its target */
+function lookHolder(p: Project, ref: string) {
+  for (const kind of ['furniture', 'opening', 'element'] as Kind[]) {
+    try {
+      const e = resolve(p, kind, ref);
+      if (e.kind === 'furniture') return { obj: e.obj, name: e.name, target: furnitureTarget(e.obj) };
+      if (e.kind === 'opening') return { obj: e.obj, name: e.name, target: openingTarget(e.obj) };
+      if (e.kind === 'element') return { obj: e.obj, name: e.name, target: elementTarget(e.obj) };
+    } catch (err) {
+      if (err instanceof TxError && err.code === 'ambiguous-ref') throw err;
+    }
+  }
+  throw new TxError('not-found', text('err_look_object', 'Cannot find a piece of furniture, door, window or element “{ref}”', { ref }));
+}
+
+export const lookAdd = defineEdit({
+  name: 'look_add', title: 'Add a look',
+  description: [
+    'Add a look to the design: a recipe that draws furniture, doors and windows, or elements, like a font draws characters.',
+    'Everyone who opens the design sees it. With use, every object of those targets switches to it; otherwise set it per object with look_set.',
+    'Recipe format (JSON, millimetres, angles in degrees): { seed?, let?: {name: expr}, parts: Part[], plan?: [...] }.',
+    'Numbers may be expressions of w, d, h (the object\'s width, depth, height) and names from let/repeat:',
+    '+ - * / %, comparisons, && || !, a ? b : c, min max abs sqrt floor ceil round sin cos tan atan2 hypot clamp lerp rnd(k) (pseudo-random 0..1, fixed per seed).',
+    'Local frame: origin at the centre of the footprint on the floor (an opening: the centre of its sill; x along the wall, z across it), x across w, z across d with +z the front, y up.',
+    'Every part has mat (fabric cushion linen bedding canvas canvas2 wood woodDark lacquer gold red cabinet countertop ceramic ceramicShade appliance plaster stone stoneDark terracotta soil iron dark glass book1-4 flower tube bark leaf leaf2 carBody carGlass tyre metal headlight taillight frame glassBlock wall water grate) and optional plan:false (left out of the plan symbol). Kinds:',
+    'box {size:[w,h,d], at:[x,y,z] centre, r? edge radius, rot?:[rx,ry,rz]}; cylinder {r, r2? top radius, h, at centre, axis? x|y|z, scale?};',
+    'sphere {r, at, scale?}; lathe {profile:[[r,y]...] from the axis out and back, at base, scale?}; rod {from, to, r}; ring {R, r, at, axis? y|z};',
+    'tube {points:[[x,y,z]...], r}; panel {from:[x,z], to:[x,z], y, h, t}; extrude {plane: side (profile in x,y extruded across z) | plan (profile in x,z extruded up), profile: [[x,y] | {arc:[cx,cy,r,a0,a1,clockwise]} | {curve:[cx,cy,x,y]}], depth, bevel?, at?};',
+    'repeat {count, as? (default i), let?, parts}; if {when, parts, else?}; base {mats:{structure,water,grate}} (an element\'s own geometry).',
+    'The plan symbol is the parts seen from above unless plan gives rings/lines/circles. Keep parts inside the w × d footprint and under h.',
+  ].join(' '),
+  input: z.object({
+    name: z.string().min(1).describe('Name of the look, in the language the project data uses'),
+    for: z.array(zTarget).min(1),
+    recipe: z.unknown().describe(RECIPE_HELP),
+    use: z.boolean().default(false).describe('Use it for every object of these targets'),
+  }),
+  label: i => text('log_look_add', 'Add look “{name}”', { name: i.name }),
+  apply: (p, i) => {
+    i.for.forEach(t => checkTarget(p, t));
+    const recipe = checkedRecipe(p, i.recipe, i.for);
+    const id = nextLookId(p);
+    p.library.looks = { ...(p.library.looks ?? {}), [id]: { name: i.name, for: [...new Set(i.for)], recipe, version: 1 } };
+    if (i.use) p.library.use = { ...(p.library.use ?? {}), ...Object.fromEntries(i.for.map(t => [t, id])) };
+    return { id };
+  },
+});
+
+export const lookUpdate = defineEdit({
+  name: 'look_update', title: 'Change a look',
+  description: 'Change a look of the design: its name, the targets it fits or its recipe (format in look_add). Every object drawn with it changes.',
+  input: z.object({ look: z.string().describe('Look ID or name'), name: z.string().min(1).optional(), for: z.array(zTarget).min(1).optional(), recipe: z.unknown().optional().describe(RECIPE_HELP) }),
+  label: (i, p) => text('log_look_update', 'Change look “{name}”', { name: p.library.looks?.[lookId(p, i.look)]?.name ?? i.look }),
+  apply: (p, i) => {
+    const look = getLook(p, i.look), id = lookId(p, i.look);
+    const targets = i.for ?? look.for;
+    targets.forEach(t => checkTarget(p, t));
+    const recipe = i.recipe !== undefined ? checkedRecipe(p, i.recipe, targets) : i.for ? checkedRecipe(p, look.recipe, targets) : look.recipe;
+    p.library.looks![id] = { ...look, name: i.name ?? look.name, for: [...new Set(targets)], recipe, version: look.version + 1 };
+    return { id, version: look.version + 1 };
+  },
+});
+
+export const lookRemove = defineEdit({
+  name: 'look_remove', title: 'Remove a look',
+  description: 'Remove a look from the design; objects drawn with it go back to the default look.',
+  input: z.object({ look: z.string().describe('Look ID or name') }),
+  label: (i, p) => text('log_look_remove', 'Remove look “{name}”', { name: p.library.looks?.[lookId(p, i.look)]?.name ?? i.look }),
+  apply: (p, i) => {
+    getLook(p, i.look);
+    const id = lookId(p, i.look);
+    const { [id]: _gone, ...rest } = p.library.looks!;
+    p.library.looks = rest;
+    p.library.use = Object.fromEntries(Object.entries(p.library.use ?? {}).filter(([, v]) => v !== id));
+    for (const o of [...p.furniture, ...p.elements, ...p.walls.flatMap(w => w.openings)]) if (o.look === id) delete o.look;
+    return { removed: id };
+  },
+});
+
+export const lookUse = defineEdit({
+  name: 'look_use', title: 'Use a look for a target',
+  description: 'Choose the look every object of a target uses in this design (like choosing the font of a whole text); look null goes back to the default. Objects with their own look keep it.',
+  input: z.object({ target: zTarget, look: z.string().nullable().describe('Look ID or name, or null for the default') }),
+  label: (i, p) => i.look === null
+    ? text('log_look_use_default', 'Use the default look for {target}', { target: i.target })
+    : text('log_look_use', 'Use look “{name}” for {target}', { name: p.library.looks?.[lookId(p, i.look)]?.name ?? i.look, target: i.target }),
+  apply: (p, i) => {
+    checkTarget(p, i.target);
+    const use = { ...(p.library.use ?? {}) };
+    if (i.look === null) delete use[i.target];
+    else {
+      const look = getLook(p, i.look);
+      if (!look.for.includes(i.target)) throw new TxError('invalid-input', text('err_look_fit', 'Look “{name}” doesn’t fit {target}', { name: look.name, target: i.target }));
+      use[i.target] = lookId(p, i.look);
+    }
+    p.library.use = use;
+    return { target: i.target, look: use[i.target] ?? null };
+  },
+});
+
+export const lookSet = defineEdit({
+  name: 'look_set', title: 'Give an object its own look',
+  description: 'Give one piece of furniture, door, window or element its own look (like setting one word in another font); look null goes back to the look of its target.',
+  input: z.object({ object: z.string().describe('ID or name of the furniture, opening or element'), look: z.string().nullable().describe('Look ID or name, or null') }),
+  label: (i, p) => text('log_look_set', 'Change the look of {object}', { object: lookHolder(p, i.object).name }),
+  apply: (p, i) => {
+    const h = lookHolder(p, i.object);
+    if (i.look === null) delete h.obj.look;
+    else {
+      const look = getLook(p, i.look);
+      if (!look.for.includes(h.target)) throw new TxError('invalid-input', text('err_look_fit', 'Look “{name}” doesn’t fit {target}', { name: look.name, target: h.target }));
+      h.obj.look = lookId(p, i.look);
+    }
+    return { id: h.obj.id, look: h.obj.look ?? null };
+  },
+});
+
+export const furnitureTypeAdd = defineEdit({
+  name: 'furniture_type_add', title: 'Add a furniture type',
+  description: 'Add a new furniture type to the design (a fish tank, a mahjong table…), with its default size and, optionally, a recipe for its look (format in look_add). Then place it with furniture_add.',
+  input: z.object({
+    type: z.string().regex(/^[a-z][a-z0-9-]*$/).describe('Type key, lowercase English (e.g. fish-tank)'),
+    name: z.string().min(1).describe('Display name, in the language the project data uses'),
+    group: z.string().optional().describe('Group name shown in the catalog, in the project language'),
+    size: z.object({ w: z.number().positive(), d: z.number().positive(), h: z.number().positive() }),
+    recipe: z.unknown().optional().describe(RECIPE_HELP),
+  }),
+  label: i => text('log_furniture_type_add', 'Add furniture type “{name}”', { name: i.name }),
+  apply: (p, i) => {
+    if (p.library.furniture[i.type]) throw new TxError('invalid-input', text('err_furniture_type_exists', 'Furniture type {type} already exists', { type: i.type }));
+    p.library.furniture[i.type] = { name: i.name, ...(i.group ? { group: i.group } : {}), size: { ...i.size } };
+    if (i.recipe === undefined) return { type: i.type };
+    const target = `furniture:${i.type}`, recipe = checkedRecipe(p, i.recipe, [target]), id = nextLookId(p);
+    p.library.looks = { ...(p.library.looks ?? {}), [id]: { name: i.name, for: [target], recipe, version: 1 } };
+    p.library.use = { ...(p.library.use ?? {}), [target]: id };
+    return { type: i.type, look: id };
+  },
+});
