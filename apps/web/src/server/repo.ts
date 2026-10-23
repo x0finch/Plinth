@@ -210,7 +210,9 @@ export async function transferOwnership(from: string, to: string) {
   await db().batch([
     db().prepare('update project set owner_id = ? where owner_id = ?').bind(to, from),
     db().prepare('update or ignore project_member set user_id = ? where user_id = ?').bind(to, from),
+    db().prepare('update api_key set user_id = ? where user_id = ?').bind(to, from),
     db().prepare('update model_config set user_id = ? where user_id = ?').bind(to, from),
+    db().prepare('update or ignore user_pref set user_id = ? where user_id = ?').bind(to, from),
     db().prepare('update or ignore chat_thread set user_id = ? where user_id = ?').bind(to, from),
     db().prepare('update comment set author_id = ? where author_id = ?').bind(to, from),
     db().prepare('update project_version set author_id = ? where author_id = ?').bind(to, from),
@@ -246,14 +248,13 @@ export const getComment = (projectId: string, id: string) =>
   db().prepare('select * from comment where project_id = ? and id = ?').bind(projectId, id).first<CommentRow>();
 export const deleteComment = (projectId: string, id: string) => db().prepare('delete from comment where project_id = ? and id = ?').bind(projectId, id).run();
 
-// ---------- Model configs, usage ----------
+// ---------- API keys, models, usage ----------
 
-export interface ModelConfigRow {
+/** A saved provider key; the plaintext key is only ever decrypted on the server */
+export interface ApiKeyRow {
   id: string;
   user_id: string;
-  label: string;
   provider: string;
-  model: string;
   base_url: string | null;
   key_ciphertext: string;
   key_iv: string;
@@ -261,23 +262,74 @@ export interface ModelConfigRow {
   created_at: number;
 }
 
-export async function listModelConfigs(userId: string) {
+/** A model picked for a key, as the UI lists it */
+export interface ModelRow {
+  id: string;
+  key_id: string;
+  label: string;
+  model: string;
+  provider: string;
+  created_at: number;
+}
+
+/** A model with everything needed to call it */
+export type ModelWithKey = ModelRow & Pick<ApiKeyRow, 'user_id' | 'base_url' | 'key_ciphertext' | 'key_iv'>;
+
+export async function listApiKeys(userId: string) {
   const { results } = await db()
-    .prepare('select id, label, provider, model, base_url, key_hint, created_at from model_config where user_id = ? order by created_at desc')
+    .prepare('select id, provider, base_url, key_hint, created_at from api_key where user_id = ? order by created_at')
     .bind(userId)
-    .all<Omit<ModelConfigRow, 'key_ciphertext' | 'key_iv' | 'user_id'>>();
+    .all<Omit<ApiKeyRow, 'key_ciphertext' | 'key_iv' | 'user_id'>>();
   return results;
 }
 
-export async function insertModelConfig(row: ModelConfigRow) {
+export async function insertApiKey(row: ApiKeyRow) {
   await db()
-    .prepare('insert into model_config (id, user_id, label, provider, model, base_url, key_ciphertext, key_iv, key_hint, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(row.id, row.user_id, row.label, row.provider, row.model, row.base_url, row.key_ciphertext, row.key_iv, row.key_hint, row.created_at)
+    .prepare('insert into api_key (id, user_id, provider, base_url, key_ciphertext, key_iv, key_hint, created_at) values (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(row.id, row.user_id, row.provider, row.base_url, row.key_ciphertext, row.key_iv, row.key_hint, row.created_at)
     .run();
 }
 
-export const getModelConfig = (id: string) => db().prepare('select * from model_config where id = ?').bind(id).first<ModelConfigRow>();
-export const deleteModelConfig = (userId: string, id: string) => db().prepare('delete from model_config where user_id = ? and id = ?').bind(userId, id).run();
+export const getApiKey = (id: string) => db().prepare('select * from api_key where id = ?').bind(id).first<ApiKeyRow>();
+export const deleteApiKey = (userId: string, id: string) => db().prepare('delete from api_key where user_id = ? and id = ?').bind(userId, id).run();
+
+/** The user's models, oldest first */
+export async function listModels(userId: string) {
+  const { results } = await db()
+    .prepare('select m.id, m.key_id, m.label, m.model, k.provider, m.created_at from model_config m join api_key k on k.id = m.key_id where m.user_id = ? order by m.created_at, m.id')
+    .bind(userId)
+    .all<ModelRow>();
+  return results;
+}
+
+export async function insertModel(row: { id: string; user_id: string; key_id: string; label: string; model: string }) {
+  const t = now();
+  await db().batch([
+    db().prepare('insert into model_config (id, user_id, key_id, label, model, created_at) values (?, ?, ?, ?, ?, ?)').bind(row.id, row.user_id, row.key_id, row.label, row.model, t),
+    // The first model becomes the default
+    db().prepare('insert into user_pref (user_id, default_model_id) values (?, ?) on conflict (user_id) do update set default_model_id = coalesce(default_model_id, excluded.default_model_id)').bind(row.user_id, row.id),
+  ]);
+}
+
+export const getModel = (id: string) =>
+  db()
+    .prepare('select m.id, m.key_id, m.label, m.model, m.created_at, m.user_id, k.provider, k.base_url, k.key_ciphertext, k.key_iv from model_config m join api_key k on k.id = m.key_id where m.id = ?')
+    .bind(id)
+    .first<ModelWithKey>();
+export const deleteModel = (userId: string, id: string) => db().prepare('delete from model_config where user_id = ? and id = ?').bind(userId, id).run();
+
+/** The user's default model: the one they chose, else their earliest (when the chosen one was deleted) */
+export async function defaultModelId(userId: string, models?: ModelRow[]) {
+  const list = models ?? await listModels(userId);
+  const pref = await db().prepare('select default_model_id from user_pref where user_id = ?').bind(userId).first<{ default_model_id: string | null }>();
+  return list.find(x => x.id === pref?.default_model_id)?.id ?? list[0]?.id ?? null;
+}
+
+export const setDefaultModel = (userId: string, modelId: string) =>
+  db()
+    .prepare('insert into user_pref (user_id, default_model_id) values (?, ?) on conflict (user_id) do update set default_model_id = excluded.default_model_id')
+    .bind(userId, modelId)
+    .run();
 
 export const recordUsage = (u: { userId: string; projectId: string; modelConfigId: string; input: number; output: number }) =>
   db()
@@ -319,12 +371,13 @@ export async function exportUserData(userId: string) {
     .bind(userId)
     .all<{ id: string; name: string; created_at: number; updated_at: number; content: string }>();
   const { results: comments } = await db().prepare('select project_id, target_name, body, created_at from comment where author_id = ?').bind(userId).all();
-  const models = await listModelConfigs(userId);
+  const [keys, models] = await Promise.all([listApiKeys(userId), listModels(userId)]);
   return {
     exportedAt: new Date().toISOString(),
     user,
     projects: projects.map(p => ({ ...p, content: JSON.parse(p.content) })),
     comments,
-    modelConfigs: models.map(({ key_hint, ...rest }) => ({ ...rest, key: m.server_export_key_withheld({ hint: key_hint }) })),
+    apiKeys: keys.map(({ key_hint, ...rest }) => ({ ...rest, key: m.server_export_key_withheld({ hint: key_hint }) })),
+    models,
   };
 }

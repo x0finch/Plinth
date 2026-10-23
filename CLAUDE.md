@@ -9,7 +9,7 @@ Overall design and requirements: GitHub issue #1 (epic) and its sub-issues. Read
 - Conversation with the project owner is in Chinese.
 
 ## UI
-- Use shadcn/ui components only (Base UI primitives, Nova style): lists use `Item`, tables `Table`, notices `Alert`, cards `Card`, link-styled actions `Button variant="link"`. Don't hand-write `<button>`, `<table>`, or a bordered `<div>` as a card.
+- Use shadcn/ui components only (Base UI primitives, Nova style): lists use `Item`, tables `Table`, notices `Alert`, cards `Card`, link-styled actions `Button variant="link"`, choices `Select` (or `Autocomplete` when any typed value is allowed). Don't hand-write `<button>`, `<table>`, a bordered `<div>` as a card, or a native `<select>` / `<datalist>`.
 - Theme: shadcn's Vercel theme. The website (`apps/web/src/styles.css`) follows the system light/dark setting.
 - The canvas (plan and 3D) renders in a same-origin iframe (`apps/web/src/canvas/CanvasFrame.tsx`) with its own stylesheet (`canvas/canvas.css`). It is light-only and unaffected by the website theme. Light theme variables live in `apps/web/src/theme/light.css`, shared by the website and the canvas.
 - Colors only reference theme variables: `var(--background)`, `text-muted-foreground`, `var(--chart-2)`, etc. No hex, `rgb()`/`oklch()`, or Tailwind palette colors (amber, blue…). When three.js needs a concrete color, read it from a theme variable with `apps/web/src/lib/theme.ts` (pass `useCanvasDocument()` inside the canvas).

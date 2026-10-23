@@ -21,7 +21,7 @@ function forModel(r: CallResult) {
   return r;
 }
 
-export function useAgentChat({ autonomy, editable }: { autonomy: Autonomy; editable: boolean }) {
+export function useAgentChat({ autonomy, editable, modelId }: { autonomy: Autonomy; editable: boolean; modelId?: string }) {
   const store = useEditorStore();
   const projectId = useEditor(s => s.projectId);
   const ask = useEditor(s => s.ask);
@@ -43,7 +43,7 @@ export function useAgentChat({ autonomy, editable }: { autonomy: Autonomy; edita
     [store, autonomy],
   );
 
-  const chat = useChat({ connection: fetchServerSentEvents(`/api/projects/${projectId}/chat`), tools, body: { autonomy } });
+  const chat = useChat({ connection: fetchServerSentEvents(`/api/projects/${projectId}/chat`), tools, body: { autonomy, modelId } });
   const { messages, sendMessage, isLoading, setMessages, status } = chat;
 
   // Load the saved thread
@@ -66,7 +66,7 @@ export function useAgentChat({ autonomy, editable }: { autonomy: Autonomy; edita
   const send = (text: string) => {
     const t = text.trim();
     if (!t || isLoading) return;
-    void sendMessage(t, { body: { autonomy, context: agentContext(store.getState()) } });
+    void sendMessage(t, { body: { autonomy, modelId, context: agentContext(store.getState()) } });
   };
 
   // Messages handed over from elsewhere in the editor (e.g. "ask the agent" on a comment)

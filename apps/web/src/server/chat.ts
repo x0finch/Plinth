@@ -12,7 +12,7 @@ import { isAutonomy, needsApproval, type Autonomy } from '../agent/policy';
 import { registry } from '../agent/registry';
 import { SYSTEM_PROMPT, contextPrompt, type AgentContext } from '../agent/prompt';
 import { m } from '@/lib/i18n';
-import type { ModelConfigRow } from './repo';
+import type { ModelWithKey } from './repo';
 
 export type { Autonomy };
 
@@ -31,7 +31,7 @@ export function agentTools(autonomy: Autonomy) {
   );
 }
 
-function adapter(cfg: ModelConfigRow, apiKey: string) {
+function adapter(cfg: ModelWithKey, apiKey: string) {
   const model = cfg.model as never;
   switch (cfg.provider) {
     case 'anthropic': return createAnthropicChat(model, apiKey);
@@ -43,15 +43,23 @@ function adapter(cfg: ModelConfigRow, apiKey: string) {
   }
 }
 
-export async function handleChat(request: Request, o: { config: ModelConfigRow; apiKey: string; onUsage: (input: number, output: number) => Promise<unknown> }) {
+/** The model to call and how to record its usage; resolved from the model the user picked in the chat (if any) */
+export interface ChatModel {
+  config: ModelWithKey;
+  apiKey: string;
+  onUsage: (input: number, output: number) => Promise<unknown>;
+}
+
+export async function handleChat(request: Request, resolve: (modelId: string | undefined) => Promise<ChatModel>) {
   let params;
   try {
     params = await chatParamsFromRequestBody(await request.json());
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : m.server_err_bad_request() }, { status: 400 });
   }
-  const props = params.forwardedProps as { autonomy?: Autonomy; context?: AgentContext };
+  const props = params.forwardedProps as { autonomy?: Autonomy; context?: AgentContext; modelId?: unknown };
   const autonomy: Autonomy = isAutonomy(props.autonomy) ? props.autonomy : 'balanced';
+  const o = await resolve(typeof props.modelId === 'string' ? props.modelId : undefined);
 
   let input = 0, output = 0;
   const usage: ChatMiddleware = {

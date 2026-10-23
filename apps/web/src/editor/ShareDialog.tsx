@@ -15,6 +15,9 @@ import { SHARE_ROLES, type Role, type ShareRole } from '@/shared/roles';
 import { m } from '@/lib/i18n';
 import { useEditor, useEditorStore } from './store';
 
+/** Select value for "follow the owner's default model" */
+const USE_DEFAULT = 'default';
+
 const ROLE_HINT: Record<ShareRole, () => string> = { viewer: m.share_hint_viewer, commenter: m.share_hint_commenter, editor: m.share_hint_editor };
 
 interface Sharing {
@@ -41,7 +44,9 @@ function RoleSelect({ value, onChange }: { value: ShareRole; onChange: (r: Share
 export function ShareDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const projectId = useEditor(s => s.projectId);
   const role = useEditor(s => s.role);
-  const model = useEditor(s => s.model);
+  const models = useEditor(s => s.models);
+  const projectModelId = useEditor(s => s.projectModelId);
+  const defaultModel = useEditor(s => s.models.find(x => x.id === s.defaultModelId));
   const store = useEditorStore();
   const qc = useQueryClient();
   const owner = role === 'owner';
@@ -50,7 +55,6 @@ export function ShareDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   const [inviteRole, setInviteRole] = useState<ShareRole>('editor');
 
   const sharing = useQuery({ queryKey: ['sharing', projectId], queryFn: () => api<Sharing>(`/projects/${projectId}/sharing`), enabled: open });
-  const models = useQuery({ queryKey: ['models'], queryFn: () => api<{ configs: { id: string; label: string; model: string; key_hint: string }[] }>('/models'), enabled: open && owner });
   const usage = useQuery({ queryKey: ['usage', projectId], queryFn: () => api<{ user_id: string; name: string; input: number; output: number; calls: number }[]>(`/projects/${projectId}/usage`), enabled: open && owner });
   const refresh = () => qc.invalidateQueries({ queryKey: ['sharing', projectId] });
   const fail = (e: Error) => toast.error(e.message);
@@ -64,9 +68,9 @@ export function ShareDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   const pickModel = useMutation({
     mutationFn: (id: string | null) => api(`/projects/${projectId}/model`, { method: 'PUT', json: { modelConfigId: id } }),
     onSuccess: (_r, id) => {
-      const cfg = models.data?.configs.find(c => c.id === id);
-      store.setState({ model: cfg ? { id: cfg.id, label: cfg.label, provider: '', model: cfg.model } : null });
-      toast.success(cfg ? m.share_model_switched({ label: cfg.label }) : m.share_model_cleared());
+      const picked = models.find(x => x.id === id);
+      store.setState({ projectModelId: picked?.id ?? null });
+      toast.success(picked ? m.share_model_switched({ label: picked.label }) : m.share_model_cleared());
     },
     onError: fail,
   });
@@ -146,11 +150,14 @@ export function ShareDialog({ open, onOpenChange }: { open: boolean; onOpenChang
             <Separator />
             <section className="space-y-2">
               <h4 className="text-sm font-medium">{m.share_model_title()}</h4>
-              {models.data?.configs.length ? (
-                <Select value={model?.id ?? ''} onValueChange={v => pickModel.mutate((v as string) || null)}>
-                  <SelectTrigger size="sm" className="w-full"><SelectValue>{model?.label ?? m.share_model_none()}</SelectValue></SelectTrigger>
+              {models.length ? (
+                <Select value={projectModelId ?? USE_DEFAULT} onValueChange={v => pickModel.mutate(v === USE_DEFAULT ? null : v as string)}>
+                  <SelectTrigger size="sm" className="w-full">
+                    <SelectValue>{models.find(x => x.id === projectModelId)?.label ?? m.share_model_use_default({ label: defaultModel?.label ?? '' })}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
-                    {models.data.configs.map(c => <SelectItem key={c.id} value={c.id}>{c.label}{m.share_model_option_detail({ model: c.model, key_hint: c.key_hint })}</SelectItem>)}
+                    <SelectItem value={USE_DEFAULT}>{m.share_model_use_default({ label: defaultModel?.label ?? '' })}</SelectItem>
+                    {models.map(x => <SelectItem key={x.id} value={x.id}>{x.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               ) : (

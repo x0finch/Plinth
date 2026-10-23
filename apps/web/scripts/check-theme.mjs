@@ -1,4 +1,5 @@
 // Guard: UI colors must reference theme variables (shadcn / Vercel theme); no hard-coded colors or Tailwind palette colors.
+// Also flags native pickers, which ignore the theme: choices use the shadcn Select or Autocomplete.
 // Usage: npm run check:theme
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,6 +10,7 @@ const bad = [
   [/#[0-9a-fA-F]{3,8}\b(?![^'"]*['"]\s*\))/, 'hard-coded hex color'],
   [/\b(?:text|bg|border|fill|stroke|ring|from|to|via)-(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|gray|zinc|neutral|stone)-\d{2,3}\b/, 'Tailwind palette color'],
   [/\b(?:rgb|rgba|hsl|hsla|oklch)\(\s*\d/, 'hard-coded color function'],
+  [/<(?:select|datalist)\b/, 'native picker (use Select or Autocomplete)'],
 ];
 const files = [];
 const walk = d => readdirSync(d).forEach(f => {
@@ -28,7 +30,7 @@ for (const f of files) {
   });
 }
 if (n) {
-  console.log(`\n${n} color(s) do not reference theme variables. Use theme colors such as var(--background) / text-muted-foreground.`);
+  console.log(`\n${n} line(s) bypass the theme. Use theme colors such as var(--background) / text-muted-foreground, and shadcn components for choices.`);
   process.exit(1);
 }
-console.log('Theme check passed: all colors reference theme variables');
+console.log('Theme check passed: all colors reference theme variables, no native pickers');
