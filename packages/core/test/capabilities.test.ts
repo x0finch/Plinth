@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createProject, createRegistry, migrate, openingCenter, Session, setTranslator, spaceNetArea, type CallResult, type Project, type Translator } from '../src/index.js';
+import { createProject, createRegistry, migrate, mutates, openingCenter, Session, setTranslator, spaceNetArea, type CallResult, type Project, type Translator } from '../src/index.js';
 
 /** Core messages of the web app: the core_* keys in apps/web/messages/<locale>.json */
 const readMessages = (locale: string): Record<string, string> =>
@@ -188,5 +188,32 @@ describe('capability registry', () => {
       expect(en[`core_cap_${c.name}`], c.name).toBe(c.title);
     }
     expect(Object.keys(zh).sort()).toEqual(Object.keys(en).sort());
+  });
+});
+
+describe('capability modes', () => {
+  it('marks undo and redo as mutating, so read-only hosts block them', () => {
+    expect(mutates(registry.get('history_undo')!)).toBe(true);
+    expect(mutates(registry.get('history_redo')!)).toBe(true);
+    expect(mutates(registry.get('project_summary')!)).toBe(false);
+  });
+
+  it('has no read-mode capability of kind edit', () => {
+    expect(registry.list().filter(c => c.mode === 'read' && c.kind === 'edit').map(c => c.name)).toEqual([]);
+  });
+
+  it('still undoes and redoes through the registry', async () => {
+    const h = harness(createProject({ id: 't', name: 'test', language: 'en' }));
+    await h.ok('room_add', { level: 'L1', name: 'A', rect: [0, 0, 4000, 4000] });
+    expect((await h.ok('history_undo')).result).toMatchObject({ undone: expect.any(String) });
+    expect(h.session.project.spaces).toHaveLength(0);
+    await h.ok('history_redo');
+    expect(h.session.project.spaces).toHaveLength(1);
+  });
+
+  it('refuses to batch a session operation', async () => {
+    const h = harness(createProject({ id: 't', name: 'test', language: 'en' }));
+    const r = await h.call('batch', { label: 'x', calls: [{ name: 'history_undo' }] });
+    expect(r.error?.code).toBe('invalid-input');
   });
 });
