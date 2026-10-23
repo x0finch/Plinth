@@ -32,10 +32,13 @@ export function useThemeColors<const T extends Record<string, string>>(tokens: T
 
 /**
  * Serialize an SVG so it renders on its own (PNG export, plan thumbnails): every theme variable it references
- * gets its current value on the root element, read from the document the SVG lives in.
+ * gets its current value on the root element, read from the document the SVG lives in. Elements marked
+ * data-feedback (selection and change highlights) are left out.
  */
 export function standaloneSvg(svg: SVGSVGElement, attrs: Record<string, string> = {}): string {
   const clone = svg.cloneNode(true) as SVGSVGElement;
+  // Selection and change highlights are interaction state, not part of the drawing
+  clone.querySelectorAll('[data-feedback]').forEach(el => el.remove());
   for (const [k, v] of Object.entries(attrs)) clone.setAttribute(k, v);
   const cs = svg.ownerDocument.defaultView!.getComputedStyle(svg);
   const vars = [...new Set(clone.outerHTML.match(/--[\w-]+/g) ?? [])];
