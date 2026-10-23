@@ -1544,6 +1544,117 @@ exports[`capability descriptions are stable 1`] = `
     "title": "Give an object its own look",
   },
   {
+    "description": "Copy a look from a look library into the design (or bring a copied look up to the library's newer version). The design keeps its own copy, so everyone who opens it sees the same thing. Get the look with library_look_get.",
+    "examples": [],
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "for": {
+          "items": {
+            "description": "What a look draws: 'furniture:<type>' (a furniture type), 'opening:<door|sliding-door|gate|window|opening|glass-block>' or 'element:<stair|pond|drain>'",
+            "pattern": "^(furniture|opening|element):[A-Za-z0-9_-]+$",
+            "type": "string",
+          },
+          "minItems": 1,
+          "type": "array",
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "recipe": {
+          "description": "A recipe (see the recipe format in look_add)",
+        },
+        "replace": {
+          "description": "ID of a look of the design that this becomes (e.g. after saving it to a library)",
+          "type": "string",
+        },
+        "source": {
+          "properties": {
+            "library": {
+              "type": "string",
+            },
+            "look": {
+              "type": "string",
+            },
+            "version": {
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "type": "integer",
+            },
+          },
+          "required": [
+            "library",
+            "look",
+            "version",
+          ],
+          "type": "object",
+        },
+        "types": {
+          "additionalProperties": {
+            "properties": {
+              "group": {
+                "type": "string",
+              },
+              "name": {
+                "type": "string",
+              },
+              "size": {
+                "properties": {
+                  "d": {
+                    "exclusiveMinimum": 0,
+                    "type": "number",
+                  },
+                  "h": {
+                    "exclusiveMinimum": 0,
+                    "type": "number",
+                  },
+                  "w": {
+                    "exclusiveMinimum": 0,
+                    "type": "number",
+                  },
+                },
+                "required": [
+                  "w",
+                  "d",
+                  "h",
+                ],
+                "type": "object",
+              },
+            },
+            "required": [
+              "name",
+              "size",
+            ],
+            "type": "object",
+          },
+          "description": "Furniture types the look draws that the design may not have yet",
+          "propertyNames": {
+            "type": "string",
+          },
+          "type": "object",
+        },
+        "use": {
+          "default": false,
+          "description": "Use it for every object of these targets",
+          "type": "boolean",
+        },
+      },
+      "required": [
+        "name",
+        "for",
+        "recipe",
+        "source",
+      ],
+      "type": "object",
+    },
+    "kind": "edit",
+    "name": "look_import",
+    "permission": "reversible",
+    "runtime": "any",
+    "title": "Add a look from a library",
+  },
+  {
     "description": "Add a new furniture type to the design (a fish tank, a mahjong table…), with its default size and, optionally, a recipe for its look (format in look_add). Then place it with furniture_add.",
     "examples": [],
     "input": {

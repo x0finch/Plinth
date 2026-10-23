@@ -1,5 +1,5 @@
 /** Server API (Hono). Pages are served by the static assets layer; only /api/* comes here. */
-import { createProject as newProjectData, migrate, validate, type Project, type ValidationIssue } from '@plinth/core';
+import { checkRecipe, createProject as newProjectData, FURNITURE_TYPES, migrate, validate, type Project, type Recipe, type ValidationIssue } from '@plinth/core';
 import { env } from 'cloudflare:workers';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -14,6 +14,7 @@ import { PROVIDERS, localizedProviders } from './providers';
 import * as repo from './repo';
 import { COMMENT_STATUSES } from '@/shared/comments';
 import { can, SHARE_ROLES, type Role } from '@/shared/roles';
+import type { LibraryRole } from '@/shared/looks';
 
 type User = { id: string; name: string; email: string; isAnonymous?: boolean | null; image?: string | null };
 type Vars = { user: User | null };
@@ -436,6 +437,113 @@ project.put('/chat-thread', minRole('editor'), async c => {
   if (raw.length > 800_000) throw new HTTPException(413, { message: m.server_err_chat_too_long() });
   if (!Array.isArray(parseJson(raw))) throw new HTTPException(400, { message: m.server_err_invalid_chat() });
   await repo.putChat(id, user.id, raw);
+  return c.json({ ok: true });
+});
+
+// ---------- Look libraries ----------
+
+const zTarget = z.string().regex(/^(furniture|opening|element):[A-Za-z0-9_-]+$/);
+const zLibraryLook = z.object({
+  name: z.string().min(1).max(80),
+  for: z.array(zTarget).min(1).max(20),
+  recipe: z.unknown(),
+  types: z.record(z.string(), z.object({ name: z.string().min(1), group: z.string().optional(), size: z.object({ w: z.number().positive(), d: z.number().positive(), h: z.number().positive() }) })).optional(),
+});
+
+/** The library and the caller's role in it, if at least `min` (404 for non-members, 403 for too low a role) */
+async function libraryAccess(c: C, min: LibraryRole) {
+  const u = requireUser(c), id = c.req.param('lib')!;
+  const role = await repo.libraryRole(id, u.id);
+  const rank = { viewer: 0, editor: 1, owner: 2 };
+  if (!role || rank[role] < rank[min]) throw new HTTPException(role ? 403 : 404, { message: role ? m.server_err_forbidden() : m.server_err_library_not_found() });
+  return { id, role, user: u };
+}
+
+/** A library look's recipe must build for each target it is for, at that target's size */
+function checkLibraryLook(l: z.output<typeof zLibraryLook>) {
+  for (const t of l.for) {
+    const [kind, type] = t.split(':');
+    const size = kind === 'furniture' ? l.types?.[type]?.size ?? FURNITURE_TYPES[type]?.size : undefined;
+    if (kind === 'furniture' && !size) throw new HTTPException(400, { message: m.server_err_library_type({ type }) });
+    const problems = checkRecipe(l.recipe, size ?? (kind === 'opening' ? { w: 1200, d: 240, h: 1500 } : { w: 2000, d: 2000, h: 3000 }));
+    if (problems.length) throw new HTTPException(400, { message: problems.join('; ') });
+  }
+}
+
+api.get('/libraries', async c => c.json(await repo.listLibraries(requireUser(c).id)));
+
+api.post('/libraries', async c => {
+  const u = requireUser(c);
+  const b = await body(c, z.object({ name: z.string().min(1).max(80) }));
+  return c.json({ id: await repo.createLibrary(u.id, b.name) });
+});
+
+api.post('/libraries/versions', async c => {
+  const u = requireUser(c);
+  const b = await body(c, z.object({ refs: z.array(z.object({ library: z.string(), look: z.string() })).max(100) }));
+  return c.json(await repo.lookVersions(u.id, b.refs));
+});
+
+api.get('/libraries/:lib', async c => {
+  const { id, role } = await libraryAccess(c, 'viewer');
+  const lib = await repo.getLibrary(id);
+  if (!lib) throw new HTTPException(404, { message: m.server_err_library_not_found() });
+  return c.json({ ...lib, role });
+});
+
+api.patch('/libraries/:lib', async c => {
+  const { id } = await libraryAccess(c, 'owner');
+  const b = await body(c, z.object({ name: z.string().min(1).max(80) }));
+  await repo.renameLibrary(id, b.name);
+  return c.json({ ok: true });
+});
+
+api.delete('/libraries/:lib', async c => {
+  const { id } = await libraryAccess(c, 'owner');
+  await repo.deleteLibrary(id);
+  return c.json({ ok: true });
+});
+
+/** Add a look (new id) */
+api.post('/libraries/:lib/looks', async c => {
+  const { id, user } = await libraryAccess(c, 'editor');
+  const b = await body(c, zLibraryLook);
+  checkLibraryLook(b);
+  const lookId = repo.newId('lk');
+  const version = await repo.putLibraryLook(id, lookId, b.name, { for: b.for, recipe: b.recipe as Recipe, ...(b.types ? { types: b.types } : {}) }, user.id);
+  return c.json({ look: lookId, version });
+});
+
+/** Save a new version of a look */
+api.put('/libraries/:lib/looks/:look', async c => {
+  const { id, user } = await libraryAccess(c, 'editor');
+  const b = await body(c, zLibraryLook);
+  checkLibraryLook(b);
+  const version = await repo.putLibraryLook(id, c.req.param('look'), b.name, { for: b.for, recipe: b.recipe as Recipe, ...(b.types ? { types: b.types } : {}) }, user.id);
+  return c.json({ look: c.req.param('look'), version });
+});
+
+api.delete('/libraries/:lib/looks/:look', async c => {
+  const { id } = await libraryAccess(c, 'editor');
+  await repo.deleteLibraryLook(id, c.req.param('look'));
+  return c.json({ ok: true });
+});
+
+/** Share with someone who has an account, as a viewer (uses looks) or an editor (also adds and changes them) */
+api.post('/libraries/:lib/members', async c => {
+  const { id } = await libraryAccess(c, 'owner');
+  const b = await body(c, z.object({ email: z.email(), role: z.enum(['viewer', 'editor']) }));
+  const target = await repo.userByEmail(b.email);
+  if (!target) throw new HTTPException(404, { message: m.server_err_library_no_user({ email: b.email }) });
+  await repo.setLibraryMember(id, target.id, b.role);
+  return c.json({ ok: true });
+});
+
+api.delete('/libraries/:lib/members/:userId', async c => {
+  const { id, role, user } = await libraryAccess(c, 'viewer');
+  // The owner removes others; anyone can leave
+  if (c.req.param('userId') !== user.id && role !== 'owner') throw new HTTPException(403, { message: m.server_err_forbidden() });
+  await repo.removeLibraryMember(id, c.req.param('userId'));
   return c.json({ ok: true });
 });
 

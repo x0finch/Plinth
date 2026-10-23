@@ -58,6 +58,13 @@ for (const role of ['viewer', 'commenter', 'editor']) {
 const comment = (await owner.call('POST', `/projects/${id}/comments`, { body: 'owner comment' })).data.id;
 const otherUser = await me('stranger');
 const svg = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
+// A look library: its roles are viewer, editor and owner, so the commenter joins it as a viewer
+const lib = (await owner.call('POST', '/libraries', { name: 'Permissions' })).data.id;
+for (const [who, role] of [['viewer', 'viewer'], ['commenter', 'viewer'], ['editor', 'editor']]) {
+  const email = (await actors[who].call('GET', '/me')).data.user.email;
+  const r = await owner.call('POST', `/libraries/${lib}/members`, { email, role });
+  check(r.status === 200, `${who} joined the library (${role})`);
+}
 
 // Who may call each route: a minimum role, 'user' (any signed-in user) or 'public'
 const ROUTES = [
@@ -94,6 +101,17 @@ const ROUTES = [
   ['POST', `/projects/${id}/chat`, 'editor', {}],
   ['GET', `/projects/${id}/chat-thread`, 'viewer'],
   ['PUT', `/projects/${id}/chat-thread`, 'editor', []],
+  ['GET', '/libraries', 'user'],
+  ['POST', '/libraries', 'user', { name: 'Scratch' }],
+  ['POST', '/libraries/versions', 'user', { refs: [] }],
+  ['GET', `/libraries/${lib}`, 'viewer'],
+  ['PATCH', `/libraries/${lib}`, 'owner', { name: 'Permissions' }],
+  ['POST', `/libraries/${lib}/looks`, 'editor', {}],
+  ['PUT', `/libraries/${lib}/looks/nope`, 'editor', {}],
+  ['DELETE', `/libraries/${lib}/looks/nope`, 'editor'],
+  ['POST', `/libraries/${lib}/members`, 'owner', { email: 'not-an-email', role: 'viewer' }],
+  // Only the owner removes someone else (anyone may leave; checked below)
+  ['DELETE', `/libraries/${lib}/members/${otherUser}`, 'owner'],
 ];
 // Least privileged first, so the owner's destructive calls come last; a route allows its minimum and everyone after it
 const ORDER = ['anon', 'stranger', 'viewer', 'commenter', 'editor', 'owner'];
@@ -107,7 +125,7 @@ for (const [method, path, min, body, type] of ROUTES) {
     const allowed = ![401, 403, 404].includes(status);
     results.push({ who, status, ok: allowed === expected });
   }
-  const label = path.replace(id, ':id').replace(comment, ':comment').replace(otherUser, ':user');
+  const label = path.replace(id, ':id').replace(lib, ':lib').replace(comment, ':comment').replace(otherUser, ':user');
   check(results.every(r => r.ok), `${method} ${label} (${min}): ${results.map(r => `${r.who} ${r.status}${r.ok ? '' : '!'}`).join(', ')}`);
 }
 
@@ -115,7 +133,7 @@ for (const [method, path, min, body, type] of ROUTES) {
 const registered = [...readFileSync(new URL('../src/server/api.ts', import.meta.url), 'utf8').matchAll(/(api|project)\.(get|post|put|patch|delete)\('([^']+)'/g)]
   .map(([, app, m, p]) => `${m.toUpperCase()} ${(app === 'project' ? `/projects/:id${p === '/' ? '' : p}` : p).replace(/:\w+/g, ':_')}`)
   .filter(r => !r.includes('/share/'));
-const covered = new Set([...ROUTES, ['DELETE', `/projects/${id}`]].map(([m, p]) => `${m} ${p.replace(id, ':_').replace(comment, ':_').replace(otherUser, ':_').replace(/\/(links|invites|models|keys)\/nope/, '/$1/:_').replace(/\/versions\/1$/, '/versions/:_')}`));
+const covered = new Set([...ROUTES, ['DELETE', `/projects/${id}`], ['DELETE', `/libraries/${lib}`]].map(([m, p]) => `${m} ${p.replace(id, ':_').replace(lib, ':_').replace(comment, ':_').replace(otherUser, ':_').replace(/\/(links|invites|models|keys|looks)\/nope/, '/$1/:_').replace(/\/versions\/1$/, '/versions/:_')}`));
 const missing = registered.filter(r => !covered.has(r));
 check(!missing.length, `every API route is in the matrix${missing.length ? `; missing: ${missing.join(', ')}` : ''}`);
 check((await actors.anon.call('POST', '/share/nope/accept')).status === 401, 'accepting a share link needs sign-in');
@@ -126,3 +144,9 @@ check((await actors.viewer.call('DELETE', `/projects/${id}/members/${viewerId}`)
 // Deleting the project: only the owner
 check((await actors.editor.call('DELETE', `/projects/${id}`)).status === 403, 'an editor cannot delete the project');
 check((await owner.call('DELETE', `/projects/${id}`)).status === 200, 'the owner can delete the project');
+
+// Leaving a library: any member may remove themselves; deleting it: only the owner
+const libViewer = await me('commenter');
+check((await actors.commenter.call('DELETE', `/libraries/${lib}/members/${libViewer}`)).status === 200, 'a member can leave a library');
+check((await actors.editor.call('DELETE', `/libraries/${lib}`)).status === 403, 'an editor cannot delete a library');
+check((await owner.call('DELETE', `/libraries/${lib}`)).status === 200, 'the owner can delete a library');

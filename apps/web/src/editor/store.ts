@@ -7,7 +7,9 @@ import { createContext, useContext } from 'react';
 import { createStore, useStore } from 'zustand';
 import { registry } from '@/agent/registry';
 import type { CommentsHost, ViewHost, ViewState } from '@/agent/view-capabilities';
+import type { LibrariesHost } from '@/agent/library-capabilities';
 import type { LooksHost } from '@/agent/look-capabilities';
+import { getLibrary, listLibraries, saveToLibrary } from '@/lib/libraries';
 import { api, ApiError } from '@/lib/api';
 import { can, type Role } from '@/shared/roles';
 import { m } from '@/lib/i18n';
@@ -173,7 +175,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
           return { ok: false, error: { code: 'forbidden', message: get().readOnlyVersion != null ? m.store_readonly_history() : m.store_readonly_viewer() } };
         }
         const before = session.project;
-        const r = await registry.call(name, input, { session, actor, host: { view: get().viewHost(), comments: commentsHost(get().projectId), looks: looksHost } });
+        const r = await registry.call(name, input, { session, actor, host: { view: get().viewHost(), comments: commentsHost(get().projectId), looks: looksHost, libraries: librariesHost } });
         if (r.ok && LOOK_EDITS.has(name)) {
           const res = r.result as { id?: string; look?: string };
           const id = name === 'furniture_type_add' ? res.look : res.id;
@@ -197,7 +199,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
 
       async preview(name, input) {
         const scratch = new Session(session.project);
-        const r = await registry.call(name, input, { session: scratch, actor: { kind: 'user' }, host: { view: get().viewHost(), comments: commentsHost(get().projectId), looks: looksHost } });
+        const r = await registry.call(name, input, { session: scratch, actor: { kind: 'user' }, host: { view: get().viewHost(), comments: commentsHost(get().projectId), looks: looksHost, libraries: librariesHost } });
         return r.ok ? scratch.project : null;
       },
 
@@ -355,6 +357,9 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
 
 /** Capabilities that add or change a look: the chat shows it with a preview */
 const LOOK_EDITS = new Set(['look_add', 'look_update', 'furniture_type_add']);
+
+/** Look libraries for the agent, through the API as the user */
+const librariesHost: LibrariesHost = { list: listLibraries, get: getLibrary, save: (lib, look, id) => saveToLibrary(lib, look, id) };
 
 /** Draws look previews for the agent's self-check and the chat (three.js loads on demand) */
 const looksHost: LooksHost = { preview: async (recipe, size) => (await import('./model3d/look-preview')).renderLookPreview(recipe, size) };

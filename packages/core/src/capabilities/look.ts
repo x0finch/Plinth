@@ -206,3 +206,32 @@ export const lookGet = defineRead({
     return { id: null, default: true, size: targetSize(p, i.target), recipe: recipe ?? null };
   },
 });
+
+export const lookImport = defineEdit({
+  name: 'look_import', title: 'Add a look from a library',
+  description: 'Copy a look from a look library into the design (or bring a copied look up to the library\'s newer version). The design keeps its own copy, so everyone who opens it sees the same thing. Get the look with library_look_get.',
+  input: z.object({
+    name: z.string().min(1), for: z.array(zTarget).min(1), recipe: z.unknown().describe(RECIPE_HELP),
+    types: z.record(z.string(), z.object({ name: z.string(), group: z.string().optional(), size: z.object({ w: z.number().positive(), d: z.number().positive(), h: z.number().positive() }) })).optional()
+      .describe('Furniture types the look draws that the design may not have yet'),
+    source: z.object({ library: z.string(), look: z.string(), version: z.number().int().positive() }),
+    use: z.boolean().default(false).describe('Use it for every object of these targets'),
+    replace: z.string().optional().describe('ID of a look of the design that this becomes (e.g. after saving it to a library)'),
+  }),
+  label: (i, p) => i.replace || Object.values(p.library.looks ?? {}).some(l => l.source?.library === i.source.library && l.source.look === i.source.look)
+    ? text('log_look_import_update', 'Update look “{name}” from its library', { name: i.name })
+    : text('log_look_import', 'Add look “{name}” from a library', { name: i.name }),
+  apply: (p, i) => {
+    for (const [type, def] of Object.entries(i.types ?? {})) p.library.furniture[type] ??= { name: def.name, ...(def.group ? { group: def.group } : {}), size: { ...def.size } };
+    i.for.forEach(t => checkTarget(p, t));
+    const recipe = checkedRecipe(p, i.recipe, i.for);
+    const looks = p.library.looks ?? {};
+    // Copied before: bring that copy up to date instead of adding a second one
+    if (i.replace) getLook(p, i.replace);
+    const existing = i.replace ? lookId(p, i.replace) : Object.entries(looks).find(([, l]) => l.source?.library === i.source.library && l.source.look === i.source.look)?.[0];
+    const id = existing ?? nextLookId(p);
+    p.library.looks = { ...looks, [id]: { name: i.name, for: [...new Set(i.for)], recipe, version: (looks[id]?.version ?? 0) + 1, source: { ...i.source } } };
+    if (i.use) p.library.use = { ...(p.library.use ?? {}), ...Object.fromEntries(i.for.map(t => [t, id])) };
+    return { id, updated: !!existing };
+  },
+});

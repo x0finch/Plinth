@@ -4,14 +4,14 @@
  */
 import type { Recipe } from '@plinth/core';
 import * as THREE from 'three';
-import { canvasDocument } from '@/canvas/CanvasFrame';
+import { lightDocument } from '@/canvas/CanvasFrame';
 import { themeColor } from '@/lib/theme';
 import { LOOK_MATERIALS, LOOK_TOKENS, partsGeometry, safeBuild } from './looks';
 
 const M = 0.001;
 
 export async function renderLookPreview(recipe: Recipe, size: { w: number; d: number; h: number }, opts: { width?: number; height?: number } = {}): Promise<string> {
-  const W = opts.width ?? 960, H = opts.height ?? 320, doc = canvasDocument();
+  const W = opts.width ?? 960, H = opts.height ?? 320, doc = await lightDocument();
   const canvas = document.createElement('canvas');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);

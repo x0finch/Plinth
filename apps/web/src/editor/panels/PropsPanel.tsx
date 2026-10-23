@@ -13,6 +13,7 @@ import { fmtArea } from '@/lib/query';
 import { useEditor } from '../store';
 import { kindLabel, Row, useRun } from './common';
 import { ConstraintsList } from './ConstraintsList';
+import { LooksPanel } from './LooksPanel';
 
 type Info<T extends ObjectInfo['type']> = Extract<ObjectInfo, { type: T }>;
 
@@ -36,6 +37,8 @@ function LevelOverview() {
     <div className="space-y-4 p-4 text-sm">
       <p className="text-muted-foreground">{m.panels_props_empty_hint()}</p>
       <ConstraintsList />
+      <Separator />
+      <LooksPanel />
       <Separator />
       <div>
         <p className="mb-2 font-medium">{m.panels_level_check()}</p>
