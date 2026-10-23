@@ -107,13 +107,13 @@ check('Build from brief', built.spaces.length === 5 && built.brief.household?.le
 const rules = await owner.evaluate(() => window.artifact.call('check_rules', {}));
 check('Rule check', rules.result.issues.every(i => i.severity !== 'error'), `no errors (${rules.result.issues.length} warnings)`);
 await caption(owner, '⑥ 切到三维白模；点一面墙，选中的东西会往上跳一下，不变色');
-await owner.getByLabel('三维', { exact: true }).click();
+await owner.getByRole('button', { name: '三维', exact: true }).click();
 await pause(3000);
 const someWall = await owner.evaluate(() => window.artifact.project().walls[0].id);
 await owner.evaluate(id => window.artifact.call('view_focus', { ids: [id], highlight: false }), someWall);
 await pause(3500);
 await owner.keyboard.press('Escape');
-await owner.getByLabel('平面', { exact: true }).click();
+await owner.getByRole('button', { name: '平面', exact: true }).click();
 await pause(800);
 
 // ---------- 5. Sample project ----------

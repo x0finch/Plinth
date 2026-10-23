@@ -6,15 +6,17 @@ import { describe, type Project } from '@plinth/core';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   ArrowLeftIcon, BoxIcon, CloudCheckIcon, CloudIcon, DownloadIcon, EllipsisIcon, HistoryIcon, ImageIcon, LayoutPanelLeftIcon, LoaderIcon,
-  MessageSquareIcon, MessagesSquareIcon, Redo2Icon, RulerIcon, Share2Icon, SquareIcon, TriangleAlertIcon, Undo2Icon, InfoIcon,
+  LayersIcon, MessageSquareIcon, MessagesSquareIcon, Redo2Icon, RulerIcon, ScanIcon, Share2Icon, SquareIcon, TriangleAlertIcon, Undo2Icon, InfoIcon,
 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { cn } from 'cn';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Toggle } from '@/components/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { registry } from '@/agent/registry';
@@ -119,8 +121,8 @@ function Conflict() {
 }
 
 /**
- * Level switcher, floating over the canvas: a level is a choice within the plan / 3D view (the toolbar holds the view switch),
- * stacked top floor first like the building. In 3D the chosen level and the ones below it are shown.
+ * Level switcher, floating over the canvas top-left: a level is a choice within the plan / 3D view, stacked top floor first like
+ * the building. In 3D the whole house is shown unless the cutaway is on (then the chosen level and the ones below it).
  */
 function LevelSwitcher({ className }: { className?: string }) {
   const levels = useEditor(s => s.project.levels);
@@ -132,6 +134,38 @@ function LevelSwitcher({ className }: { className?: string }) {
       aria-label={m.editor_levels_aria()} className={className}>
       {stacked.map(l => <ToggleGroupItem key={l.id} value={l.id}>{l.name}</ToggleGroupItem>)}
     </ToggleGroup>
+  );
+}
+
+/**
+ * View tools, floating over the canvas top-right: fit all, the switch to the other view (labelled with where it goes), and in 3D
+ * the cutaway toggle.
+ */
+function CanvasTools({ className }: { className?: string }) {
+  const view = useEditor(s => s.view);
+  const setView = useEditor(s => s.setView);
+  const fitView = useEditor(s => s.fitView);
+  const to = view.mode === '2d' ? '3d' : '2d';
+  const cutaway = view.layers.cutaway;
+  return (
+    <div className={cn('flex gap-1', className)}>
+      {view.mode === '3d' && (
+        <Tooltip>
+          <TooltipTrigger render={
+            <Toggle size="sm" variant="outline" className="bg-background aria-pressed:bg-primary aria-pressed:text-primary-foreground" pressed={cutaway}
+              onPressedChange={p => setView({ layers: { ...view.layers, cutaway: p } })} aria-label={m.model3d_cutaway()} />
+          }><LayersIcon /></TooltipTrigger>
+          <TooltipContent>{cutaway ? m.model3d_whole() : m.model3d_cutaway()}</TooltipContent>
+        </Tooltip>
+      )}
+      <Tooltip>
+        <TooltipTrigger render={<Button size="icon-sm" variant="outline" className="bg-background" onClick={fitView} aria-label={m.canvas_fit()} />}><ScanIcon /></TooltipTrigger>
+        <TooltipContent>{m.canvas_fit()}</TooltipContent>
+      </Tooltip>
+      <Button size="sm" variant="outline" className="bg-background" onClick={() => setView({ mode: to })}>
+        {to === '3d' ? <BoxIcon /> : <SquareIcon />}{to === '3d' ? m.editor_view_3d() : m.editor_view_2d()}
+      </Button>
+    </div>
   );
 }
 
@@ -159,10 +193,6 @@ function Toolbar({ onShare, onExport }: { onShare: () => void; onExport: () => v
       </div>
       <SaveStatus />
       <div className="flex-1 max-md:hidden" />
-      <ToggleGroup value={[view.mode]} onValueChange={v => v[0] && setView({ mode: v[0] as '2d' | '3d' })} variant="outline" size="sm">
-        <ToggleGroupItem value="2d" aria-label={m.editor_view_2d()}><SquareIcon /><span className="max-sm:hidden">{m.editor_view_2d()}</span></ToggleGroupItem>
-        <ToggleGroupItem value="3d" aria-label={m.editor_view_3d()}><BoxIcon /><span className="max-sm:hidden">{m.editor_view_3d()}</span></ToggleGroupItem>
-      </ToggleGroup>
       {canEdit && (
         <div className="flex max-sm:hidden">
           <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={undo} disabled={!session.canUndo} aria-label={m.editor_undo()} />}><Undo2Icon /></TooltipTrigger><TooltipContent>{m.editor_undo_shortcut()}</TooltipContent></Tooltip>
@@ -288,6 +318,7 @@ function Workspace() {
           <div className="absolute top-2 left-2">
             <LevelSwitcher className="bg-background shadow-xs" />
           </div>
+          <CanvasTools className="absolute top-2 right-2" />
           {mobile && (
             <nav className="absolute inset-x-0 bottom-0 flex justify-around border-t bg-background/95 pb-[env(safe-area-inset-bottom)]">
               {TABS.slice(0, 4).map(t => (

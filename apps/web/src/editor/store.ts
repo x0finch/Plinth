@@ -58,11 +58,14 @@ export interface EditorState {
   capture: (() => Promise<{ dataUrl: string; width: number; height: number }>) | null;
   /** A message handed to the agent from elsewhere in the editor (e.g. a comment); the chat panel sends it */
   ask: { text: string; at: number } | null;
+  /** Bumped by "fit all": the plan and the 3D view frame the whole drawing again when it changes */
+  fitRequest: number;
 }
 
 export interface EditorActions {
   call(name: string, input: unknown, actor?: Actor): Promise<CallResult>;
   setView(patch: Partial<ViewState>): ViewState;
+  fitView(): void;
   select(ids: string[]): void;
   focus(ids: string[], highlight?: boolean): ViewState;
   undo(): void;
@@ -141,6 +144,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
       compare: false,
       capture: null,
       ask: null,
+      fitRequest: 0,
 
       canEdit: () => can(get().role, 'editor') && get().readOnlyVersion == null,
 
@@ -168,6 +172,10 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
         const v = { ...get().view, ...patch };
         set({ view: v });
         return v;
+      },
+
+      fitView() {
+        set(s => ({ fitRequest: s.fitRequest + 1 }));
       },
 
       select(ids) {

@@ -6,10 +6,8 @@
 import { Edges, OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { findObject, projectBoxes, type Box, type Project, type Space } from '@plinth/core';
-import { BoxIcon, LayersIcon, ScanIcon, SquareIcon } from 'lucide-react';
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { Button } from '@/components/ui/button';
 import { m } from '@/lib/i18n';
 import { useCanvasDocument } from '@/canvas/CanvasFrame';
 import { hops, REVEAL } from '@/canvas/hop';
@@ -246,16 +244,13 @@ function framed(box: THREE.Box3, aspect: number, dir: THREE.Vector3): Pose {
   return { target, pos: target.clone().addScaledVector(back, dist) };
 }
 
-type ViewCommand = { kind: 'fit' | 'top' | 'perspective'; n: number };
 
 /**
  * The camera always orbits the middle of the model, so rotating and zooming keep it centered (zoom goes toward that point).
  * Entering 3D swings the camera down from the plan's top view while the model rises; switching levels lifts the orbit point to the
  * new floor; the view buttons frame the model again or swing to a top or perspective view.
  */
-function CameraRig({ box, levels, projectId, command, model }: {
-  box: THREE.Box3; levels: string; projectId: string; command: ViewCommand | null; model: React.RefObject<THREE.Group | null>;
-}) {
+function CameraRig({ box, levels, projectId, model }: { box: THREE.Box3; levels: string; projectId: string; model: React.RefObject<THREE.Group | null> }) {
   const { camera, controls, size } = useThree();
   const orbit = controls as unknown as Orbit | null;
   const anim = useRef<{ elapsed: number; ms: number; from: Pose; to: Pose; grow: boolean } | null>(null);
@@ -290,16 +285,13 @@ function CameraRig({ box, levels, projectId, command, model }: {
     if (orbit) run(framed(box, size.width / size.height, direction()), 600);
   }, [levels]);
 
+  // "Fit all": frame the model again from the current direction (from straight above, back to the default angle)
+  const fitRequest = useEditor(s => s.fitRequest);
   useEffect(() => {
-    if (!command || !orbit) return;
-    if (command.kind === 'fit') {
-      const dir = direction();
-      return run(framed(box, size.width / size.height, dir.y > 0.99 ? BIRD : dir), 600);
-    }
-    const s = new THREE.Spherical().setFromVector3(camera.position.clone().sub(orbit.target));
-    s.phi = command.kind === 'top' ? 0.01 : 0.95;
-    run({ pos: orbit.target.clone().add(new THREE.Vector3().setFromSpherical(s)), target: orbit.target.clone() }, REVEAL.ms);
-  }, [command]);
+    if (!fitRequest || !orbit) return;
+    const dir = direction();
+    run(framed(box, size.width / size.height, dir.y > 0.99 ? BIRD : dir), 600);
+  }, [fitRequest]);
 
   useFrame((_, dt) => {
     const a = anim.current;
@@ -403,7 +395,6 @@ export function Model3D() {
   const project = useEditor(s => s.project);
   const view = useEditor(s => s.view);
   const projectId = useEditor(s => s.projectId);
-  const setView = useEditor(s => s.setView);
   const c = useColors();
   const model = useRef<THREE.Group>(null);
 
@@ -416,10 +407,6 @@ export function Model3D() {
   // A door or window is part of its wall in 3D, so selecting it marks the wall
   const sel = new Set(view.selection.map(id => ownerOf(id) ?? id));
   const tints = useMemo(() => ({ sel: new THREE.Color(c.sel), changed: new THREE.Color(c.changed) }), [c.sel, c.changed]);
-
-  const [command, setCommand] = useState<ViewCommand | null>(null);
-  const [top, setTop] = useState(false);
-  const run = (kind: ViewCommand['kind']) => setCommand(c => ({ kind, n: (c?.n ?? 0) + 1 }));
 
   const [x0, y0, x1, y1] = useMemo(() => {
     const xs = project.site.boundary.map(p => p[0]), ys = project.site.boundary.map(p => p[1]);
@@ -490,25 +477,13 @@ export function Model3D() {
           </group>
           <OrbitControls makeDefault enableDamping dampingFactor={0.09} maxPolarAngle={Math.PI / 2 - 0.05}
             minDistance={Math.max(1.5, radius * 0.15)} maxDistance={radius * 6} />
-          <CameraRig box={box} levels={shownIds} projectId={projectId} command={command} model={model} />
+          <CameraRig box={box} levels={shownIds} projectId={projectId} model={model} />
           <SafariPinch />
           <Picker />
           <Reveal ownerOf={ownerOf} />
           <Capture />
         </Canvas>
       </TintColors.Provider>
-      <div className="absolute top-2 right-2 flex gap-1">
-        <Button size="icon-sm" variant="outline" className="bg-background" onClick={() => run('fit')} aria-label={m.model3d_fit()} title={m.model3d_fit()}><ScanIcon /></Button>
-        <Button size="icon-sm" variant="outline" className="bg-background" onClick={() => { run(top ? 'perspective' : 'top'); setTop(!top); }}
-          aria-label={top ? m.model3d_perspective() : m.model3d_top()} title={top ? m.model3d_perspective() : m.model3d_top()}>
-          {top ? <BoxIcon /> : <SquareIcon />}
-        </Button>
-        <Button size="icon-sm" variant={view.layers.cutaway ? 'secondary' : 'outline'} className={view.layers.cutaway ? undefined : 'bg-background'}
-          aria-pressed={view.layers.cutaway} onClick={() => setView({ layers: { ...view.layers, cutaway: !view.layers.cutaway } })}
-          aria-label={view.layers.cutaway ? m.model3d_whole() : m.model3d_cutaway()} title={view.layers.cutaway ? m.model3d_whole() : m.model3d_cutaway()}>
-          <LayersIcon />
-        </Button>
-      </div>
       <p className="pointer-events-none absolute bottom-2 left-3 text-xs text-muted-foreground max-md:hidden">{m.model3d_hint()}</p>
     </div>
   );

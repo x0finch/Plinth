@@ -1,4 +1,4 @@
-// E2E: English UI smoke test → landing page in English → sample design → Plan/3D toolbar → pick in 3D → select a room in the canvas
+// E2E: English UI smoke test → landing page in English → sample design → Plan/3D switch on the canvas → pick in 3D → select a room in the canvas
 // → properties tab shows its area → Settings shows English selected → a blank design gets English level names
 import { chromium } from 'playwright';
 
@@ -32,13 +32,15 @@ await page.waitForFunction(() => window.artifact?.ready);
 check(await page.evaluate(() => document.documentElement.lang) === 'en', '<html lang> is "en"');
 const planBtn = page.getByRole('button', { name: 'Plan', exact: true });
 const threeBtn = page.getByRole('button', { name: '3D', exact: true });
-check(await planBtn.isVisible() && await threeBtn.isVisible(), 'toolbar shows "Plan" and "3D"');
+// The canvas shows the switch to the other view: "3D" in the plan, "Plan" in 3D
+check(await threeBtn.isVisible() && !(await planBtn.isVisible()), 'the plan shows a "3D" switch');
 
 // 3D view, then back to the plan
 const canvas = page.frameLocator('iframe[title="Canvas"]');
 await threeBtn.click();
 const gl = await canvas.locator('canvas').first().waitFor({ timeout: 20000 }).then(() => true, () => false);
 check(gl, 'switching to 3D renders a WebGL canvas');
+check(await planBtn.isVisible() && await page.getByRole('button', { name: 'Fit all' }).isVisible(), '3D shows "Plan" and "Fit all"');
 await page.screenshot({ path: `${OUT}/en-3d.png` });
 const fits = await page.frames().find(f => f !== page.mainFrame()).evaluate(() => {
   const c = document.querySelector('canvas'), r = c.getBoundingClientRect(), p = c.parentElement.getBoundingClientRect();
