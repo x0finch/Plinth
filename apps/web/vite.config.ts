@@ -18,7 +18,8 @@ export default defineConfig({
   environments: { plinth: { build: { minify: true } } },
   plugins: [
     // UI text lives in messages/{locale}.json. Chinese is the base locale and the default;
-    // a choice made in the language switcher is kept in localStorage. No locale prefix in URLs.
-    paraglideVitePlugin({ project: './project.inlang', outdir: './src/paraglide', strategy: ['localStorage', 'baseLocale'] }),
+    // a choice made in the language switcher is kept in localStorage and a cookie (so the Worker
+    // can answer in the same language). No locale prefix in URLs.
+    paraglideVitePlugin({ project: './project.inlang', outdir: './src/paraglide', strategy: ['localStorage', 'cookie', 'baseLocale'] }),
     tanstackRouter({ target: 'react', autoCodeSplitting: true }), viteReact(), tailwindcss(), cloudflare()],
 });
