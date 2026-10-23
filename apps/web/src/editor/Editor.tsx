@@ -333,7 +333,8 @@ function Workspace() {
       </div>
       {mobile && (
         <Sheet open={sheet} onOpenChange={setSheet}>
-          <SheetContent side="bottom" className="h-[75dvh] gap-0 p-0">
+          {/* The base bottom sheet is h-auto under data-[side=bottom]; the height must use the same variant to win, or the panels grow instead of scrolling */}
+          <SheetContent side="bottom" className="gap-0 p-0 data-[side=bottom]:h-[75dvh]">
             <SheetHeader className="sr-only"><SheetTitle>{TABS.find(t => t.id === tab)?.label()}</SheetTitle></SheetHeader>
             {tabs}
           </SheetContent>

@@ -49,6 +49,16 @@ await fam.getByRole('button', { name: '发表' }).click();
 const tagged = await fam.getByText('@厨房').first().waitFor({ timeout: 10000 }).then(() => true, () => false);
 check(tagged, 'comment is attached to the kitchen');
 await fam.screenshot({ path: `${OUT}/mobile-2-comment.png` });
+await fam.keyboard.press('Escape');
+
+// The bottom sheet keeps its height and its panel scrolls, rather than growing past the screen
+await fam.getByRole('navigation').getByRole('button', { name: '面积' }).click();
+const sheetPanel = fam.locator('[data-slot=sheet-content] [role=tabpanel]:not([hidden])').first();
+await sheetPanel.waitFor();
+await fam.waitForTimeout(500); // slide-in transition
+const fit = await sheetPanel.evaluate(e => ({ sh: e.scrollHeight, ch: e.clientHeight, vh: innerHeight, bottom: e.getBoundingClientRect().bottom }));
+check(fit.sh > fit.ch && fit.bottom <= fit.vh, `mobile sheet panel scrolls within the screen: ${JSON.stringify(fit)}`);
+await fam.keyboard.press('Escape');
 
 // Owner: agent handles the comment (calls capabilities directly to exercise the comment tools)
 const list = await owner.evaluate(() => window.artifact.call('comments_list', {}));
