@@ -32,10 +32,13 @@ npm run dev                            # http://localhost:3000; OTP codes are pr
 
 ```sh
 npm test                               # core: area reference values, capability contracts, constraints (repo root)
+npm run bench                          # core: transaction timings on the sample project
 cd apps/web
+npm test                               # web unit tests: editor store (autosave, conflicts, versions, read-only)
 npm run fake-llm &                     # fake model (OpenAI-compatible API, scripted tool calls)
 npm run dev > dev.log &
-DEV_LOG=dev.log npm run e2e            # end to end: agent chat, approvals, starting from scratch, sharing, comments, versions, mobile layout, email/password sign-in (OTP codes read from dev.log)
+node e2e/permissions.e2e.mjs           # API permission matrix: every route × every role (also runs in CI)
+DEV_LOG=dev.log npm run e2e            # end to end: permissions, agent chat, approvals, starting from scratch, sharing, comments, versions, mobile layout, email/password sign-in (OTP codes read from dev.log)
 ```
 
 ## Deployment (Cloudflare Workers free plan, via GitHub Actions)

@@ -1,5 +1,5 @@
 # Check + deploy to Cloudflare Workers
-# - Pull requests and pushes: typecheck, core package tests, theme color check, build
+# - Pull requests and pushes: typecheck, core and web unit tests, theme color check, build; API permission matrix against a local Worker
 # - Pushes to main: after checks pass, migrate the production D1, deploy, sync Worker secrets
 # Configure under the repo's Settings → Secrets and variables → Actions; see "Deployment" in the README
 name: deploy
@@ -31,9 +31,38 @@ jobs:
       # The build generates the route tree routeTree.gen.ts (not committed); the web typecheck must run after it
       - run: npm run build -w @plinth/web
       - run: npx tsc --noEmit -p apps/web
+      - run: npm test -w @plinth/web
+
+  # The API permission matrix against a local Worker + D1 (no browser, no model)
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Start the local Worker
+        working-directory: apps/web
+        run: |
+          printf 'APP_URL=http://localhost:3000\nBETTER_AUTH_SECRET=%s\nKEY_ENCRYPTION_SECRET=%s\n' "$(openssl rand -base64 32)" "$(openssl rand -base64 32)" > .dev.vars
+          npm run db:migrate:local
+          nohup npm run dev > dev.log 2>&1 &
+          for i in $(seq 1 120); do curl -sf localhost:3000/api/me > /dev/null && exit 0; sleep 1; done
+          cat dev.log
+          exit 1
+      - name: API permission matrix
+        working-directory: apps/web
+        run: node e2e/permissions.e2e.mjs
+      - name: Worker log
+        if: failure()
+        working-directory: apps/web
+        run: cat dev.log
 
   deploy:
-    needs: check
+    needs: [check, api]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production

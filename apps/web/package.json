@@ -12,11 +12,12 @@
     "db:migrate:remote": "wrangler d1 migrations apply plinth --remote",
     "deploy": "vite build && wrangler deploy",
     "fake-llm": "node e2e/fake-llm.mjs",
-    "e2e": "node e2e/agent.e2e.mjs && node e2e/collab.e2e.mjs && node e2e/auth.e2e.mjs && node e2e/en.e2e.mjs",
+    "e2e": "node e2e/permissions.e2e.mjs && node e2e/agent.e2e.mjs && node e2e/collab.e2e.mjs && node e2e/auth.e2e.mjs && node e2e/en.e2e.mjs",
     "check:theme": "node scripts/check-theme.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",
     "i18n": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --strategy localStorage cookie baseLocale",
-    "walkthrough": "node e2e/walkthrough.mjs"
+    "walkthrough": "node e2e/walkthrough.mjs",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.64.0",
