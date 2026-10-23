@@ -12,6 +12,8 @@ export interface LibrarySummary {
   updated_at: number;
   /** Shipped with the app; read-only for everyone */
   builtin?: boolean;
+  /** The default set: what objects without a look of their own are drawn with */
+  default?: boolean;
 }
 
 /** A furniture type a look draws that the catalog doesn't have */
@@ -36,6 +38,7 @@ export interface LibraryDetail {
   name: string;
   role: LibraryRole;
   builtin?: boolean;
+  default?: boolean;
   looks: LibraryLook[];
   members: { user_id: string; name: string; email: string; role: LibraryRole }[];
 }

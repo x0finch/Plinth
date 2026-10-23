@@ -3,7 +3,7 @@
  * furniture, elements, space kinds), each in its own cell, laid out in rows and named on the ground in front of it. Generated
  * here, never stored: the gallery shows them in the default model style, through the same 3D view as a real design.
  */
-import { createProject, names, type Element, type Opening, type Point, type Project, type Space, type Wall, type WallKind } from '@plinth/core';
+import { createProject, names, type Element, type Look, type Opening, type Point, type Project, type Space, type Wall, type WallKind } from '@plinth/core';
 import type { GroundLabelSpec } from '@/editor/ground-labels';
 import { kindLabel } from '@/editor/panels/common';
 import { m } from '@/lib/i18n';
@@ -32,13 +32,51 @@ function wall(id: string, name: string, kind: WallKind, start: Point, end: Point
   return { id, name, level: 'L1', kind, start, end, thickness, openings: [], ...o };
 }
 
+/** A row with each look (a look of the project's library) on the first thing it fits, named after the look */
+function looksRow(p: Project): Tile[] {
+  const tiles: Tile[] = [];
+  for (const [look, def] of Object.entries(p.library.looks ?? {})) {
+    const [kind, type] = def.for[0].split(':');
+    if (kind === 'furniture' && p.library.furniture[type]) {
+      const size = p.library.furniture[type].size;
+      const w = Math.max(2200, Math.ceil((size.w + 800) / 100) * 100), h = Math.ceil((size.d + 400) / 100) * 100;
+      tiles.push({
+        w, h,
+        fill(p, x, y, id) {
+          p.furniture.push({ id: `${id}-f`, name: def.name, type, level: 'L1', position: [x + w / 2, y + h / 2], rotation: 0, size: { ...size }, look });
+          return [def.name, `${id}-f`];
+        },
+      });
+    } else if (kind === 'opening') {
+      const glassBlock = type === 'glass-block', okind = (glassBlock ? 'window' : type) as Opening['kind'], door = ['door', 'gate', 'opening'].includes(okind);
+      tiles.push({
+        w: 2800, h: 2000,
+        fill(p, x, y, id) {
+          const wl = wall(`${id}-w`, def.name, okind === 'gate' ? 'fence' : 'bearing', [x + 200, y + 1000], [x + 2600, y + 1000]);
+          wl.openings.push({ id: `${id}-o`, name: def.name, kind: okind, at: 1200, width: door ? 900 : 1200, height: door ? 2100 : 1500, sill: door ? 0 : 900, look, ...(glassBlock ? { glazing: 'glass-block' as const } : {}) });
+          p.walls.push(wl);
+          return [def.name, `${id}-o`];
+        },
+      });
+    }
+  }
+  return tiles;
+}
+
+/** Looks to show instead of the default set: a library's, with the furniture types they bring */
+export interface SpecimenLooks {
+  looks: { id: string; name: string; for: string[]; recipe: Look['recipe']; version: number }[];
+  types: Record<string, { name: string; group?: string; size: { w: number; d: number; h: number } }>;
+}
+
 /**
- * With `from`, the first row shows that design's own looks (library.looks), each on the first thing it fits, named after the
- * look; its custom furniture types come along
+ * The default set: one of every kind of thing. With `from`, a first row shows that design's own looks (library.looks) and its
+ * custom furniture types come along. With `only`, just those looks, each on the first thing it fits.
  */
-export function specimenProject(lang: Project['language'], from?: Project): { project: Project; labels: GroundLabelSpec[] } {
+export function specimenProject(lang: Project['language'], opts: { from?: Project; only?: SpecimenLooks; title?: string } = {}): { project: Project; labels: GroundLabelSpec[] } {
+  const { from, only } = opts;
   // A second, empty level gives the stair a storey to climb; the gallery shows 3D only, with no level switcher
-  const p = createProject({ id: 'gallery', name: m.gallery_title(), language: lang, floors: 2, floorHeight: STOREY });
+  const p = createProject({ id: 'gallery', name: opts.title ?? m.gallery_title(), language: lang, floors: 2, floorHeight: STOREY });
   p.levels = p.levels.filter(l => !l.roof);
   const v = names(lang);
   p.library.elements = {
@@ -48,37 +86,18 @@ export function specimenProject(lang: Project['language'], from?: Project): { pr
   };
 
   const rows: Tile[][] = [];
+  if (only) {
+    p.library.looks = Object.fromEntries(only.looks.map(k => [k.id, { name: k.name, for: k.for, recipe: k.recipe, version: k.version }]));
+    for (const [type, def] of Object.entries(only.types)) p.library.furniture[type] ??= structuredClone(def);
+    rows.push(looksRow(p));
+    return layout(p, rows);
+  }
 
   // The design's own looks
   if (from?.library.looks) {
     p.library.looks = structuredClone(from.library.looks);
     for (const [type, def] of Object.entries(from.library.furniture)) p.library.furniture[type] ??= structuredClone(def);
-    const tiles: Tile[] = [];
-    for (const [look, def] of Object.entries(from.library.looks)) {
-      const [kind, type] = def.for[0].split(':');
-      if (kind === 'furniture' && p.library.furniture[type]) {
-        const size = p.library.furniture[type].size;
-        const w = Math.max(2200, Math.ceil((size.w + 800) / 100) * 100), h = Math.ceil((size.d + 400) / 100) * 100;
-        tiles.push({
-          w, h,
-          fill(p, x, y, id) {
-            p.furniture.push({ id: `${id}-f`, name: def.name, type, level: 'L1', position: [x + w / 2, y + h / 2], rotation: 0, size: { ...size }, look });
-            return [def.name, `${id}-f`];
-          },
-        });
-      } else if (kind === 'opening') {
-        const glassBlock = type === 'glass-block', okind = (glassBlock ? 'window' : type) as Opening['kind'], door = ['door', 'gate', 'opening'].includes(okind);
-        tiles.push({
-          w: 2800, h: 2000,
-          fill(p, x, y, id) {
-            const wl = wall(`${id}-w`, def.name, okind === 'gate' ? 'fence' : 'bearing', [x + 200, y + 1000], [x + 2600, y + 1000]);
-            wl.openings.push({ id: `${id}-o`, name: def.name, kind: okind, at: 1200, width: door ? 900 : 1200, height: door ? 2100 : 1500, sill: door ? 0 : 900, look, ...(glassBlock ? { glazing: 'glass-block' as const } : {}) });
-            p.walls.push(wl);
-            return [def.name, `${id}-o`];
-          },
-        });
-      }
-    }
+    const tiles = looksRow(p);
     if (tiles.length) rows.push(tiles);
   }
 
@@ -171,10 +190,16 @@ export function specimenProject(lang: Project['language'], from?: Project): { pr
     },
   })));
 
-  // Lay the rows out top to bottom, tiles left to right, wrapping long rows at about the side of a square of the same area, so
-  // the gallery comes out about square (the 3D view looks at it diagonally)
+  return layout(p, rows);
+}
+
+/**
+ * Lay the rows out top to bottom, tiles left to right, wrapping long rows at about the side of a square of the same area, so
+ * the gallery comes out about square (the 3D view looks at it diagonally)
+ */
+function layout(p: Project, rows: Tile[][]): { project: Project; labels: GroundLabelSpec[] } {
   const area = rows.flat().reduce((a, t) => a + (t.w + GAP) * (t.h + GAP), 0);
-  const rowWidth = Math.sqrt(area) * 1.1;
+  const rowWidth = Math.max(Math.sqrt(area) * 1.1, 3000);
   const labels: GroundLabelSpec[] = [];
   let y = GAP, width = 0;
   rows.forEach((row, r) => {

@@ -1,5 +1,5 @@
 /** Properties of the selected object; with nothing selected, the level's rule check and the constraints. */
-import { derived, elementTarget, findObject, furnitureTarget, looksFor, objectInfo, openingTarget, type ObjectInfo } from '@plinth/core';
+import { DEFAULT_LIBRARY_ID, derived, elementTarget, findObject, furnitureTarget, looksFor, objectInfo, openingTarget, type ObjectInfo } from '@plinth/core';
 import { Link } from '@tanstack/react-router';
 import { CheckIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -138,7 +138,7 @@ function LookPicker({ id }: { id: string }) {
         {!own && typeLook && (
           <Button variant="link" size="sm" className="h-auto px-0" onClick={() => run('look_use', { target, look: null })}>{m.panels_look_reset_all()}</Button>
         )}
-        <Button variant="link" size="sm" className="h-auto px-0" nativeButton={false} render={<Link to="/gallery" search={{ p: projectId }} />}>{m.panels_look_gallery()}</Button>
+        <Button variant="link" size="sm" className="h-auto px-0" nativeButton={false} render={<Link to="/looks/$libraryId" params={{ libraryId: DEFAULT_LIBRARY_ID }} search={{ p: projectId }} />}>{m.panels_look_gallery()}</Button>
       </div>
     </div>
   );

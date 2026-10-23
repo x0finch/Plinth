@@ -10,7 +10,8 @@ import { LOOK_MATERIALS, LOOK_TOKENS, partsGeometry, safeBuild } from './looks';
 
 const M = 0.001;
 
-export async function renderLookPreview(recipe: Recipe, size: { w: number; d: number; h: number }, opts: { width?: number; height?: number } = {}): Promise<string> {
+/** `single`: only the three-quarter view, filling the image */
+export async function renderLookPreview(recipe: Recipe, size: { w: number; d: number; h: number }, opts: { width?: number; height?: number; single?: boolean } = {}): Promise<string> {
   const W = opts.width ?? 960, H = opts.height ?? 320, doc = await lightDocument();
   const canvas = document.createElement('canvas');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
@@ -43,7 +44,7 @@ export async function renderLookPreview(recipe: Recipe, size: { w: number; d: nu
     box.union(g.boundingBox!);
   }
   const center = box.getCenter(new THREE.Vector3()), radius = box.getSize(new THREE.Vector3()).length() / 2 || 1;
-  const vw = W / 3, aspect = vw / H;
+  const vw = opts.single ? W : W / 3, aspect = vw / H;
   const ortho = (dir: THREE.Vector3, up: THREE.Vector3) => {
     const r = radius * 1.1, cam = new THREE.OrthographicCamera(-r * aspect, r * aspect, r, -r, 0.01, radius * 10);
     cam.up.copy(up);
@@ -54,7 +55,7 @@ export async function renderLookPreview(recipe: Recipe, size: { w: number; d: nu
   const persp = new THREE.PerspectiveCamera(30, aspect, 0.01, radius * 20);
   persp.position.copy(center).addScaledVector(new THREE.Vector3(1, 0.8, 1.4).normalize(), radius / Math.sin((15 * Math.PI) / 180) * 1.05);
   persp.lookAt(center);
-  const views: THREE.Camera[] = [persp, ortho(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0)), ortho(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1))];
+  const views: THREE.Camera[] = opts.single ? [persp] : [persp, ortho(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0)), ortho(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1))];
   views.forEach((cam, i) => {
     renderer.setViewport(i * vw, 0, vw, H);
     renderer.setScissor(i * vw, 0, vw, H);

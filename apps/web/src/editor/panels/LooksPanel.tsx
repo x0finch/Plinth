@@ -135,9 +135,12 @@ function ImportDialog() {
   const project = useEditor(s => s.project);
   const run = useRun();
   const [open, setOpen] = useState(false);
-  const libs = useQuery({ queryKey: ['libraries'], queryFn: listLibraries, enabled: open });
+  const all = useQuery({ queryKey: ['libraries'], queryFn: listLibraries, enabled: open });
+  // The default library is what the design already falls back to; to go back to it, reset a look instead
+  const libs = { ...all, data: all.data?.filter(l => !l.default) };
   const [picked, setPicked] = useState<string | null>(null);
-  const library = picked ?? libs.data?.[0]?.id ?? null;
+  // The user's own and shared libraries come first; built-in ones after them
+  const library = picked ?? (libs.data?.find(l => !l.builtin) ?? libs.data?.[0])?.id ?? null;
   const detail = useQuery({ queryKey: ['library', library], queryFn: () => getLibrary(library!), enabled: open && !!library });
   return (
     <Dialog open={open} onOpenChange={setOpen}>

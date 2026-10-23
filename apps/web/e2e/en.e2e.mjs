@@ -74,10 +74,15 @@ check(await langSection.isVisible(), 'Settings has a "Language" section');
 check((await langSection.innerText()).includes('English'), 'language selector shows "English"');
 check(await page.getByRole('heading', { name: 'Settings', exact: true }).first().isVisible(), 'Settings page title is English');
 
-// Style gallery, from Settings: 3D only, the specimens named in English, and picking one shows its properties
-await page.locator('a[href="/gallery"]').click();
-await page.waitForURL(/\/gallery/);
-check(await page.getByRole('heading', { name: 'Style gallery', exact: true }).isVisible(), 'the style gallery opens from Settings');
+// Libraries, from the top navigation; the default library's page: 3D only, the specimens named in English, and picking one
+// shows its properties
+await page.locator('header a[href="/looks"]').click();
+await page.waitForURL(/\/looks$/);
+const visible = loc => loc.waitFor({ timeout: 15000 }).then(() => true, () => false);
+check(await visible(page.getByRole('heading', { name: 'Libraries', exact: true })), 'the top navigation opens Libraries');
+await page.getByRole('link', { name: 'Open “Default pieces”' }).click();
+await page.waitForURL(/\/looks\/builtin-default/);
+check(await visible(page.getByRole('heading', { name: 'Default pieces', exact: true })), 'the default library opens on its page');
 check(!(await page.getByRole('button', { name: 'Plan', exact: true }).isVisible()) && !(await page.getByText('Level 2', { exact: true }).isVisible()),
   'the gallery is 3D only: no switch to the plan, no level buttons');
 // The names are written on the ground in WebGL, so pick a specimen in the model itself: tap across the middle of this
