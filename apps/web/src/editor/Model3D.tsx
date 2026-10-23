@@ -27,7 +27,7 @@ const unitBox = new THREE.BoxGeometry(1, 1, 1);
 const useColors = () =>
   useThemeColors({
     backdrop: '--canvas-backdrop', sun: '--canvas-sun', skylight: '--canvas-skylight', wall: '--card', furn: '--muted',
-    glass: '--canvas-glass', frame: '--foreground', page: '--background', sel: '--chart-2', changed: '--chart-1',
+    glass: '--canvas-glass', frame: '--foreground', page: '--canvas-backdrop', sel: '--chart-2', changed: '--chart-1',
   }, useCanvasDocument());
 
 /** Selected objects are tinted with the selection color and outlined; just-changed objects get a tint that fades out */

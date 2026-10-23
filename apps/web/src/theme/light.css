@@ -60,4 +60,6 @@
     --canvas-skylight: oklch(0.80 0.05 285);
     --canvas-ground: oklch(0.93 0.014 115);
     --canvas-glass: oklch(0.80 0.06 225);
+    /* Shadows in the plan, matching the 3D view's lavender shade */
+    --canvas-shadow: oklch(0.45 0.06 285);
 }

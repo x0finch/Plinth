@@ -92,13 +92,13 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
           ref={ref}
           viewBox={vb}
           className="h-full w-full select-none"
-          style={{ background: 'var(--background)' }}
+          style={{ background: 'var(--canvas-backdrop)' }}
           onClick={() => select([])}
           role="img"
           aria-label={m.editor_plan_aria({ level: project.levels.find(l => l.id === view.level)?.name ?? '' })}
         >
           <PlanDefs />
-          <PlanPaper project={project} shapes={shapes} line={screenLine} pick={pick} />
+          <PlanPaper project={project} level={view.level} shapes={shapes} pick={pick} />
           <PlanInk shapes={shapes} furniture={view.layers.furniture} line={screenLine} pick={pick} />
 
           {/* Just changed (or pointed at by the agent): a tint that fades out. Selected: tinted with an outline until deselected */}
