@@ -142,7 +142,7 @@ function LevelSwitcher({ className }: { className?: string }) {
  * View tools, floating over the canvas top-right: fit all, the switch to the other view (labelled with where it goes), and in 3D
  * the cutaway toggle.
  */
-function CanvasTools({ className }: { className?: string }) {
+function CanvasTools({ className, only3D }: { className?: string; only3D?: boolean }) {
   const view = useEditor(s => s.view);
   const setView = useEditor(s => s.setView);
   const fitView = useEditor(s => s.fitView);
@@ -164,7 +164,7 @@ function CanvasTools({ className }: { className?: string }) {
   const cutaway = view.layers.cutaway;
   return (
     <div className={cn('flex gap-1', className)}>
-      {view.mode === '3d' && (
+      {view.mode === '3d' && !only3D && (
         <Tooltip>
           <TooltipTrigger render={
             <Toggle size="sm" variant="outline" className="bg-background aria-pressed:bg-primary aria-pressed:text-primary-foreground" pressed={cutaway}
@@ -177,9 +177,11 @@ function CanvasTools({ className }: { className?: string }) {
         <TooltipTrigger render={<Button size="icon-sm" variant="outline" className="bg-background" onClick={fitView} aria-label={m.canvas_fit()} />}><ScanIcon /></TooltipTrigger>
         <TooltipContent>{m.canvas_fit()}</TooltipContent>
       </Tooltip>
-      <Button size="sm" variant="outline" className="bg-background" onClick={switchView} disabled={switching}>
-        {to === '3d' ? <BoxIcon /> : <SquareIcon />}{to === '3d' ? m.editor_view_3d() : m.editor_view_2d()}
-      </Button>
+      {!only3D && (
+        <Button size="sm" variant="outline" className="bg-background" onClick={switchView} disabled={switching}>
+          {to === '3d' ? <BoxIcon /> : <SquareIcon />}{to === '3d' ? m.editor_view_3d() : m.editor_view_2d()}
+        </Button>
+      )}
     </div>
   );
 }
@@ -268,9 +270,10 @@ function Thumbnail() {
 
 /**
  * The canvas with its floating controls: the plan or the 3D view (the plan stays on screen while 3D gets ready), the level
- * switcher top-left and the view tools top-right. Shared by the editor and the style gallery.
+ * switcher top-left and the view tools top-right. Shared by the editor and the style gallery, which shows 3D only (`only3D`: no
+ * level switcher, no switch to the plan, no cutaway).
  */
-export function EditorCanvas({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | null> }) {
+export function EditorCanvas({ svgRef, only3D }: { svgRef?: React.RefObject<SVGSVGElement | null>; only3D?: boolean }) {
   const view = useEditor(s => s.view);
   const planUntil3D = useEditor(s => s.planUntil3D);
   // Fetch the 3D view's code once the canvas is idle, so switching to 3D grows the house without a loading pause first
@@ -293,10 +296,12 @@ export function EditorCanvas({ svgRef }: { svgRef?: React.RefObject<SVGSVGElemen
           </div>
         )}
       </CanvasFrame>
-      <div className="absolute top-2 left-2">
-        <LevelSwitcher className="bg-background shadow-xs" />
-      </div>
-      <CanvasTools className="absolute top-2 right-2" />
+      {!only3D && (
+        <div className="absolute top-2 left-2">
+          <LevelSwitcher className="bg-background shadow-xs" />
+        </div>
+      )}
+      <CanvasTools className="absolute top-2 right-2" only3D={only3D} />
     </>
   );
 }

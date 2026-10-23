@@ -16,6 +16,7 @@ import { useThemeColors } from '@/lib/theme';
 import { FloorDrawing, PlanSheet } from './model3d/FloorDrawing';
 import { useFloorTexture } from './model3d/floor-textures';
 import { detectQuality, isTouchDevice, Renderer, type Quality } from './model3d/Renderer';
+import { GroundLabels, type GroundLabelSpec } from './ground-labels';
 import { modelStyle } from './model-style';
 import { planFrame, plinthRect } from './plan-geometry';
 import { useEditor, useEditorStore } from './store';
@@ -251,6 +252,44 @@ function Glazing({ b, base, c, ...o }: Outline & { b: Box; base: number; c: { gl
         </mesh>
       ))}
     </group>
+  );
+}
+
+/** Height of a ground label's letters (mm), smaller when the name would be wider than it may be */
+const LABEL_TEXT = 360;
+
+/**
+ * A name written on the ground (see ground-labels.ts), like lettering painted on the floor: it turns, scales and recedes with
+ * the model. Picking it selects what it names.
+ */
+function GroundLabel({ t, base, color }: { t: GroundLabelSpec; base: number; color: string }) {
+  const doc = useCanvasDocument();
+  const label = useMemo(() => {
+    // The page's sans-serif (it falls back to the system's CJK font for Chinese names)
+    const font = doc.defaultView!.getComputedStyle(doc.body).fontFamily || 'sans-serif';
+    const px = 96, c = doc.createElement('canvas'), ctx = c.getContext('2d')!;
+    ctx.font = `500 ${px}px ${font}`;
+    const w = Math.ceil(ctx.measureText(t.name).width) + px / 2;
+    c.width = w;
+    c.height = Math.ceil(px * 1.4);
+    ctx.font = `500 ${px}px ${font}`;
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t.name, w / 2, c.height / 2);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    const k = Math.min(LABEL_TEXT, (t.width * 0.9 * px) / w) * M / px;
+    return { tex, w: w * k, h: c.height * k };
+  }, [doc, t.name, t.width, color]);
+  useEffect(() => () => label.tex.dispose(), [label]);
+  return (
+    // Just above the ground (or floor) it's written on
+    <mesh position={[t.at[0] * M, (base + 4) * M, t.at[1] * M + label.h / 2]} rotation={[-Math.PI / 2, 0, 0]} userData={{ id: t.pick, noEdges: true }} renderOrder={4}>
+      <planeGeometry args={[label.w, label.h]} />
+      <meshBasicMaterial map={label.tex} transparent depthWrite={false} toneMapped={false} />
+    </mesh>
   );
 }
 
@@ -578,6 +617,8 @@ function Picker() {
 export function Model3D() {
   const project = useEditor(s => s.project);
   const view = useEditor(s => s.view);
+  const select = useEditor(s => s.select);
+  const labels = useContext(GroundLabels);
   const projectId = useEditor(s => s.projectId);
   const c = useColors();
   const style = modelStyle();
@@ -667,8 +708,6 @@ export function Model3D() {
             setQuality(detectQuality(doc.defaultView!, gl.getContext()));
           }}
         >
-          {/* The ground fades into the backdrop in the distance, so it has no visible edge */}
-          <fog attach="fog" args={[c.backdrop, radius * 4, radius * 12]} />
           {/* A warm white sun and sky: lit faces are white, shadows a soft warm gray (three.js divides diffuse light by π,
               hence the strong intensities) */}
           <hemisphereLight args={[c.skylight, c.wall, 2.4]} />
@@ -732,6 +771,7 @@ export function Model3D() {
           <CameraRig box={box} levels={levels} current={current?.id ?? ''} growing={growing} drawings={drawings} growth={growth} projectId={projectId} />
           <SafariPinch />
           <Picker />
+          {labels.map(t => <GroundLabel key={t.pick} t={t} base={elev.get(t.level) ?? 0} color={c.edge} />)}
           <Reveal ownerOf={ownerOf} />
           <Renderer draw={draw} edges={style.edges} edgeColor={c.edge} growth={growth} />
           {/* A phone that wasn't recognized as low-end but can't keep up drops to the light setup, for good */}
