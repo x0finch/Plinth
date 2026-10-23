@@ -1,27 +1,33 @@
 /**
- * 3D massing model: walls drawn as boxes from the solid segments cut by the core package, spaces as slabs, furniture as simple blocks.
+ * 3D massing model, drawn as a white model: walls as boxes from the solid segments cut by the core package, spaces as slabs,
+ * furniture as simple blocks, each floor carrying its plan linework. Light and soft shadows give the form, no outlines.
  * Shows the whole house, or with the cutaway layer the current floor and below; picking is synced with the plan.
  * Units: data in millimetres, scene in metres.
  */
-import { Edges, OrbitControls } from '@react-three/drei';
+import { Edges, OrbitControls, PerformanceMonitor } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { findObject, projectBoxes, type Box, type Project, type Space } from '@plinth/core';
-import { createContext, useContext, useEffect, useMemo, useRef } from 'react';
+import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { m } from '@/lib/i18n';
 import { useCanvasDocument } from '@/canvas/CanvasFrame';
 import { hops, REVEAL } from '@/canvas/hop';
 import { useThemeColors } from '@/lib/theme';
+import { FloorDrawing, PlanSheet } from './model3d/FloorDrawing';
+import { detectQuality, isTouchDevice, Renderer, type Quality } from './model3d/Renderer';
+import { planFrame, plinthRect } from './plan-geometry';
 import { useEditor, useEditorStore } from './store';
 
 const M = 0.001;
+/** Height of the white plinth the site stands on, in metres */
+const PLINTH = 0.3;
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
 
 /** All 3D model colors come from the theme */
 const useColors = () =>
   useThemeColors({
-    bg: '--muted', wall: '--card', slab: '--secondary', ground: '--accent', furn: '--chart-3',
-    glass: '--muted-foreground', edge: '--muted-foreground', sel: '--chart-2', changed: '--chart-1', sky: '--background',
+    backdrop: '--canvas-backdrop', sun: '--canvas-sun', skylight: '--canvas-skylight', wall: '--card', furn: '--muted',
+    glass: '--canvas-glass', frame: '--foreground', page: '--canvas-backdrop', shadow: '--canvas-shadow', sel: '--chart-2', changed: '--chart-1',
   }, useCanvasDocument());
 
 /** Selected objects are tinted with the selection color and outlined; just-changed objects get a tint that fades out */
@@ -37,7 +43,7 @@ function useFeedback<T extends THREE.Mesh>(id: string, color: string, selected: 
   const ref = useRef<T>(null);
   const tints = useContext(TintColors);
   const base = useMemo(() => new THREE.Color(color), [color]);
-  useFrame(({ camera, size }) => {
+  useFrame(({ camera, size, invalidate }) => {
     const o = ref.current;
     if (!o) return;
     const now = performance.now();
@@ -47,11 +53,15 @@ function useFeedback<T extends THREE.Mesh>(id: string, color: string, selected: 
     if (selected) mat.color.lerp(tints.sel, SELECTED_TINT);
     else {
       const k = hops.changeTint(id, now);
-      if (k > 0) mat.color.lerp(tints.changed, CHANGED_TINT * k);
+      if (k > 0) {
+        mat.color.lerp(tints.changed, CHANGED_TINT * k);
+        invalidate();
+      }
     }
     const px = hops.lift(id, now);
     o.position.y = o.userData.restY;
     if (!px) return;
+    invalidate();
     // Hop height is in screen pixels: the farther from the camera, the higher the lift
     const dist = camera.position.distanceTo(o.getWorldPosition(tmp));
     const fov = (camera as THREE.PerspectiveCamera).fov ?? 40;
@@ -67,7 +77,7 @@ const tmp = new THREE.Vector3();
  */
 function Reveal({ ownerOf }: { ownerOf: (id: string) => string | undefined }) {
   const selection = useEditor(s => s.view.selection);
-  const { camera, scene, controls } = useThree();
+  const { camera, scene, controls, invalidate } = useThree();
   const anim = useRef<{ t0: number; from: [THREE.Vector3, THREE.Vector3]; to: [THREE.Vector3, THREE.Vector3]; id: string } | null>(null);
   const prev = useRef<string[]>([]);
 
@@ -96,6 +106,7 @@ function Reveal({ ownerOf }: { ownerOf: (id: string) => string | undefined }) {
     const toTarget = new THREE.Vector3(center.x, box.min.y, center.z);
     const toPos = toTarget.clone().add(new THREE.Vector3().setFromSpherical(s));
     anim.current = { t0: performance.now(), from: [camera.position.clone(), fromTarget], to: [toPos, toTarget], id };
+    invalidate();
   }, [selection]);
 
   /** Whether the first solid hit from the camera to this point is the target itself (glass does not occlude) */
@@ -112,9 +123,10 @@ function Reveal({ ownerOf }: { ownerOf: (id: string) => string | undefined }) {
     return true;
   };
 
-  useFrame(() => {
+  useFrame(({ invalidate }) => {
     const a = anim.current;
     if (!a) return;
+    invalidate();
     const t = Math.min(1, (performance.now() - a.t0) / REVEAL.ms);
     const k = t * t * (3 - 2 * t);
     camera.position.lerpVectors(a.from[0], a.to[0], k);
@@ -129,11 +141,30 @@ function Reveal({ ownerOf }: { ownerOf: (id: string) => string | undefined }) {
   return null;
 }
 
-/** The selected object's edges are drawn in the selection color */
-type Outline = { edge: string; sel?: string };
-const edgeProps = ({ edge, sel }: Outline) => ({ color: sel ?? edge, lineWidth: sel ? 2 : 1 });
+/** No outlines on the model, except the selected object's edges in the selection color */
+type Outline = { sel?: string };
 
-function BoxMesh({ b, base, color, opacity = 1, ...o }: Outline & { b: Box; base: number; color: string; opacity?: number }) {
+/** A window or glass door's frame: four dark bars around the pane, in real sizes (not scaled with the pane) */
+const FRAME = { width: 50, depth: 60 };
+function WindowFrame({ b, base, color }: { b: Box; base: number; color: string }) {
+  const { width: w, depth: d } = FRAME;
+  // x, y from the pane's centre, length, height
+  const bars: [number, number, number, number][] = [
+    [0, b.height / 2 - w / 2, b.length, w], [0, -b.height / 2 + w / 2, b.length, w],
+    [b.length / 2 - w / 2, 0, w, b.height], [-b.length / 2 + w / 2, 0, w, b.height],
+  ];
+  return (
+    <group position={[b.center[0] * M, (base + b.z + b.height / 2) * M, b.center[1] * M]} rotation={[0, -b.angle, 0]}>
+      {bars.map(([x, y, len, h], i) => (
+        <mesh key={i} geometry={unitBox} position={[x * M, y * M, 0]} scale={[len * M, h * M, d * M]} raycast={() => null}>
+          <meshStandardMaterial color={color} roughness={0.6} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function BoxMesh({ b, base, color, glass, ...o }: Outline & { b: Box; base: number; color: string; glass?: boolean }) {
   const y = (base + b.z + b.height / 2) * M;
   const ref = useFeedback<THREE.Mesh>(b.id, color, !!o.sel);
   return (
@@ -143,12 +174,12 @@ function BoxMesh({ b, base, color, opacity = 1, ...o }: Outline & { b: Box; base
       position={[b.center[0] * M, y, b.center[1] * M]}
       rotation={[0, -b.angle, 0]}
       scale={[b.length * M, b.height * M, b.thickness * M]}
-      castShadow={opacity === 1}
+      castShadow={!glass}
       receiveShadow
       userData={{ id: b.id, restY: y }}
     >
-      <meshStandardMaterial color={color} roughness={0.9} transparent={opacity < 1} opacity={opacity} />
-      {opacity === 1 && <Edges threshold={20} {...edgeProps(o)} />}
+      <meshStandardMaterial color={color} roughness={0.9} />
+      {o.sel && <Edges threshold={20} color={o.sel} lineWidth={2} />}
     </mesh>
   );
 }
@@ -168,25 +199,25 @@ function Slab({ s, y, thickness, color, ...o }: Outline & { s: Space; y: number;
   return (
     <mesh ref={ref} geometry={geo} position={[0, (y - thickness) * M, 0]} receiveShadow userData={{ id: s.id, restY: (y - thickness) * M }}>
       <meshStandardMaterial color={color} roughness={1} />
-      <Edges threshold={20} {...edgeProps(o)} />
+      {o.sel && <Edges threshold={20} color={o.sel} lineWidth={2} />}
     </mesh>
   );
 }
 
-function Furniture({ f, base, color, sel }: { f: Project['furniture'][number]; base: number; color: string; sel?: string }) {
+function Furniture({ f, base, color, ...o }: Outline & { f: Project['furniture'][number]; base: number; color: string }) {
   const y = (base + (f.elevation ?? 0) + f.size.h / 2) * M;
-  const ref = useFeedback<THREE.Mesh>(f.id, color, !!sel);
+  const ref = useFeedback<THREE.Mesh>(f.id, color, !!o.sel);
   return (
     <mesh ref={ref} geometry={unitBox} castShadow userData={{ id: f.id, restY: y }}
       position={[f.position[0] * M, y, f.position[1] * M]}
       rotation={[0, (-f.rotation * Math.PI) / 180, 0]} scale={[f.size.w * M, f.size.h * M, f.size.d * M]}>
       <meshStandardMaterial color={color} roughness={0.95} />
-      {sel && <Edges color={sel} threshold={20} lineWidth={2} />}
+      {o.sel && <Edges threshold={20} color={o.sel} lineWidth={2} />}
     </mesh>
   );
 }
 
-function Capture() {
+function Capture({ draw }: { draw: React.RefObject<(() => void) | null> }) {
   const gl = useThree(s => s.gl);
   const scene = useThree(s => s.scene);
   const camera = useThree(s => s.camera);
@@ -198,7 +229,8 @@ function Capture() {
         if (typeof o.userData.restY === 'number') o.position.y = o.userData.restY;
         if (o.userData.baseColor) ((o as THREE.Mesh).material as THREE.MeshStandardMaterial).color.copy(o.userData.baseColor);
       });
-      gl.render(scene, camera);
+      if (draw.current) draw.current();
+      else gl.render(scene, camera);
       const c = gl.domElement;
       return { dataUrl: c.toDataURL('image/png'), width: c.width, height: c.height };
     });
@@ -246,44 +278,107 @@ function framed(box: THREE.Box3, aspect: number, dir: THREE.Vector3): Pose {
 
 
 /**
- * The camera always orbits the middle of the model, so rotating and zooming keep it centered (zoom goes toward that point).
- * Entering 3D swings the camera down from the plan's top view while the model rises; switching levels lifts the orbit point to the
- * new floor; the view buttons frame the model again or swing to a top or perspective view.
+ * How far each floor has grown at overall progress g (0: flat like the plan, 1: built). The current floor and the ones below rise
+ * together first; the floors above follow one after another, each from the top of the one below.
  */
-function CameraRig({ box, levels, projectId, model }: { box: THREE.Box3; levels: string; projectId: string; model: React.RefObject<THREE.Group | null> }) {
-  const { camera, controls, size } = useThree();
-  const orbit = controls as unknown as Orbit | null;
-  const anim = useRef<{ elapsed: number; ms: number; from: Pose; to: Pose; grow: boolean } | null>(null);
-  const shownLevels = useRef(levels);
+function floorGrowth(levels: { id: string; elevation: number }[], current: string, g: number) {
+  const top = levels.find(l => l.id === current)?.elevation ?? Infinity;
+  const n = levels.filter(l => l.elevation > top).length;
+  // The upper floors share the last stretch, staggered so the top one finishes exactly at the end
+  const each = 0.3, step = n > 1 ? (0.45 - each) / (n - 1) : 0;
+  let above = 0;
+  return levels.map(l => {
+    if (l.elevation <= top) return { id: l.id, k: ease(Math.min(1, g / 0.7)), below: true };
+    const start = 0.55 + step * above++;
+    return { id: l.id, k: ease(THREE.MathUtils.clamp((g - start) / each, 0, 1)), below: false };
+  });
+}
 
-  const run = (to: Pose, ms: number, grow = false) => {
+/**
+ * The camera always orbits the middle of the model, so rotating and zooming keep it centered (zoom goes toward that point).
+ * Entering 3D starts exactly where the plan was (same framing, straight down, the floor drawing showing the plan) and grows the
+ * house out of it while the camera tilts; leaving runs the same in reverse before the plan comes back. Showing other floors
+ * (the cutaway) and "fit all" frame the model again from the current direction.
+ */
+function CameraRig({ box, levels, current, growing, drawings, growth, projectId }: {
+  box: THREE.Box3; levels: { id: string; elevation: number }[]; current: string;
+  growing: React.RefObject<Map<string, THREE.Group>>; drawings: React.RefObject<Map<string, THREE.Group>>;
+  growth: React.RefObject<{ g: number }>; projectId: string;
+}) {
+  const { camera, controls, size, invalidate } = useThree();
+  const project = useEditor(s => s.project);
+  const setLeave3D = useEditor(s => s.setLeave3D);
+  const setPlanUntil3D = useEditor(s => s.setPlanUntil3D);
+  const orbit = controls as unknown as Orbit | null;
+  const anim = useRef<{ elapsed: number; frames: number; ms: number; from: Pose; to: Pose; grow?: [number, number]; done?: () => void; hold?: number } | null>(null);
+  const leaving = useRef(false);
+  const levelKey = levels.map(l => l.id).join();
+  const shownLevels = useRef(levelKey);
+
+  const run = (to: Pose, ms: number, grow?: [number, number], done?: () => void) => {
     if (!orbit) return;
-    anim.current = { elapsed: 0, ms: hops.reduced ? 0 : ms, from: { pos: camera.position.clone(), target: orbit.target.clone() }, to, grow };
+    anim.current = { elapsed: 0, frames: 0, ms: hops.reduced ? 0 : ms, from: { pos: camera.position.clone(), target: orbit.target.clone() }, to, grow, done };
+    // The view renders on demand: ask for the first frame, the animation keeps asking until it ends
+    invalidate();
   };
   const direction = () => (orbit ? camera.position.clone().sub(orbit.target).normalize() : BIRD);
+  const grow = (g: number) => {
+    growth.current.g = g;
+    for (const { id, k, below } of floorGrowth(levels, current, g)) {
+      const group = growing.current.get(id), drawing = drawings.current.get(id);
+      if (group) {
+        group.scale.y = Math.max(k, 0.001);
+        group.visible = below || k > 0;
+      }
+      if (drawing) drawing.visible = below || k > 0;
+    }
+  };
 
-  // Entering 3D: from straight above (where the plan was) to the last 3D view, or the default one
+  /** Straight down at the current floor, framed like the plan (which fits the floor's drawing plus a margin to the view) */
+  const planPose = (): Pose => {
+    const { x, y, w, h } = planFrame(project, current);
+    const visibleH = (w / h > size.width / size.height ? (w * size.height) / size.width : h) * M;
+    // The drawing lies just above the floor
+    const floor = (levels.find(l => l.id === current)?.elevation ?? 0) * M + 0.006;
+    const dist = visibleH / 2 / Math.tan(THREE.MathUtils.degToRad(FOV) / 2);
+    const target = new THREE.Vector3((x + w / 2) * M, floor, (y + h / 2) * M);
+    // A hair off vertical, toward the south, so north stays up
+    return { target, pos: target.clone().add(new THREE.Vector3(0, dist, dist * 1e-4)) };
+  };
+
+  // Entering 3D: from the plan's framing to the last 3D view (or the default one), growing the house
   useEffect(() => {
     if (!orbit) return;
-    const aspect = size.width / size.height;
-    const to = lastPose.get(projectId) ?? framed(box, aspect, BIRD);
-    // North up, like the plan
-    const top = framed(box, aspect, new THREE.Vector3(0, 1, 0.01));
-    camera.position.copy(top.pos);
-    orbit.target.copy(top.target);
+    const to = lastPose.get(projectId) ?? framed(box, size.width / size.height, BIRD);
+    const from = planPose();
+    camera.position.copy(from.pos);
+    orbit.target.copy(from.target);
     orbit.update();
-    if (model.current && !hops.reduced) model.current.scale.y = 0.02;
-    run(to, 1300, true);
-    // Leaving mid-animation remembers where the camera was heading
-    return () => void lastPose.set(projectId, anim.current?.to ?? { pos: camera.position.clone(), target: orbit.target.clone() });
+    grow(hops.reduced ? 1 : 0);
+    run(to, 1600, [0, 1]);
+    // Start once the floor drawings are on (they rasterize asynchronously), so the first frame looks like the plan
+    if (anim.current) anim.current.hold = performance.now();
+    // Leaving 3D: remember the view, then sink the house back into the plan and settle on the plan's framing
+    setLeave3D(() => new Promise<void>(resolve => {
+      leaving.current = true;
+      lastPose.set(projectId, anim.current?.to ?? { pos: camera.position.clone(), target: orbit.target.clone() });
+      run(planPose(), 1100, [1, 0], resolve);
+    }));
+    return () => {
+      setLeave3D(null);
+      setPlanUntil3D(false);
+      // Leaving mid-animation remembers where the camera was heading
+      if (!leaving.current) lastPose.set(projectId, anim.current?.to ?? { pos: camera.position.clone(), target: orbit.target.clone() });
+    };
   }, [orbit]);
 
-  // Another level shows different floors: frame them again from the same direction (edits don't move the camera)
+  // Other floors shown (the cutaway): frame them again from the same direction (edits don't move the camera)
   useEffect(() => {
-    if (shownLevels.current === levels) return;
-    shownLevels.current = levels;
+    if (shownLevels.current === levelKey) return;
+    shownLevels.current = levelKey;
+    grow(1);
     if (orbit) run(framed(box, size.width / size.height, direction()), 600);
-  }, [levels]);
+  }, [levelKey]);
 
   // "Fit all": frame the model again from the current direction (from straight above, back to the default angle)
   const fitRequest = useEditor(s => s.fitRequest);
@@ -293,12 +388,20 @@ function CameraRig({ box, levels, projectId, model }: { box: THREE.Box3; levels:
     run(framed(box, size.width / size.height, dir.y > 0.99 ? BIRD : dir), 600);
   }, [fitRequest]);
 
-  useFrame((_, dt) => {
+  useFrame(({ invalidate }, dt) => {
     const a = anim.current;
     if (!a || !orbit) return;
-    // Advance by frame time, at most 50 ms a step: the first frame in 3D can take a second (shader compilation), and the
-    // animation should still play from its start rather than jump to the end
-    a.elapsed += Math.min(dt * 1000, 50);
+    invalidate();
+    if (a.hold) {
+      const ready = floorGrowth(levels, current, 0).every(l => !l.below || (drawings.current.get(l.id)?.children.length ?? 0) > 0);
+      if (!ready && performance.now() - a.hold < 1500) return;
+      a.hold = undefined;
+      // This frame is the plan itself: the plan kept on screen while 3D got ready can go
+      setPlanUntil3D(false);
+    }
+    // The clock starts after two frames (the first frame in 3D can take a second, compiling shaders) so the animation plays from
+    // its start; after that it follows real time, a slow frame advancing at most 200 ms, so slow devices still finish on time
+    if (++a.frames > 2) a.elapsed += Math.min(dt * 1000, 200);
     const t = a.ms ? Math.min(1, a.elapsed / a.ms) : 1;
     const k = ease(t);
     // Turn around the target (angles and distance) rather than move in a straight line, so a top view stays north-up as it tilts
@@ -309,11 +412,24 @@ function CameraRig({ box, levels, projectId, model }: { box: THREE.Box3; levels:
       THREE.MathUtils.lerp(s0.radius, s1.radius, k), THREE.MathUtils.lerp(s0.phi, s1.phi, k), s0.theta + dTheta * k);
     orbit.target.lerpVectors(a.from.target, a.to.target, k);
     camera.position.copy(orbit.target).add(new THREE.Vector3().setFromSpherical(s));
-    if (a.grow && model.current) model.current.scale.y = 0.02 + 0.98 * ease(Math.min(1, t * 1.25));
-    orbit.enabled = t === 1;
+    if (a.grow) grow(THREE.MathUtils.lerp(a.grow[0], a.grow[1], t));
+    orbit.enabled = t === 1 && !leaving.current;
     orbit.update();
-    if (t === 1) anim.current = null;
+    if (t === 1) {
+      anim.current = null;
+      a.done?.();
+    }
   });
+  return null;
+}
+
+/**
+ * The view renders on demand (nothing changes, nothing is drawn). Selection and highlights can change without any prop on the
+ * scene changing (the agent pointing at an object starts its hop and tint), so wake the scene when they do.
+ */
+function Wake({ on }: { on: unknown[] }) {
+  const invalidate = useThree(s => s.invalidate);
+  useEffect(() => invalidate(), on);
   return null;
 }
 
@@ -396,7 +512,12 @@ export function Model3D() {
   const view = useEditor(s => s.view);
   const projectId = useEditor(s => s.projectId);
   const c = useColors();
-  const model = useRef<THREE.Group>(null);
+  const doc = useCanvasDocument();
+  // Decided once the WebGL context exists (the GPU model is part of it); a touch device that can't keep up drops to 'low'
+  const [quality, setQuality] = useState<Quality | null>(null);
+  const touch = useMemo(() => isTouchDevice(doc.defaultView!), [doc]);
+  const q: Quality = quality ?? 'high';
+  const draw = useRef<(() => void) | null>(null);
 
   const current = project.levels.find(l => l.id === view.level);
   // The whole house by default; the cutaway shows the current level and below, to look into it
@@ -435,53 +556,113 @@ export function Model3D() {
   }, [boxes, project.spaces, shownIds, x0, y0, x1, y1]);
   const radius = Math.max(2, box.getSize(new THREE.Vector3()).length() / 2);
 
+  // The plinth: a white board a little larger than the site, like a model's base (the same board as on the plan)
+  const plinth = useMemo(() => {
+    const [x0, y0, x1, y1] = plinthRect(project);
+    return { size: [(x1 - x0) * M, PLINTH, (y1 - y0) * M] as [number, number, number], center: [((x0 + x1) / 2) * M, ((y0 + y1) / 2) * M] };
+  }, [project.site.boundary]);
+  const ground = project.site.groundLevel * M;
+  const sunTarget = useMemo(() => new THREE.Object3D(), []);
+  const center = box.getCenter(new THREE.Vector3());
+  const levels = [...shown].sort((a, b) => a.elevation - b.elevation);
+  const growing = useRef(new Map<string, THREE.Group>());
+  const drawings = useRef(new Map<string, THREE.Group>());
+  // How far the house has grown out of the plan (0 flat, 1 built); the plan's paper fades with it
+  const growth = useRef({ g: 1 });
+  const sheet = useMemo(() => {
+    const { x, y, w, h } = planFrame(project, current?.id ?? levels[0]?.id ?? '');
+    return { center: [(x + w / 2) * M, (y + h / 2) * M] as [number, number] };
+  }, [project, current?.id]);
+
   return (
     <div className="relative size-full">
       <TintColors.Provider value={tints}>
         <Canvas
-          shadows
+          shadows="percentage"
+          frameloop="demand"
+          // Occlusion is costly per pixel: cap the resolution where it runs
+          dpr={q === 'high' ? [1, 1.5] : [1, 2]}
+          // No tone mapping: white surfaces stay white instead of the filmic gray
+          flat
           gl={{ preserveDrawingBuffer: true, antialias: true }}
           camera={{ position: [cx + span * 0.9, span * 0.8, cz + span * 1.1], fov: FOV, near: 0.1, far: 2000 }}
-          style={{ background: c.bg }}
+          // White like the plan's page until the first frame: switching from the plan shows no gray flash
+          style={{ background: c.page }}
           // react-three-fiber sizes the canvas with CSS only when it is an HTMLCanvasElement of the parent window, which a
           // canvas in our iframe is not. Without it the canvas shows at its drawing-buffer size, twice too large on 2x screens,
           // so the model sits off-center and clicks miss. Fill the wrapper instead.
-          onCreated={({ gl }) => Object.assign(gl.domElement.style, { width: '100%', height: '100%' })}
+          onCreated={({ gl, scene }) => {
+            Object.assign(gl.domElement.style, { width: '100%', height: '100%' });
+            scene.background = new THREE.Color(c.backdrop);
+            setQuality(detectQuality(doc.defaultView!, gl.getContext()));
+          }}
         >
-          {/* The ground fades into the background in the distance, so it has no visible edge */}
-          <fog attach="fog" args={[c.bg, radius * 5, radius * 14]} />
-          <hemisphereLight args={[c.sky, c.edge, 1.1]} />
-          <directionalLight position={[cx - 20, 40, cz + 25]} intensity={1.6} castShadow shadow-mapSize={[2048, 2048]}
-            shadow-camera-left={-40} shadow-camera-right={40} shadow-camera-top={40} shadow-camera-bottom={-40} />
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, project.site.groundLevel * M - 0.01, cz]} receiveShadow>
+          {/* The ground fades into the backdrop in the distance, so it has no visible edge */}
+          <fog attach="fog" args={[c.backdrop, radius * 4, radius * 12]} />
+          {/* A warm sun and a cool sky: lit faces are white, shadows a soft lavender (three.js divides diffuse light by π,
+              hence the strong intensities) */}
+          <hemisphereLight args={[c.skylight, c.wall, 2.2]} />
+          <primitive object={sunTarget} position={center} />
+          {/* Remounted when the quality changes: a shadow map keeps its size once created */}
+          <directionalLight key={q} color={c.sun} intensity={3.6} target={sunTarget} castShadow
+            position={[center.x - radius * 1.2, center.y + radius * 2, center.z + radius * 0.9]}
+            shadow-mapSize={q === 'high' ? [2048, 2048] : [1024, 1024]} shadow-radius={q === 'high' ? 6 : 3} shadow-bias={-0.0004} shadow-normalBias={0.02}
+            shadow-camera-left={-radius * 1.4} shadow-camera-right={radius * 1.4} shadow-camera-top={radius * 1.4} shadow-camera-bottom={-radius * 1.4}
+            shadow-camera-near={0.5} shadow-camera-far={radius * 6} />
+          {/* The ground only catches shadows: lit, it would read as a lighter board under the plinth; this way the backdrop shows */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, ground - PLINTH - 0.001, cz]} receiveShadow>
             <planeGeometry args={[Math.max(span, radius) * 40, Math.max(span, radius) * 40]} />
-            <meshStandardMaterial color={c.ground} roughness={1} />
+            <shadowMaterial color={c.shadow} opacity={0.35} transparent fog={false} />
+          </mesh>
+          <mesh position={[plinth.center[0], ground - PLINTH / 2 - 0.002, plinth.center[1]]} receiveShadow castShadow>
+            <boxGeometry args={plinth.size} />
+            <meshStandardMaterial color={c.wall} roughness={1} />
           </mesh>
 
-          <group ref={model}>
-            {shown.map(l => (
-              <group key={l.id}>
-                {project.spaces.filter(s => s.level === l.id && s.kind !== 'void' && !s.slabOpening).map(s => (
-                  <Slab key={s.id} s={s} y={s.kind === 'outdoor' && l.elevation === 0 ? project.site.groundLevel + 20 : l.elevation} thickness={s.kind === 'outdoor' ? 20 : 120}
-                    color={c.slab} edge={c.edge} sel={sel.has(s.id) ? c.sel : undefined} />
-                ))}
-                {boxes.filter(b => b.level === l.id).map((b, i) => (
-                  <BoxMesh key={`${b.id}-${i}`} b={b} base={elev.get(l.id) ?? 0} edge={c.edge}
-                    color={b.kind === 'glass' ? c.glass : c.wall} sel={sel.has(b.id) ? c.sel : undefined} opacity={b.kind === 'glass' ? 0.2 : 1} />
-                ))}
-                {view.layers.furniture && project.furniture.filter(f => f.level === l.id).map(f => (
-                  <Furniture key={f.id} f={f} base={elev.get(l.id) ?? 0} color={c.furn} sel={sel.has(f.id) ? c.sel : undefined} />
-                ))}
+          {/* The plan's page around the drawing at the current floor, while the house lies flat */}
+          <group position={[0, (current?.elevation ?? 0) * M, 0]}>
+            <PlanSheet center={sheet.center} size={Math.max(span, radius) * 40} color={c.page} growth={growth} />
+          </group>
+          <group>
+            {levels.map(l => (
+              // Each floor grows from its own base when entering 3D (see CameraRig)
+              <group key={l.id} position={[0, l.elevation * M, 0]}>
+                <group ref={g => void (g ? growing.current.set(l.id, g) : growing.current.delete(l.id))}>
+                  <group position={[0, -l.elevation * M, 0]}>
+                    {project.spaces.filter(s => s.level === l.id && s.kind !== 'void' && !s.slabOpening).map(s => (
+                      <Slab key={s.id} s={s} y={s.kind === 'outdoor' && l.elevation === 0 ? project.site.groundLevel + 20 : l.elevation} thickness={s.kind === 'outdoor' ? 20 : 120}
+                        color={c.wall} sel={sel.has(s.id) ? c.sel : undefined} />
+                    ))}
+                    {boxes.filter(b => b.level === l.id).map((b, i) => (
+                      // Glass is a solid light-blue pane with a dark frame: see-through surfaces don't mix with the occlusion pass
+                      <Fragment key={`${b.id}-${i}`}>
+                        <BoxMesh b={b} base={elev.get(l.id) ?? 0} sel={sel.has(b.id) ? c.sel : undefined} color={b.kind === 'glass' ? c.glass : c.wall} glass={b.kind === 'glass'} />
+                        {b.kind === 'glass' && <WindowFrame b={b} base={elev.get(l.id) ?? 0} color={c.frame} />}
+                      </Fragment>
+                    ))}
+                    {view.layers.furniture && project.furniture.filter(f => f.level === l.id).map(f => (
+                      <Furniture key={f.id} f={f} base={elev.get(l.id) ?? 0} color={c.furn} sel={sel.has(f.id) ? c.sel : undefined} />
+                    ))}
+                  </group>
+                </group>
+                {/* Outside the growing group, so the drawing stays just above the floor while the floor is flat; shown with its floor */}
+                <group ref={g => void (g ? drawings.current.set(l.id, g) : drawings.current.delete(l.id))}>
+                  <FloorDrawing project={project} level={l.id} furniture={view.layers.furniture} labels={view.layers.labels} quality={q} growth={growth} />
+                </group>
               </group>
             ))}
           </group>
           <OrbitControls makeDefault enableDamping dampingFactor={0.09} maxPolarAngle={Math.PI / 2 - 0.05}
             minDistance={Math.max(1.5, radius * 0.15)} maxDistance={radius * 6} />
-          <CameraRig box={box} levels={shownIds} projectId={projectId} model={model} />
+          <CameraRig box={box} levels={levels} current={current?.id ?? ''} growing={growing} drawings={drawings} growth={growth} projectId={projectId} />
           <SafariPinch />
           <Picker />
           <Reveal ownerOf={ownerOf} />
-          <Capture />
+          <Renderer quality={q} draw={draw} />
+          {/* A phone that wasn't recognized as low-end but can't keep up drops to the light setup, for good */}
+          {touch && q === 'high' && <PerformanceMonitor bounds={() => [25, 50]} onDecline={() => setQuality('low')} />}
+          <Wake on={[view.selection, view.highlight]} />
+          <Capture draw={draw} />
         </Canvas>
       </TintColors.Provider>
       <p className="pointer-events-none absolute bottom-2 left-3 text-xs text-muted-foreground max-md:hidden">{m.model3d_hint()}</p>

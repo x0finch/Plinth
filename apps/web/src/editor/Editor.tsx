@@ -34,7 +34,8 @@ import { ShareDialog } from './ShareDialog';
 import { createEditorStore, EditorContext, useEditor, type InitialProject } from './store';
 
 /** 3D (three.js) is most of the plan page script; load it only when switching to 3D */
-const Model3D = lazy(() => import('./Model3D').then(mod => ({ default: mod.Model3D })));
+const loadModel3D = () => import('./Model3D');
+const Model3D = lazy(() => loadModel3D().then(mod => ({ default: mod.Model3D })));
 
 declare global {
   interface Window {
@@ -145,7 +146,21 @@ function CanvasTools({ className }: { className?: string }) {
   const view = useEditor(s => s.view);
   const setView = useEditor(s => s.setView);
   const fitView = useEditor(s => s.fitView);
+  const leave3D = useEditor(s => s.leave3D);
+  const setPlanUntil3D = useEditor(s => s.setPlanUntil3D);
+  const [switching, setSwitching] = useState(false);
   const to = view.mode === '2d' ? '3d' : '2d';
+  // Leaving 3D lets the house sink back into the plan first
+  const switchView = async () => {
+    setSwitching(true);
+    try {
+      if (to === '2d' && leave3D) await leave3D();
+      else if (to === '3d') setPlanUntil3D(true);
+      setView({ mode: to });
+    } finally {
+      setSwitching(false);
+    }
+  };
   const cutaway = view.layers.cutaway;
   return (
     <div className={cn('flex gap-1', className)}>
@@ -162,7 +177,7 @@ function CanvasTools({ className }: { className?: string }) {
         <TooltipTrigger render={<Button size="icon-sm" variant="outline" className="bg-background" onClick={fitView} aria-label={m.canvas_fit()} />}><ScanIcon /></TooltipTrigger>
         <TooltipContent>{m.canvas_fit()}</TooltipContent>
       </Tooltip>
-      <Button size="sm" variant="outline" className="bg-background" onClick={() => setView({ mode: to })}>
+      <Button size="sm" variant="outline" className="bg-background" onClick={switchView} disabled={switching}>
         {to === '3d' ? <BoxIcon /> : <SquareIcon />}{to === '3d' ? m.editor_view_3d() : m.editor_view_2d()}
       </Button>
     </div>
@@ -253,6 +268,7 @@ function Thumbnail() {
 
 function Workspace() {
   const view = useEditor(s => s.view);
+  const planUntil3D = useEditor(s => s.planUntil3D);
   const project = useEditor(s => s.project);
   const setCapture = useEditor(s => s.setCapture);
   const ask = useEditor(s => s.ask);
@@ -314,6 +330,11 @@ function Workspace() {
                 <Model3D />
               </Suspense>
             )}
+            {view.mode === '3d' && planUntil3D && (
+              <div aria-hidden className="pointer-events-none absolute inset-0">
+                <Plan2D />
+              </div>
+            )}
           </CanvasFrame>
           <div className="absolute top-2 left-2">
             <LevelSwitcher className="bg-background shadow-xs" />
@@ -353,6 +374,12 @@ export function Editor({ initial, search }: { initial: InitialProject; search: {
   );
   useEffect(() => store.getState().connect(), [store]);
   const navigate = useNavigate();
+
+  // Fetch the 3D view's code once the editor is idle, so switching to 3D grows the house without a loading pause first
+  useEffect(() => {
+    const id = setTimeout(() => void loadModel3D(), 1500);
+    return () => clearTimeout(id);
+  }, []);
 
   // Open read-only when the link specifies a version
   useEffect(() => {
