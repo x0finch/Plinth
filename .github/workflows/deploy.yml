@@ -31,14 +31,13 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+      # Both checks are plain node:fs scripts, so no dependency install is needed
       - run: npm run check:theme -w @plinth/web
       - run: npm run check:i18n -w @plinth/web
 
