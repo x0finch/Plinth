@@ -2,6 +2,7 @@
 import { env } from 'cloudflare:workers';
 import { m } from '@/lib/i18n';
 import type { CommentRow, CommentStatus } from '@/shared/comments';
+import type { LibraryLook, LibraryRole, LibrarySummary } from '@/shared/looks';
 import { ROLE_RANK, type Role } from '@/shared/roles';
 
 
@@ -372,6 +373,8 @@ export async function exportUserData(userId: string) {
     .all<{ id: string; name: string; created_at: number; updated_at: number; content: string }>();
   const { results: comments } = await db().prepare('select project_id, target_name, body, created_at from comment where author_id = ?').bind(userId).all();
   const [keys, models] = await Promise.all([listApiKeys(userId), listModels(userId)]);
+  const { results: owned } = await db().prepare('select id from look_library where owner_id = ?').bind(userId).all<{ id: string }>();
+  const libraries = await Promise.all(owned.map(l => getLibrary(l.id)));
   return {
     exportedAt: new Date().toISOString(),
     user,
@@ -379,5 +382,88 @@ export async function exportUserData(userId: string) {
     comments,
     apiKeys: keys.map(({ key_hint, ...rest }) => ({ ...rest, key: m.server_export_key_withheld({ hint: key_hint }) })),
     models,
+    lookLibraries: libraries.filter(Boolean).map(l => ({ id: l!.id, name: l!.name, looks: l!.looks })),
   };
+}
+
+// ---------- Look libraries ----------
+
+export async function listLibraries(userId: string) {
+  const { results } = await db()
+    .prepare(
+      `select l.id, l.name, m.role, u.name as owner_name, l.updated_at, (select count(*) from library_look k where k.library_id = l.id) as looks
+       from look_library_member m join look_library l on l.id = m.library_id join "user" u on u.id = l.owner_id
+       where m.user_id = ? order by l.updated_at desc limit 200`,
+    )
+    .bind(userId)
+    .all<LibrarySummary>();
+  return results;
+}
+
+export async function createLibrary(userId: string, name: string) {
+  const id = newId('lib'), t = now();
+  await db().batch([
+    db().prepare('insert into look_library (id, owner_id, name, created_at, updated_at) values (?, ?, ?, ?, ?)').bind(id, userId, name, t, t),
+    db().prepare(`insert into look_library_member (library_id, user_id, role, created_at) values (?, ?, 'owner', ?)`).bind(id, userId, t),
+  ]);
+  return id;
+}
+
+export async function libraryRole(libraryId: string, userId: string) {
+  const r = await db().prepare('select role from look_library_member where library_id = ? and user_id = ?').bind(libraryId, userId).first<{ role: LibraryRole }>();
+  return r?.role ?? null;
+}
+
+export async function getLibrary(libraryId: string) {
+  const lib = await db().prepare('select id, name from look_library where id = ?').bind(libraryId).first<{ id: string; name: string }>();
+  if (!lib) return null;
+  const [looks, members] = await Promise.all([
+    db().prepare('select look_id, name, data, version, updated_at from library_look where library_id = ? order by name').bind(libraryId)
+      .all<{ look_id: string; name: string; data: string; version: number; updated_at: number }>(),
+    db().prepare(`select m.user_id, u.name, u.email, m.role from look_library_member m join "user" u on u.id = m.user_id where m.library_id = ? order by m.created_at`).bind(libraryId)
+      .all<{ user_id: string; name: string; email: string; role: LibraryRole }>(),
+  ]);
+  return { ...lib, looks: looks.results.map(({ data, ...r }) => ({ ...r, ...JSON.parse(data) })) as LibraryLook[], members: members.results };
+}
+
+export const renameLibrary = (libraryId: string, name: string) =>
+  db().prepare('update look_library set name = ?, updated_at = ? where id = ?').bind(name, now(), libraryId).run();
+export const deleteLibrary = (libraryId: string) => db().prepare('delete from look_library where id = ?').bind(libraryId).run();
+
+/** Save a look: a new one at version 1, an existing one at its next version; returns the version */
+export async function putLibraryLook(libraryId: string, lookId: string, name: string, data: Omit<LibraryLook, 'look_id' | 'name' | 'version' | 'updated_at'>, userId: string) {
+  const cur = await db().prepare('select version from library_look where library_id = ? and look_id = ?').bind(libraryId, lookId).first<{ version: number }>();
+  const version = (cur?.version ?? 0) + 1, t = now();
+  await db().batch([
+    db().prepare(
+      `insert into library_look (library_id, look_id, name, data, version, updated_by, updated_at) values (?, ?, ?, ?, ?, ?, ?)
+       on conflict (library_id, look_id) do update set name = excluded.name, data = excluded.data, version = excluded.version, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+    ).bind(libraryId, lookId, name, JSON.stringify(data), version, userId, t),
+    db().prepare('update look_library set updated_at = ? where id = ?').bind(t, libraryId),
+  ]);
+  return version;
+}
+
+export const deleteLibraryLook = (libraryId: string, lookId: string) =>
+  db().prepare('delete from library_look where library_id = ? and look_id = ?').bind(libraryId, lookId).run();
+
+export const userByEmail = (email: string) =>
+  db().prepare('select id, name, email from "user" where lower(email) = ?').bind(email.toLowerCase()).first<{ id: string; name: string; email: string }>();
+
+export const setLibraryMember = (libraryId: string, userId: string, role: LibraryRole) =>
+  db().prepare(`insert into look_library_member (library_id, user_id, role, created_at) values (?, ?, ?, ?)
+    on conflict (library_id, user_id) do update set role = excluded.role where look_library_member.role != 'owner'`).bind(libraryId, userId, role, now()).run();
+export const removeLibraryMember = (libraryId: string, userId: string) =>
+  db().prepare(`delete from look_library_member where library_id = ? and user_id = ? and role != 'owner'`).bind(libraryId, userId).run();
+
+/** Current versions of looks, limited to the libraries this user can see (for "update available" in designs) */
+export async function lookVersions(userId: string, refs: { library: string; look: string }[]) {
+  if (!refs.length) return [];
+  const where = refs.map(() => '(k.library_id = ? and k.look_id = ?)').join(' or ');
+  const { results } = await db()
+    .prepare(`select k.library_id as library, k.look_id as look, k.version, k.name, l.name as library_name from library_look k
+      join look_library_member m on m.library_id = k.library_id and m.user_id = ? join look_library l on l.id = k.library_id where ${where}`)
+    .bind(userId, ...refs.flatMap(r => [r.library, r.look]))
+    .all<{ library: string; look: string; version: number; name: string; library_name: string }>();
+  return results;
 }

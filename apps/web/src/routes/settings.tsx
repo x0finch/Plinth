@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { DownloadIcon, KeyRoundIcon, LoaderIcon, PlusIcon, Trash2Icon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { LibrariesSection } from '@/components/looks/LibrariesSection';
 import { SiteFooter, SiteHeader } from '@/components/site/SiteHeader';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Autocomplete, AutocompleteContent, AutocompleteInput, AutocompleteItem, AutocompleteList } from '@/components/ui/autocomplete';
@@ -222,6 +223,9 @@ function Settings() {
             <SelectContent>{locales.map(l => <SelectItem key={l} value={l}>{LANGUAGE_NAME[l]()}</SelectItem>)}</SelectContent>
           </Select>
         </section>
+
+        <Separator />
+        <LibrariesSection />
 
         <Separator />
         <section className="space-y-1">

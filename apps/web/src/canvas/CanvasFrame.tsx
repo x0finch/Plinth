@@ -14,10 +14,29 @@ export const useCanvasDocument = () => useContext(CanvasDoc) ?? document;
 
 const KEYS = ['key', 'code', 'shiftKey', 'ctrlKey', 'metaKey', 'altKey', 'repeat'] as const;
 
-/** The canvas document when a canvas is on the page (its light theme), else the page's own */
-export function canvasDocument(): Document {
+/**
+ * A document in the canvas's light theme, for reading its colors outside the canvas (e.g. a look's still on the settings page):
+ * the canvas on the page if there is one, else a hidden one made for it
+ */
+let hidden: Promise<Document> | null = null;
+export function lightDocument(): Promise<Document> {
   const d = document.querySelector<HTMLIFrameElement>('iframe[data-canvas]')?.contentDocument;
-  return d?.getElementById('canvas-style') ? d : document;
+  if (d?.getElementById('canvas-style')) return Promise.resolve(d);
+  hidden ??= new Promise(resolve => {
+    const f = document.createElement('iframe');
+    f.setAttribute('aria-hidden', 'true');
+    f.tabIndex = -1;
+    f.style.cssText = 'position:fixed;width:0;height:0;border:0;visibility:hidden';
+    f.srcdoc = "<!doctype html><html><head><meta charset='utf-8'></head><body></body></html>";
+    f.onload = () => {
+      const doc = f.contentDocument!, style = doc.createElement('style');
+      style.textContent = css;
+      doc.head.appendChild(style);
+      resolve(doc);
+    };
+    document.body.appendChild(f);
+  });
+  return hidden;
 }
 
 export function CanvasFrame({ children, className }: { children: ReactNode; className?: string }) {

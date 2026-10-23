@@ -1,0 +1,117 @@
+// E2E: look libraries (#81): create one in Settings, save a design's look to it, share it, another person adds the look to
+// their own design, an update shows as "newer" with before/after, deleting the library leaves designs unchanged
+import { chromium } from 'playwright';
+
+const BASE = process.env.BASE ?? 'http://localhost:3000';
+const OUT = process.argv[2] ?? '.';
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
+const errors = [];
+const check = (ok, msg) => {
+  console.log(`${ok ? '✓' : '✗'} ${msg}`);
+  if (!ok) process.exitCode = 1;
+};
+const ROUND = { let: { r: 'min(w, d) / 2' }, parts: [
+  { kind: 'cylinder', mat: 'wood', r: 'r', h: 40, at: [0, 'h - 20', 0], seg: 40 },
+  { kind: 'cylinder', mat: 'woodDark', r: 50, h: 'h - 40', at: [0, '(h - 40) / 2', 0] },
+  { kind: 'cylinder', mat: 'woodDark', r: 'r * 0.5', h: 20, at: [0, 10, 0] },
+] };
+
+/** A guest with the sample design open */
+async function person() {
+  const ctx = await b.newContext({ viewport: { width: 1400, height: 900 } });
+  const page = await ctx.newPage();
+  page.on('pageerror', e => errors.push(e.message));
+  page.on('console', m => m.type() === 'error' && !/\b40[34]\b/.test(m.text()) && errors.push(m.text()));
+  await page.goto(BASE, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: /打开样例方案/ }).click();
+  await page.waitForURL(/\/p\//);
+  await page.waitForFunction(() => window.artifact?.ready);
+  const email = await page.evaluate(async () => (await (await fetch('/api/me')).json()).user.email);
+  return { page, email, url: page.url() };
+}
+const project = page => page.evaluate(() => window.artifact.project());
+const openLooks = async page => {
+  await page.getByRole('tab', { name: '属性' }).click();
+  await page.getByText('本方案的外观').waitFor();
+};
+
+const a = await person(), bob = await person();
+
+// A creates a library in Settings
+await a.page.goto(`${BASE}/settings`);
+await a.page.getByLabel('新模型库的名字').fill('家具库');
+await a.page.getByRole('button', { name: '新建模型库' }).click();
+await a.page.getByText('家具库').waitFor();
+check(true, 'a library is created in Settings');
+
+// A makes a look in the design and saves it to the library
+await a.page.goto(a.url);
+await a.page.waitForFunction(() => window.artifact?.ready);
+await a.page.evaluate(r => window.artifact.call('look_add', { name: '圆餐桌', for: ['furniture:dining'], recipe: r, use: true }), ROUND);
+await openLooks(a.page);
+await a.page.getByRole('combobox', { name: '把“圆餐桌”存入模型库' }).click();
+await a.page.getByRole('option', { name: '家具库' }).click();
+await a.page.getByText('“圆餐桌”已存入模型库').waitFor();
+let pa = await project(a.page);
+const aLook = Object.values(pa.library.looks)[0];
+check(aLook.source?.version === 1, 'saving links the design copy to the library (v1)');
+await a.page.screenshot({ path: `${OUT}/libraries-1-design.png` });
+
+// A shares the library with Bob as an editor
+await a.page.waitForTimeout(2000);
+await a.page.goto(`${BASE}/settings`);
+await a.page.getByRole('button', { name: /家具库/ }).click();
+await a.page.getByLabel('对方注册用的邮箱').fill(bob.email);
+await a.page.getByRole('combobox', { name: '权限' }).click();
+await a.page.getByRole('option', { name: '可编辑' }).click();
+await a.page.getByRole('button', { name: '分享' }).click();
+await a.page.getByText(bob.email).waitFor();
+check(true, 'the library is shared with another person');
+await a.page.screenshot({ path: `${OUT}/libraries-2-settings.png` });
+
+// Bob adds the look to his own design
+await openLooks(bob.page);
+await bob.page.getByRole('button', { name: '从模型库添加' }).click();
+await bob.page.getByRole('button', { name: '添加并使用' }).click();
+await bob.page.getByText('已添加“圆餐桌”').waitFor();
+let pb = await project(bob.page);
+const bId = pb.library.use?.['furniture:dining'];
+check(bId && pb.library.looks[bId].source?.look === aLook.source.look, 'another person uses the same look in their design');
+check(JSON.stringify(pb.library.looks[bId].recipe) === JSON.stringify(aLook.recipe), 'both see the same look');
+
+// A changes the look and saves a new version; Bob is told and updates after seeing before/after
+await a.page.goto(a.url);
+await a.page.waitForFunction(() => window.artifact?.ready);
+const id = Object.keys((await project(a.page)).library.looks)[0];
+await a.page.evaluate(([id, r]) => window.artifact.call('look_update', { look: id, recipe: { ...r, parts: r.parts.map(p => ({ ...p, mat: 'woodDark' })) } }), [id, ROUND]);
+await openLooks(a.page);
+await a.page.getByRole('combobox', { name: '把“圆餐桌”存入模型库' }).click();
+await a.page.getByRole('option', { name: '家具库' }).click();
+await a.page.getByText('“圆餐桌”已存入模型库').waitFor();
+pa = await project(a.page);
+check(Object.values(pa.library.looks)[0].source?.version === 2, 'saving again makes v2 in the library');
+await bob.page.waitForTimeout(2500);
+await bob.page.reload();
+await bob.page.waitForFunction(() => window.artifact?.ready);
+await openLooks(bob.page);
+await bob.page.getByText('模型库里有新版本 v2').waitFor({ timeout: 10000 });
+check(true, 'the other design shows that a newer version exists');
+await bob.page.getByRole('button', { name: '更新', exact: true }).click();
+await bob.page.getByRole('img', { name: '更新后' }).waitFor({ timeout: 15000 });
+await bob.page.screenshot({ path: `${OUT}/libraries-3-update.png` });
+await bob.page.getByRole('alertdialog').getByRole('button', { name: '更新' }).click();
+await bob.page.waitForTimeout(500);
+pb = await project(bob.page);
+check(pb.library.looks[bId].source.version === 2 && pb.library.looks[bId].recipe.parts.every(p => p.mat === 'woodDark'), 'updating brings that design to v2');
+
+// Deleting the library leaves designs that copied from it unchanged
+const libs = await a.page.evaluate(async () => (await fetch('/api/libraries')).json());
+await a.page.evaluate(async id => fetch(`/api/libraries/${id}`, { method: 'DELETE' }), libs[0].id);
+await bob.page.waitForTimeout(2500);
+await bob.page.reload();
+await bob.page.waitForFunction(() => window.artifact?.ready);
+pb = await project(bob.page);
+check(!!pb.library.looks?.[bId], 'deleting the library keeps the designs’ copies');
+
+check(errors.length === 0, `no page errors${errors.length ? `: ${errors.slice(0, 3).join(' | ')}` : ''}`);
+await b.close();

@@ -86,3 +86,29 @@ describe('looks', () => {
     expect(r.ok, r.error?.message).toBe(true);
   });
 });
+
+describe('looks from libraries', () => {
+  it('look_import copies a look with its source and new furniture types; importing a newer version updates the same copy', async () => {
+    const h = harness(sample());
+    const types = { mahjong: { name: '麻将桌', size: { w: 900, d: 900, h: 750 } } };
+    const r1 = await h.call('look_import', { name: '麻将桌', for: ['furniture:mahjong'], recipe: roundTable, types, source: { library: 'lib1', look: 'lk1', version: 1 }, use: true });
+    expect(r1.ok, r1.error?.message).toBe(true);
+    const id = (r1.result as { id: string }).id;
+    let p = h.session.project;
+    expect(p.library.furniture.mahjong.name).toBe('麻将桌');
+    expect(p.library.looks![id].source).toEqual({ library: 'lib1', look: 'lk1', version: 1 });
+    const r2 = await h.call('look_import', { name: '麻将桌', for: ['furniture:mahjong'], recipe: { ...roundTable, seed: 2 }, source: { library: 'lib1', look: 'lk1', version: 2 } });
+    p = h.session.project;
+    expect((r2.result as { id: string }).id).toBe(id);
+    expect(Object.keys(p.library.looks!)).toHaveLength(1);
+    expect(p.library.looks![id].source?.version).toBe(2);
+  });
+  it('look_import with replace links a design look to the library it was saved to', async () => {
+    const h = harness(sample());
+    await h.call('look_add', { name: 'Round', for: ['furniture:dining'], recipe: roundTable });
+    const r = await h.call('look_import', { name: 'Round', for: ['furniture:dining'], recipe: roundTable, source: { library: 'lib1', look: 'lk9', version: 1 }, replace: 'Round' });
+    expect(r.ok, r.error?.message).toBe(true);
+    expect(Object.values(h.session.project.library.looks!)).toHaveLength(1);
+    expect(Object.values(h.session.project.library.looks!)[0].source?.look).toBe('lk9');
+  });
+});
