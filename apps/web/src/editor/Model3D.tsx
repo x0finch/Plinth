@@ -5,8 +5,11 @@
 import { Bounds, Edges, OrbitControls, useBounds } from '@react-three/drei';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { findObject, projectBoxes, type Box, type Project, type Space } from '@plinth/core';
-import { useEffect, useMemo, useRef } from 'react';
+import { ScanIcon, SquareIcon, BoxIcon } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { Button } from '@/components/ui/button';
+import { m } from '@/lib/i18n';
 import { useCanvasDocument } from '@/canvas/CanvasFrame';
 import { hops, REVEAL } from '@/canvas/hop';
 import { useReducedMotion } from '@/canvas/HopDriver';
@@ -198,6 +201,105 @@ function Capture() {
   return null;
 }
 
+type Orbit = { target: THREE.Vector3; maxPolarAngle: number; update(): void };
+
+/** Wheel events from a trackpad: they scroll horizontally too, or report the fine-grained deltas mouse wheels don't */
+const fromTrackpad = (e: WheelEvent) =>
+  e.deltaMode === 0 && (e.deltaX !== 0 || (e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY === -3 * e.deltaY || !Number.isInteger(e.deltaY));
+
+/**
+ * Wheel and gesture input. A trackpad swipe orbits the camera (with Shift it pans) and a pinch zooms, like map and design tools;
+ * a mouse wheel zooms. OrbitControls keeps drag and touch input; its own wheel zoom is turned off.
+ */
+function WheelControls() {
+  const { gl, camera, controls } = useThree();
+  useEffect(() => {
+    const orbit = controls as unknown as Orbit | null;
+    if (!orbit) return;
+    const el = gl.domElement;
+    let trackpad = false;
+    const offset = () => camera.position.clone().sub(orbit.target);
+    const zoom = (factor: number) => {
+      const o = offset();
+      camera.position.copy(orbit.target).add(o.setLength(THREE.MathUtils.clamp(o.length() * factor, 1, 1000)));
+      orbit.update();
+    };
+    const rotate = (dx: number, dy: number) => {
+      const s = new THREE.Spherical().setFromVector3(offset());
+      s.theta -= dx * 0.005;
+      s.phi = THREE.MathUtils.clamp(s.phi - dy * 0.005, 0.01, orbit.maxPolarAngle);
+      camera.position.copy(orbit.target).add(new THREE.Vector3().setFromSpherical(s));
+      orbit.update();
+    };
+    // The scene follows the fingers: move the camera and its target across the ground plane
+    const pan = (dx: number, dy: number) => {
+      const k = offset().length() * 0.0015;
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0).setY(0).normalize();
+      const forward = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), right);
+      const move = right.multiplyScalar(dx * k).add(forward.multiplyScalar(-dy * k));
+      camera.position.add(move);
+      orbit.target.add(move);
+      orbit.update();
+    };
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      // Pinch on a trackpad (Chrome, Firefox) arrives as a wheel event with ctrlKey; so does Ctrl + mouse wheel
+      if (e.ctrlKey) return zoom(Math.exp(e.deltaY * 0.01));
+      if (fromTrackpad(e)) trackpad = true;
+      if (!trackpad) return zoom(Math.exp(e.deltaY * 0.001));
+      if (e.shiftKey) pan(e.deltaX, e.deltaY);
+      else rotate(e.deltaX, e.deltaY);
+    };
+    // Safari reports a pinch as gesture events with a running scale
+    let lastScale = 1;
+    const onGestureStart = (e: Event) => {
+      e.preventDefault();
+      lastScale = 1;
+    };
+    const onGestureChange = (e: Event) => {
+      e.preventDefault();
+      const scale = (e as Event & { scale: number }).scale;
+      zoom(lastScale / scale);
+      lastScale = scale;
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('gesturestart', onGestureStart);
+    el.addEventListener('gesturechange', onGestureChange);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('gesturestart', onGestureStart);
+      el.removeEventListener('gesturechange', onGestureChange);
+    };
+  }, [gl, camera, controls]);
+  return null;
+}
+
+type ViewCommand = { kind: 'fit' | 'top' | 'perspective'; n: number };
+
+/** Runs the view buttons' commands: frame the level again, or swing the camera to a top or perspective view around the same target */
+function ViewCommands({ command }: { command: ViewCommand | null }) {
+  const bounds = useBounds();
+  const { camera, controls } = useThree();
+  const anim = useRef<{ t0: number; from: THREE.Vector3; to: THREE.Vector3 } | null>(null);
+  useEffect(() => {
+    const orbit = controls as unknown as Orbit | null;
+    if (!command || !orbit) return;
+    if (command.kind === 'fit') return void bounds.refresh().clip().fit();
+    const s = new THREE.Spherical().setFromVector3(camera.position.clone().sub(orbit.target));
+    s.phi = command.kind === 'top' ? 0.01 : 0.95;
+    anim.current = { t0: performance.now(), from: camera.position.clone(), to: orbit.target.clone().add(new THREE.Vector3().setFromSpherical(s)) };
+  }, [command]);
+  useFrame(() => {
+    const a = anim.current;
+    if (!a) return;
+    const t = Math.min(1, (performance.now() - a.t0) / REVEAL.ms);
+    camera.position.lerpVectors(a.from, a.to, t * t * (3 - 2 * t));
+    (controls as unknown as Orbit | null)?.update();
+    if (t === 1) anim.current = null;
+  });
+  return null;
+}
+
 export function Model3D() {
   const project = useEditor(s => s.project);
   const view = useEditor(s => s.view);
@@ -212,6 +314,10 @@ export function Model3D() {
   const ownerOf = (id: string) => findObject(project, id, 'opening')?.wall?.id;
   const sel = new Set(reduced ? view.selection.map(id => ownerOf(id) ?? id) : []);
 
+  const [command, setCommand] = useState<ViewCommand | null>(null);
+  const [top, setTop] = useState(false);
+  const run = (kind: ViewCommand['kind']) => setCommand(c => ({ kind, n: (c?.n ?? 0) + 1 }));
+
   const pick = (id: string) => (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     select([id]);
@@ -224,44 +330,56 @@ export function Model3D() {
   const cx = ((x0 + x1) / 2) * M, cz = ((y0 + y1) / 2) * M, span = Math.max(x1 - x0, y1 - y0) * M;
 
   return (
-    <Canvas
-      shadows
-      gl={{ preserveDrawingBuffer: true, antialias: true }}
-      camera={{ position: [cx + span * 0.9, span * 0.8, cz + span * 1.1], fov: 40, near: 0.1, far: 2000 }}
-      onPointerMissed={() => select([])}
-      style={{ background: c.bg }}
-    >
-      <hemisphereLight args={[c.sky, c.edge, 1.1]} />
-      <directionalLight position={[cx - 20, 40, cz + 25]} intensity={1.6} castShadow shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-40} shadow-camera-right={40} shadow-camera-top={40} shadow-camera-bottom={-40} />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, project.site.groundLevel * M - 0.01, cz]} receiveShadow>
-        <planeGeometry args={[span * 4, span * 4]} />
-        <meshStandardMaterial color={c.ground} roughness={1} />
-      </mesh>
+    <div className="relative size-full">
+      <Canvas
+        shadows
+        gl={{ preserveDrawingBuffer: true, antialias: true }}
+        camera={{ position: [cx + span * 0.9, span * 0.8, cz + span * 1.1], fov: 40, near: 0.1, far: 2000 }}
+        onPointerMissed={() => select([])}
+        style={{ background: c.bg }}
+      >
+        <hemisphereLight args={[c.sky, c.edge, 1.1]} />
+        <directionalLight position={[cx - 20, 40, cz + 25]} intensity={1.6} castShadow shadow-mapSize={[2048, 2048]}
+          shadow-camera-left={-40} shadow-camera-right={40} shadow-camera-top={40} shadow-camera-bottom={-40} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, project.site.groundLevel * M - 0.01, cz]} receiveShadow>
+          <planeGeometry args={[span * 4, span * 4]} />
+          <meshStandardMaterial color={c.ground} roughness={1} />
+        </mesh>
 
-      <Bounds margin={1.15}>
-        <Fit project={project} level={view.level} />
-        <group>
-          {shown.map(l => (
-            <group key={l.id}>
-              {project.spaces.filter(s => s.level === l.id && s.kind !== 'void' && !s.slabOpening).map(s => (
-                <Slab key={s.id} s={s} y={s.kind === 'outdoor' && l.elevation === 0 ? project.site.groundLevel + 20 : l.elevation} thickness={s.kind === 'outdoor' ? 20 : 120}
-                  color={c.slab} edge={c.edge} sel={sel.has(s.id) ? c.sel : undefined} onPick={pick(s.id)} />
-              ))}
-              {boxes.filter(b => b.level === l.id).map((b, i) => (
-                <BoxMesh key={`${b.id}-${i}`} b={b} base={elev.get(l.id) ?? 0} edge={c.edge} onPick={pick(b.id)}
-                  color={b.kind === 'glass' ? c.glass : c.wall} sel={sel.has(b.id) ? c.sel : undefined} opacity={b.kind === 'glass' ? 0.2 : 1} />
-              ))}
-              {view.layers.furniture && project.furniture.filter(f => f.level === l.id).map(f => (
-                <Furniture key={f.id} f={f} base={elev.get(l.id) ?? 0} color={c.furn} sel={sel.has(f.id) ? c.sel : undefined} onPick={pick(f.id)} />
-              ))}
-            </group>
-          ))}
-        </group>
-      </Bounds>
-      <OrbitControls makeDefault enableDamping maxPolarAngle={Math.PI / 2 - 0.05} />
-      <Reveal ownerOf={ownerOf} />
-      <Capture />
-    </Canvas>
+        <Bounds margin={1.15}>
+          <Fit project={project} level={view.level} />
+          <ViewCommands command={command} />
+          <group>
+            {shown.map(l => (
+              <group key={l.id}>
+                {project.spaces.filter(s => s.level === l.id && s.kind !== 'void' && !s.slabOpening).map(s => (
+                  <Slab key={s.id} s={s} y={s.kind === 'outdoor' && l.elevation === 0 ? project.site.groundLevel + 20 : l.elevation} thickness={s.kind === 'outdoor' ? 20 : 120}
+                    color={c.slab} edge={c.edge} sel={sel.has(s.id) ? c.sel : undefined} onPick={pick(s.id)} />
+                ))}
+                {boxes.filter(b => b.level === l.id).map((b, i) => (
+                  <BoxMesh key={`${b.id}-${i}`} b={b} base={elev.get(l.id) ?? 0} edge={c.edge} onPick={pick(b.id)}
+                    color={b.kind === 'glass' ? c.glass : c.wall} sel={sel.has(b.id) ? c.sel : undefined} opacity={b.kind === 'glass' ? 0.2 : 1} />
+                ))}
+                {view.layers.furniture && project.furniture.filter(f => f.level === l.id).map(f => (
+                  <Furniture key={f.id} f={f} base={elev.get(l.id) ?? 0} color={c.furn} sel={sel.has(f.id) ? c.sel : undefined} onPick={pick(f.id)} />
+                ))}
+              </group>
+            ))}
+          </group>
+        </Bounds>
+        <OrbitControls makeDefault enableDamping enableZoom={false} maxPolarAngle={Math.PI / 2 - 0.05} />
+        <WheelControls />
+        <Reveal ownerOf={ownerOf} />
+        <Capture />
+      </Canvas>
+      <div className="absolute top-2 right-2 flex gap-1">
+        <Button size="icon-sm" variant="outline" className="bg-background" onClick={() => run('fit')} aria-label={m.model3d_fit()} title={m.model3d_fit()}><ScanIcon /></Button>
+        <Button size="icon-sm" variant="outline" className="bg-background" onClick={() => { run(top ? 'perspective' : 'top'); setTop(!top); }}
+          aria-label={top ? m.model3d_perspective() : m.model3d_top()} title={top ? m.model3d_perspective() : m.model3d_top()}>
+          {top ? <BoxIcon /> : <SquareIcon />}
+        </Button>
+      </div>
+      <p className="pointer-events-none absolute bottom-2 left-3 text-xs text-muted-foreground max-md:hidden">{m.model3d_hint()}</p>
+    </div>
   );
 }

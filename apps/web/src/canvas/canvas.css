@@ -1,8 +1,10 @@
 /* Canvas iframe styles: light only, independent of the page color scheme */
 @import 'tailwindcss';
+@import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
 @import "../theme/light.css";
+@import "../theme/tokens.css";
 
 html, body {
   height: 100%;
