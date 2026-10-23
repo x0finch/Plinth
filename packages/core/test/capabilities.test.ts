@@ -191,6 +191,35 @@ describe('capability registry', () => {
   });
 });
 
+describe('small correctness fixes', () => {
+  it('space_merge keeps names unique on the level', async () => {
+    const h = harness(createProject({ id: 't', name: 'test', language: 'en' }));
+    await h.ok('room_add', { level: 'L1', name: 'A', rect: [0, 0, 3000, 3000] });
+    await h.ok('room_add', { level: 'L1', name: 'B', rect: [3000, 0, 3000, 3000] });
+    await h.ok('room_add', { level: 'L1', name: 'Hall', rect: [6000, 0, 3000, 3000] });
+    await h.ok('space_merge', { spaces: ['A', 'B'], name: 'Hall' });
+    const names = h.session.project.spaces.map(s => s.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names).toContain('Hall (2)');
+  });
+
+  it('space_merge may reuse the name of a merged space', async () => {
+    const h = harness(createProject({ id: 't', name: 'test', language: 'en' }));
+    await h.ok('room_add', { level: 'L1', name: 'A', rect: [0, 0, 3000, 3000] });
+    await h.ok('room_add', { level: 'L1', name: 'B', rect: [3000, 0, 3000, 3000] });
+    await h.ok('space_merge', { spaces: ['A', 'B'], name: 'B' });
+    expect(h.session.project.spaces.map(s => s.name)).toEqual(['B']);
+  });
+
+  it('Session.load clears the operation log', async () => {
+    const h = harness(createProject({ id: 't', name: 'test', language: 'en' }));
+    await h.ok('room_add', { level: 'L1', name: 'A', rect: [0, 0, 3000, 3000] });
+    expect(h.session.log).toHaveLength(1);
+    h.session.load(createProject({ id: 't', name: 'test', language: 'en' }));
+    expect((await h.ok('history_log')).result).toEqual([]);
+  });
+});
+
 describe('capability modes', () => {
   it('marks undo and redo as mutating, so read-only hosts block them', () => {
     expect(mutates(registry.get('history_undo')!)).toBe(true);
