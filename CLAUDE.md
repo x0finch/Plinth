@@ -19,6 +19,8 @@ Overall design and requirements: GitHub issue #1 (epic) and its sub-issues. Read
 ## Data and capabilities
 - Every mutation goes through the capability registry (`packages/core/src/builtins.ts`) inside a transaction; the UI, the agent and `window.artifact.call` all share it.
 - When unsure about a schema field, put it in `extras`; schema changes bump `version` and add a migration in `migrate.ts`.
+- User-facing text produced by the core package goes through `text(key, englishFallback, params)` (`packages/core/src/i18n.ts`); add the key as `core_<key>` to both `apps/web/messages/zh.json` and `en.json`. Capability titles are shown via `capabilityTitle(c)`.
+- Names written into project data (levels, walls, openings, catalog items) follow the project's `language` (`'zh' | 'en'`), not the UI language: use the vocabulary in `packages/core/src/names.ts`.
 
 ## Verification
 - `npm test` (core contract tests), `npm run typecheck`, `npx tsc --noEmit -p apps/web`

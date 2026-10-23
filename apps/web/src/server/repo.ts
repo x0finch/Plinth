@@ -1,5 +1,6 @@
 /** Data access: plain D1 prepared statements for minimal overhead. */
 import { env } from 'cloudflare:workers';
+import { m } from '@/lib/i18n';
 
 export type Role = 'owner' | 'editor' | 'commenter' | 'viewer';
 export const ROLE_RANK: Record<Role, number> = { viewer: 0, commenter: 1, editor: 2, owner: 3 };
@@ -34,7 +35,7 @@ export async function listProjects(userId: string) {
   return results;
 }
 
-export async function createProject(userId: string, id: string, name: string, content: string, summary = '新建') {
+export async function createProject(userId: string, id: string, name: string, content: string, summary = m.server_version_created()) {
   const t = now();
   await db().batch([
     db().prepare('insert into project (id, name, owner_id, head_version, created_at, updated_at) values (?, ?, ?, 1, ?, ?)').bind(id, name, userId, t, t),
@@ -270,10 +271,10 @@ export const recordUsage = (u: { userId: string; projectId: string; modelConfigI
 export async function projectUsage(projectId: string) {
   const { results } = await db()
     .prepare(
-      `select u.user_id, coalesce(x.name, '已删除用户') as name, sum(u.input_tokens) as input, sum(u.output_tokens) as output, count(*) as calls
+      `select u.user_id, coalesce(x.name, ?) as name, sum(u.input_tokens) as input, sum(u.output_tokens) as output, count(*) as calls
        from usage u left join "user" x on x.id = u.user_id where u.project_id = ? group by u.user_id order by input desc`,
     )
-    .bind(projectId)
+    .bind(m.server_deleted_user(), projectId)
     .all<{ user_id: string; name: string; input: number; output: number; calls: number }>();
   return results;
 }
@@ -307,6 +308,6 @@ export async function exportUserData(userId: string) {
     user,
     projects: projects.map(p => ({ ...p, content: JSON.parse(p.content) })),
     comments,
-    modelConfigs: models.map(({ key_hint, ...m }) => ({ ...m, key: `（不导出）${key_hint}` })),
+    modelConfigs: models.map(({ key_hint, ...rest }) => ({ ...rest, key: m.server_export_key_withheld({ hint: key_hint }) })),
   };
 }

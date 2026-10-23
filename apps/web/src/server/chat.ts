@@ -11,6 +11,7 @@ import { createOpenRouterText } from '@tanstack/ai-openrouter';
 import { isAutonomy, needsApproval, type Autonomy } from '../agent/policy';
 import { registry } from '../agent/registry';
 import { SYSTEM_PROMPT, contextPrompt, type AgentContext } from '../agent/prompt';
+import { m } from '@/lib/i18n';
 import type { ModelConfigRow } from './repo';
 
 export type { Autonomy };
@@ -38,7 +39,7 @@ function adapter(cfg: ModelConfigRow, apiKey: string) {
     case 'gemini': return createGeminiChat(model, apiKey);
     case 'openrouter': return createOpenRouterText(model, apiKey);
     case 'compatible': return openaiCompatibleText(cfg.model, { baseURL: cfg.base_url!, apiKey });
-    default: throw new Error(`不支持的厂商 ${cfg.provider}`);
+    default: throw new Error(m.server_err_unsupported_provider({ provider: cfg.provider }));
   }
 }
 
@@ -47,7 +48,7 @@ export async function handleChat(request: Request, o: { config: ModelConfigRow; 
   try {
     params = await chatParamsFromRequestBody(await request.json());
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : '请求格式不对' }, { status: 400 });
+    return Response.json({ error: e instanceof Error ? e.message : m.server_err_bad_request() }, { status: 400 });
   }
   const props = params.forwardedProps as { autonomy?: Autonomy; context?: AgentContext };
   const autonomy: Autonomy = isAutonomy(props.autonomy) ? props.autonomy : 'balanced';

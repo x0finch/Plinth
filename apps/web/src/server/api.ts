@@ -9,7 +9,8 @@ import { auth, googleEnabled } from './auth';
 import { mailEnabled } from './mail';
 import { handleChat } from './chat';
 import { decryptSecret, encryptSecret, keyHint } from './crypto';
-import { PROVIDERS } from './providers';
+import { getLocale, m } from '@/lib/i18n';
+import { PROVIDERS, localizedProviders } from './providers';
 import * as repo from './repo';
 import { atLeast, type Role } from './repo';
 
@@ -24,13 +25,13 @@ const ip = (c: C) => c.req.header('cf-connecting-ip') ?? 'local';
 async function limit(binding: RateLimit | undefined, key: string) {
   if (!binding) return;
   const { success } = await binding.limit({ key });
-  if (!success) throw new HTTPException(429, { message: '请求太频繁，请稍后再试' });
+  if (!success) throw new HTTPException(429, { message: m.server_err_rate_limited() });
 }
 
 api.onError((err, c) => {
   if (err instanceof HTTPException) return c.json({ error: err.message }, err.status);
   console.error(err);
-  return c.json({ error: '服务器出错了，请稍后再试' }, 500);
+  return c.json({ error: m.server_err_internal() }, 500);
 });
 
 // Auth: rate-limit OTP sending and sign-in endpoints
@@ -50,14 +51,14 @@ api.use('/*', session);
 
 const requireUser = (c: C) => {
   const u = c.get('user');
-  if (!u) throw new HTTPException(401, { message: '请先登录或开始试用' });
+  if (!u) throw new HTTPException(401, { message: m.server_err_sign_in_required() });
   return u;
 };
 
 async function requireRole(c: C, projectId: string, min: Role) {
   const u = c.get('user');
   const role = await repo.getRole(projectId, u?.id ?? null);
-  if (!atLeast(role, min)) throw new HTTPException(role ? 403 : 404, { message: role ? '你没有这个操作的权限' : '方案不存在或没有访问权限' });
+  if (!atLeast(role, min)) throw new HTTPException(role ? 403 : 404, { message: role ? m.server_err_forbidden() : m.server_err_project_not_accessible() });
   return { user: u!, role: role! };
 }
 
@@ -72,7 +73,7 @@ function checkContent(json: unknown): Project {
   try {
     return migrate(json);
   } catch (e) {
-    throw new HTTPException(400, { message: e instanceof Error ? e.message : '方案数据格式不对' });
+    throw new HTTPException(400, { message: e instanceof Error ? e.message : m.server_err_invalid_project_data() });
   }
 }
 
@@ -100,8 +101,8 @@ api.post('/projects', async c => {
   const id = repo.newId('p');
   const data: Project = b.template === 'sample'
     ? { ...(structuredClone(sample) as unknown as Project), id, name: b.name }
-    : newProjectData({ id, name: b.name, floors: b.floors });
-  await repo.createProject(u.id, id, b.name, JSON.stringify(data), b.template === 'sample' ? '从样例方案创建' : '新建空白方案');
+    : newProjectData({ id, name: b.name, floors: b.floors, language: getLocale() === 'en' ? 'en' : 'zh' });
+  await repo.createProject(u.id, id, b.name, JSON.stringify(data), b.template === 'sample' ? m.server_version_from_sample() : m.server_version_blank());
   return c.json({ id });
 });
 
@@ -109,7 +110,7 @@ api.get('/projects/:id', async c => {
   const id = c.req.param('id');
   const { role } = await requireRole(c, id, 'viewer');
   const [p, v] = await Promise.all([repo.getProject(id), repo.getVersion(id)]);
-  if (!p || !v) throw new HTTPException(404, { message: '方案不存在' });
+  if (!p || !v) throw new HTTPException(404, { message: m.server_err_project_not_found() });
   const model = p.model_config_id ? await repo.getModelConfig(p.model_config_id) : null;
   return c.json({
     id: p.id, name: p.name, role, version: v.version, ownerId: p.owner_id,
@@ -122,13 +123,13 @@ api.put('/projects/:id', async c => {
   const id = c.req.param('id');
   const { user } = await requireRole(c, id, 'editor');
   const raw = await c.req.text();
-  if (raw.length > MAX_CONTENT) throw new HTTPException(413, { message: '方案数据太大' });
-  const b = z.object({ base: z.number().int(), summary: z.string().max(200).default('保存'), content: z.unknown() }).parse(JSON.parse(raw));
+  if (raw.length > MAX_CONTENT) throw new HTTPException(413, { message: m.server_err_project_too_large() });
+  const b = z.object({ base: z.number().int(), summary: z.string().max(200).default(() => m.server_version_saved()), content: z.unknown() }).parse(JSON.parse(raw));
   const content = checkContent(b.content);
   const version = await repo.saveVersion(id, user.id, b.base, JSON.stringify(content), b.summary, content.name);
   if (!version) {
     const head = await repo.getVersion(id);
-    return c.json({ error: '别人刚保存了新版本', conflict: true, version: head?.version, content: head && JSON.parse(head.content) }, 409);
+    return c.json({ error: m.server_err_save_conflict(), conflict: true, version: head?.version, content: head && JSON.parse(head.content) }, 409);
   }
   return c.json({ version });
 });
@@ -152,7 +153,7 @@ api.put('/projects/:id/thumbnail', async c => {
   const id = c.req.param('id');
   await requireRole(c, id, 'editor');
   const svg = await c.req.text();
-  if (svg.length > 200_000 || !svg.startsWith('<svg')) throw new HTTPException(400, { message: '缩略图格式不对' });
+  if (svg.length > 200_000 || !svg.startsWith('<svg')) throw new HTTPException(400, { message: m.server_err_invalid_thumbnail() });
   await repo.setThumbnail(id, svg);
   return c.json({ ok: true });
 });
@@ -167,7 +168,7 @@ api.get('/projects/:id/versions/:v', async c => {
   const id = c.req.param('id');
   await requireRole(c, id, 'viewer');
   const v = await repo.getVersion(id, Number(c.req.param('v')));
-  if (!v) throw new HTTPException(404, { message: '版本不存在' });
+  if (!v) throw new HTTPException(404, { message: m.server_err_version_not_found() });
   return c.json({ ...v, content: JSON.parse(v.content) });
 });
 
@@ -234,14 +235,14 @@ api.delete('/projects/:id/members/:userId', async c => {
 
 api.get('/share/:token', async c => {
   const link = await repo.getShareLink(c.req.param('token'));
-  if (!link) throw new HTTPException(404, { message: '链接已失效' });
+  if (!link) throw new HTTPException(404, { message: m.server_err_link_expired() });
   return c.json({ projectId: link.project_id, name: link.name, role: link.role });
 });
 
 api.post('/share/:token/accept', async c => {
   const u = requireUser(c);
   const link = await repo.getShareLink(c.req.param('token'));
-  if (!link) throw new HTTPException(404, { message: '链接已失效' });
+  if (!link) throw new HTTPException(404, { message: m.server_err_link_expired() });
   const role = await repo.upsertMember(link.project_id, u.id, link.role);
   return c.json({ projectId: link.project_id, role });
 });
@@ -276,15 +277,15 @@ api.delete('/projects/:id/comments/:cid', async c => {
   const id = c.req.param('id');
   const { user, role } = await requireRole(c, id, 'commenter');
   const cm = await repo.getComment(id, c.req.param('cid'));
-  if (!cm) throw new HTTPException(404, { message: '评论不存在' });
-  if (cm.author_id !== user.id && role !== 'owner') throw new HTTPException(403, { message: '只能删除自己的评论' });
+  if (!cm) throw new HTTPException(404, { message: m.server_err_comment_not_found() });
+  if (cm.author_id !== user.id && role !== 'owner') throw new HTTPException(403, { message: m.server_err_comment_delete_own_only() });
   await repo.deleteComment(id, cm.id);
   return c.json({ ok: true });
 });
 
 // ---------- Model configs ----------
 
-api.get('/models', async c => c.json({ configs: await repo.listModelConfigs(requireUser(c).id), providers: PROVIDERS }));
+api.get('/models', async c => c.json({ configs: await repo.listModelConfigs(requireUser(c).id), providers: localizedProviders() }));
 
 api.post('/models', async c => {
   const u = requireUser(c);
@@ -292,7 +293,7 @@ api.post('/models', async c => {
     label: z.string().trim().min(1).max(40), provider: z.enum(Object.keys(PROVIDERS) as [string, ...string[]]),
     model: z.string().trim().min(1).max(100), apiKey: z.string().trim().min(8).max(400), baseUrl: z.url().max(300).nullish(),
   }));
-  if (PROVIDERS[b.provider].needsBaseUrl && !b.baseUrl) throw new HTTPException(400, { message: '这个厂商需要填接口地址' });
+  if (PROVIDERS[b.provider].needsBaseUrl && !b.baseUrl) throw new HTTPException(400, { message: m.server_err_base_url_required() });
   const id = repo.newId('k');
   const { ciphertext, iv } = await encryptSecret(b.apiKey, id);
   await repo.insertModelConfig({
@@ -312,8 +313,8 @@ api.put('/projects/:id/model', async c => {
   const { user } = await requireRole(c, id, 'owner');
   const b = await body(c, z.object({ modelConfigId: z.string().nullable() }));
   if (b.modelConfigId) {
-    const m = await repo.getModelConfig(b.modelConfigId);
-    if (!m || m.user_id !== user.id) throw new HTTPException(400, { message: '只能用自己添加的模型配置' });
+    const cfg = await repo.getModelConfig(b.modelConfigId);
+    if (!cfg || cfg.user_id !== user.id) throw new HTTPException(400, { message: m.server_err_model_config_not_owned() });
   }
   await repo.setProjectModel(id, b.modelConfigId);
   return c.json({ ok: true });
@@ -332,9 +333,9 @@ api.post('/projects/:id/chat', async c => {
   const { user } = await requireRole(c, id, 'editor');
   await limit(env.RL_CHAT, user.id);
   const p = await repo.getProject(id);
-  if (!p?.model_config_id) throw new HTTPException(400, { message: '这个方案还没有配置大模型。请方案主人在“设置 → 模型”添加密钥，并在方案里选用' });
+  if (!p?.model_config_id) throw new HTTPException(400, { message: m.server_err_no_model() });
   const cfg = await repo.getModelConfig(p.model_config_id);
-  if (!cfg) throw new HTTPException(400, { message: '方案选用的模型配置已被删除，请方案主人重新选择' });
+  if (!cfg) throw new HTTPException(400, { message: m.server_err_model_config_deleted() });
   const apiKey = await decryptSecret(cfg.key_ciphertext, cfg.key_iv, cfg.id);
   return handleChat(c.req.raw, {
     config: cfg, apiKey,
@@ -353,9 +354,9 @@ api.put('/projects/:id/chat-thread', async c => {
   const id = c.req.param('id');
   const { user } = await requireRole(c, id, 'editor');
   const raw = await c.req.text();
-  if (raw.length > 800_000) throw new HTTPException(413, { message: '对话太长' });
+  if (raw.length > 800_000) throw new HTTPException(413, { message: m.server_err_chat_too_long() });
   await repo.putChat(id, user.id, raw);
   return c.json({ ok: true });
 });
 
-api.notFound(c => c.json({ error: '接口不存在' }, 404));
+api.notFound(c => c.json({ error: m.server_err_api_not_found() }, 404));

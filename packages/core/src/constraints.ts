@@ -7,6 +7,7 @@ import {
   cross, dot, moveWall, project as projectPoint, scale, sideOf, spaceNetArea, spaceWalls, sub, wallDir,
   wallLength, wallNormal,
 } from './topology.js';
+import { text } from './i18n.js';
 import type { Constraint, Id, Point, Project, Space, Wall } from './schema.js';
 
 export interface ConstraintStatus {
@@ -100,7 +101,7 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
     check(p, c) {
       const ws = c.targets.map(id => findWall(p, id)).filter((w): w is Wall => !!w);
       const bad = ws.slice(1).filter(w => !parallel(ws[0], w) || Math.abs(offsetBetween(ws[0], w)) > 5);
-      return { ok: ws.length === c.targets.length && !bad.length, message: `${ws.map(w => w.name).join('、')}对齐` };
+      return { ok: ws.length === c.targets.length && !bad.length, message: text('constraint_align', '{walls} aligned', { walls: ws.map(w => w.name).join(text('list_separator', ', ')) }) };
     },
     fix(p, c, changed) {
       const ws = c.targets.map(id => findWall(p, id)).filter((w): w is Wall => !!w);
@@ -123,9 +124,9 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
   center: {
     check(p, c) {
       const hit = findOpening(p, c.targets[0]), s = findSpace(p, c.targets[1]);
-      if (!hit || !s) return { ok: false, message: '居中的对象不存在' };
+      if (!hit || !s) return { ok: false, message: text('constraint_center_missing', 'The objects to centre no longer exist') };
       const iv = sharedInterval(hit.w, s);
-      return { ok: !!iv && Math.abs(hit.o.at - (iv[0] + iv[1]) / 2) <= 5, message: `${hit.o.name}在${s.name}中线上` };
+      return { ok: !!iv && Math.abs(hit.o.at - (iv[0] + iv[1]) / 2) <= 5, message: text('constraint_center', '{opening} centred on {space}', { opening: hit.o.name, space: s.name }) };
     },
     fix(p, c, changed) {
       const hit = findOpening(p, c.targets[0]), s = findSpace(p, c.targets[1]);
@@ -146,14 +147,14 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
       const dist = Number(c.params.distance);
       const hit = findOpening(p, c.targets[0]);
       const other = findWall(p, c.targets[1]);
-      if (!other) return { ok: false, message: '间距的对象不存在' };
+      if (!other) return { ok: false, message: text('constraint_spacing_missing', 'The objects of this spacing no longer exist') };
       if (hit) {
         const g = openingGap(hit.w, hit.o, other);
-        return { ok: g != null && Math.abs(g - dist) <= 5, message: `${hit.o.name}距${other.name} ${dist} mm` };
+        return { ok: g != null && Math.abs(g - dist) <= 5, message: text('constraint_opening_spacing', '{opening} {distance} mm from {wall}', { opening: hit.o.name, wall: other.name, distance: dist }) };
       }
       const a = findWall(p, c.targets[0]);
-      if (!a) return { ok: false, message: '间距的对象不存在' };
-      return { ok: parallel(a, other) && Math.abs(Math.abs(offsetBetween(a, other)) - dist) <= 5, message: `${a.name}与${other.name}相距 ${dist} mm` };
+      if (!a) return { ok: false, message: text('constraint_spacing_missing', 'The objects of this spacing no longer exist') };
+      return { ok: parallel(a, other) && Math.abs(Math.abs(offsetBetween(a, other)) - dist) <= 5, message: text('constraint_wall_spacing', '{a} and {b} {distance} mm apart', { a: a.name, b: other.name, distance: dist }) };
     },
     fix(p, c, changed) {
       const dist = Number(c.params.distance);
@@ -189,10 +190,10 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
   'size-target': {
     check(p, c) {
       const s = findSpace(p, c.targets[0]);
-      if (!s) return { ok: false, message: '面积目标的空间不存在' };
+      if (!s) return { ok: false, message: text('constraint_area_missing', 'The space of this area target no longer exists') };
       const target = Number(c.params.area), tol = Number(c.params.tolerance ?? 0.3);
       const a = spaceNetArea(p, s);
-      return { ok: Math.abs(a - target) <= tol, message: `${s.name}约 ${target} m²（现 ${a.toFixed(1)} m²）` };
+      return { ok: Math.abs(a - target) <= tol, message: text('constraint_area', '{space} about {target} m² (now {area} m²)', { space: s.name, target, area: a.toFixed(1) }) };
     },
     fix(p, c, changed) {
       const s = findSpace(p, c.targets[0]);
@@ -225,7 +226,7 @@ export const SUPPORTED_CONSTRAINTS = Object.keys(HANDLERS) as Constraint['type']
 export function checkConstraints(p: Project): ConstraintStatus[] {
   return p.constraints.map(c => {
     const h = HANDLERS[c.type];
-    if (!h) return { id: c.id, ok: true, hard: c.hard, message: `${c.type} 暂不求解` };
+    if (!h) return { id: c.id, ok: true, hard: c.hard, message: text('constraint_unsupported', '{type} is not solved yet', { type: c.type }) };
     return { id: c.id, hard: c.hard, ...h.check(p, c) };
   });
 }

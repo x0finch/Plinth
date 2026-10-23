@@ -1,7 +1,8 @@
 /** Geometric relations between walls, spaces and openings: adjacency, location, linked moves. */
 import pc from 'polygon-clipping';
 import { area, difference, pointInPolygon, toPc, union, wallBody } from './geometry.js';
-import type { Id, Opening, Point, Polygon, Project, Space, Wall, WallKind } from './schema.js';
+import { names, type Direction } from './names.js';
+import type { Id, Opening, Point, Polygon, Project, ProjectLanguage, Space, Wall } from './schema.js';
 
 export const TOL = 5;
 
@@ -107,10 +108,9 @@ export function openingSpaces(p: Project, w: Wall, o: Opening): Space[] {
     .filter((s): s is Space => !!s);
 }
 
-const DIRS: Record<string, string> = { '0,-1': '北', '0,1': '南', '1,0': '东', '-1,0': '西' };
-export const KIND_WORD: Record<WallKind, string> = { bearing: '墙', partition: '墙', fence: '围墙', parapet: '女儿墙', railing: '栏杆' };
+const DIRS: Record<string, Direction> = { '0,-1': 'north', '0,1': 'south', '1,0': 'east', '-1,0': 'west' };
 
-/** Name a wall after the spaces on its sides (consistent with legacy import): the indoor space with the longest shared edge wins */
+/** Name a wall after the spaces on its sides (consistent with legacy import): the indoor space with the longest shared edge wins. Names follow the project language. */
 export function autoWallName(p: Project, w: Wall): string {
   const rank: Record<Space['kind'], number> = { indoor: 3, 'semi-outdoor': 2, 'roof-terrace': 1, outdoor: 1, void: 0 };
   let best: { s: Space; score: number } | null = null;
@@ -124,21 +124,22 @@ export function autoWallName(p: Project, w: Wall): string {
     const score = rank[s.kind] * 1e6 + l;
     if (!best || score > best.score) best = { s, score };
   }
-  const word = KIND_WORD[w.kind];
-  if (!best) return `${w.level}${word}`;
+  const vocab = names(p);
+  const word = vocab.wall[w.kind];
+  if (!best) return vocab.levelWall(w.level, word);
   // Which direction the wall lies from the space: the direction from the space toward the wall
   const n = scale(wallNormal(w), -sideOf(w, best.s));
-  const key = `${Math.round(n[0])},${Math.round(n[1])}`;
-  const dir = DIRS[key] ?? '';
-  if ((w.kind === 'bearing' || w.kind === 'partition') && indoorSides.size === 1 && [...indoorSides.values()][0] > 1) return `${dir}外墙`;
-  return `${best.s.name}${dir}${word}`;
+  const dir = DIRS[`${Math.round(n[0])},${Math.round(n[1])}`] ?? null;
+  if ((w.kind === 'bearing' || w.kind === 'partition') && indoorSides.size === 1 && [...indoorSides.values()][0] > 1) return vocab.exteriorWall(dir);
+  return vocab.spaceWall(best.s.name, dir, word);
 }
 
-/** Append a number when a name repeats within a level */
-export function uniqueName(existing: Iterable<string>, base: string): string {
+/** Append a number when a name repeats within a level: 客厅北墙（2） in a Chinese project, "Living room north wall (2)" in an English one */
+export function uniqueName(existing: Iterable<string>, base: string, language: ProjectLanguage = 'zh'): string {
   const set = new Set(existing);
   if (!set.has(base)) return base;
-  for (let i = 2; ; i++) if (!set.has(`${base}（${i}）`)) return `${base}（${i}）`;
+  const vocab = names(language);
+  for (let i = 2; ; i++) if (!set.has(vocab.numbered(base, i))) return vocab.numbered(base, i);
 }
 
 /** Generate a new ID: prefix + incrementing number */

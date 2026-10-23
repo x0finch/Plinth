@@ -7,6 +7,10 @@ import { areaReport } from './area.js';
 import { checkRules, issueKey, type Issue } from './rules.js';
 import { solveConstraints, type ConstraintReport } from './constraints.js';
 import type { Id, Project } from './schema.js';
+import { text } from './i18n.js';
+
+/** Join several messages into one: “a；b” in Chinese, "a; b" in English */
+const joinMessages = (items: string[]) => items.join(text('message_separator', '; '));
 
 enablePatches();
 setAutoFreeze(false);
@@ -145,7 +149,7 @@ export class Session {
         result = recipe(draft as Project);
         constraints = solveConstraints(draft as Project, touchedGeometry(before, current(draft) as Project));
         if (constraints.violatedHard.length) {
-          throw new TxError('constraint-violated', `违反硬约束：${constraints.violatedHard.map(c => c.message).join('；')}`);
+          throw new TxError('constraint-violated', text('err_constraint_violated', 'Hard constraint violated: {constraints}', { constraints: joinMessages(constraints.violatedHard.map(c => c.message)) }));
         }
       });
     } catch (e) {
@@ -161,7 +165,7 @@ export class Session {
     if (errors.length) {
       return {
         ok: false,
-        error: { code: 'rule-violated', message: errors.map(e => e.message).join('；'), issues: errors },
+        error: { code: 'rule-violated', message: joinMessages(errors.map(e => e.message)), issues: errors },
         changed: [], warnings: [], areaChanges: [],
       };
     }

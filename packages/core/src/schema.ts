@@ -1,5 +1,5 @@
 /**
- * Plinth project data schema v1.
+ * Plinth project data schema v2 (v2 added `language`).
  *
  * Conventions:
  * - Lengths are in millimetres; plan coordinates have x pointing east and y pointing south; heights are measured from each level's base elevation.
@@ -10,7 +10,10 @@
  */
 
 export const SCHEMA = 'plinth/project' as const;
-export const SCHEMA_VERSION = 1 as const;
+export const SCHEMA_VERSION = 2 as const;
+
+/** Language of the names written into project data (levels, walls, openings, catalog); independent of the UI language */
+export type ProjectLanguage = 'zh' | 'en';
 
 export type Id = string;
 /** Millimetres */
@@ -31,6 +34,8 @@ export interface Project {
   version: typeof SCHEMA_VERSION;
   id: Id;
   name: string;
+  /** Language of generated names (level, wall, opening and catalog names); added in v2 */
+  language: ProjectLanguage;
   units: 'mm';
   site: Site;
   levels: Level[];

@@ -1,19 +1,21 @@
 // Guard: UI code must not hard-code user-visible text; it goes through messages/{locale}.json (`m.key()`).
-// Flags Chinese characters in client code. Usage: npm run check:i18n [-- <files…>]
+// Flags Chinese characters in client and Worker code (API errors, emails and server-written data go through
+// messages too, translated per request). Usage: npm run check:i18n [-- <files…>]
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const root = new URL('../src', import.meta.url).pathname;
-const dirs = ['routes', 'editor', 'canvas', 'lib', 'components'].map(d => join(root, d));
-const skip = ['components/ui', 'paraglide'];
+const dirs = ['routes', 'editor', 'canvas', 'lib', 'components', 'server', 'agent', 'worker.ts'].map(d => join(root, d));
+// agent/prompt.ts is read only by the LLM (English; it may quote Chinese examples)
+const skip = ['components/ui', 'paraglide', 'agent/prompt.ts'];
 const cjk = /[　-〿一-鿿＀-￯]/;
 
 const files = [];
-const walk = d => readdirSync(d).forEach(f => {
-  const p = join(d, f);
+const walk = p => {
   if (skip.some(s => p.includes(s))) return;
-  statSync(p).isDirectory() ? walk(p) : /\.(tsx?|css)$/.test(f) && files.push(p);
-});
+  if (statSync(p).isDirectory()) readdirSync(p).forEach(f => walk(join(p, f)));
+  else if (/\.(tsx?|css)$/.test(p)) files.push(p);
+};
 const only = process.argv.slice(2);
 if (only.length) files.push(...only.map(f => join(process.cwd(), f)));
 else dirs.forEach(walk);

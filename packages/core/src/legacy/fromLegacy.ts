@@ -3,6 +3,7 @@
  * Input is the legacy.json captured by scripts/extract-legacy.mjs; used once, at import.
  */
 import { rect, union, pointInPolygon } from '../geometry.js';
+import { NAME_SEPARATOR, names, type Direction } from '../names.js';
 import {
   SCHEMA, SCHEMA_VERSION,
   type Element, type Furniture, type Level, type Opening, type OpeningKind, type Project, type Space,
@@ -29,12 +30,12 @@ export interface LegacyExport {
 }
 
 const WALL_KIND: Record<string, WallKind> = { fence: 'fence', parapet: 'parapet', rail: 'railing' };
-const WALL_WORD: Record<WallKind, string> = { bearing: '墙', partition: '墙', fence: '围墙', parapet: '女儿墙', railing: '栏杆' };
 const OP_KIND: Record<string, OpeningKind> = { door: 'door', slide: 'sliding-door', gate: 'gate', win: 'window', open: 'opening' };
-const OP_WORD: Record<OpeningKind, string> = { door: '门', 'sliding-door': '推拉门', gate: '大门', window: '窗', opening: '洞口' };
 const SPACE_KIND: Record<string, SpaceKind> = { in: 'indoor', semi: 'semi-outdoor', out: 'outdoor', roof: 'roof-terrace', void: 'void' };
 const LEVEL_IDS = ['L1', 'L2', 'L3', 'L4', 'L5'];
 const pad = (n: number) => String(n).padStart(2, '0');
+/** The legacy page is Chinese, so names follow the Chinese vocabulary */
+const ZH = names('zh');
 
 /** Append a number when a name repeats within a level: 客厅北墙, 客厅北墙（2） */
 function namer() {
@@ -42,7 +43,7 @@ function namer() {
   return (base: string) => {
     const n = (seen.get(base) ?? 0) + 1;
     seen.set(base, n);
-    return n === 1 ? base : `${base}（${n}）`;
+    return n === 1 ? base : ZH.numbered(base, n);
   };
 }
 
@@ -53,18 +54,18 @@ function namer() {
 function wallName(w: LWall, rooms: LRoom[], kind: WallKind): string {
   const horiz = w.y1 === w.y2, tol = 5;
   const rank: Record<string, number> = { in: 3, semi: 2, roof: 1, out: 1, void: 0 };
-  const indoorBySide = new Map<string, Set<string>>();
-  let best: { name: string; side: string; score: number } | null = null;
+  const indoorBySide = new Map<Direction, Set<string>>();
+  let best: { name: string; side: Direction; score: number } | null = null;
   for (const r of rooms) for (const q of r.rects) {
-    let side = '', overlap = 0;
+    let side: Direction | null = null, overlap = 0;
     if (horiz) {
       overlap = Math.min(q.x + q.w, w.x2) - Math.max(q.x, w.x1);
-      if (Math.abs(q.y - w.y1) <= tol) side = '北';
-      else if (Math.abs(q.y + q.h - w.y1) <= tol) side = '南';
+      if (Math.abs(q.y - w.y1) <= tol) side = 'north';
+      else if (Math.abs(q.y + q.h - w.y1) <= tol) side = 'south';
     } else {
       overlap = Math.min(q.y + q.h, w.y2) - Math.max(q.y, w.y1);
-      if (Math.abs(q.x - w.x1) <= tol) side = '西';
-      else if (Math.abs(q.x + q.w - w.x1) <= tol) side = '东';
+      if (Math.abs(q.x - w.x1) <= tol) side = 'west';
+      else if (Math.abs(q.x + q.w - w.x1) <= tol) side = 'east';
     }
     if (!side || overlap <= 0) continue;
     if (r.kind === 'in') indoorBySide.set(side, (indoorBySide.get(side) ?? new Set()).add(r.name));
@@ -73,11 +74,10 @@ function wallName(w: LWall, rooms: LRoom[], kind: WallKind): string {
   }
   if ((kind === 'bearing' || kind === 'partition') && indoorBySide.size === 1) {
     const [[side, names]] = indoorBySide;
-    if (names.size > 1) return `${side}外墙`;
+    if (names.size > 1) return ZH.exteriorWall(side);
   }
-  if (best) return `${best.name}${best.side}${WALL_WORD[kind]}`;
-  const dir = horiz ? '东西向' : '南北向';
-  return `${dir}${WALL_WORD[kind]}`;
+  if (best) return ZH.spaceWall(best.name, best.side, ZH.wall[kind]);
+  return ZH.axisWall(horiz, ZH.wall[kind]);
 }
 
 export function fromLegacy(src: LegacyExport): Project {
@@ -108,7 +108,7 @@ export function fromLegacy(src: LegacyExport): Project {
       const word = (o: LOp) => {
         const k = OP_KIND[o.type];
         if (!k) throw new Error(`Unknown opening type ${o.type}`);
-        return (o.gb ? '玻璃砖' : '') + OP_WORD[k];
+        return o.gb ? ZH.glassBlock(ZH.opening[k]) : ZH.opening[k];
       };
       const total = new Map<string, number>(), seq = new Map<string, number>();
       for (const o of w.ops) total.set(word(o), (total.get(word(o)) ?? 0) + 1);
@@ -118,7 +118,7 @@ export function fromLegacy(src: LegacyExport): Project {
         const { type, c, w: width, h, sill, hinge, side, gb, id, ...rest } = o;
         return {
           id: `${level.id}-w${pad(wi + 1)}-o${oi + 1}`,
-          name: `${name}·${label}${total.get(label)! > 1 ? n : ''}`,
+          name: `${name}${NAME_SEPARATOR}${label}${total.get(label)! > 1 ? n : ''}`,
           kind: k,
           at: c,
           width,
@@ -167,7 +167,7 @@ export function fromLegacy(src: LegacyExport): Project {
       const label = src.catalog[it.k]?.n ?? it.k;
       furniture.push({
         id: `${level.id}-f${pad(fi + 1)}`,
-        name: furnNames(host ? `${host.name}·${label}` : label),
+        name: furnNames(host ? `${host.name}${NAME_SEPARATOR}${label}` : label),
         type: it.k,
         level: level.id,
         position: [it.x, it.y],
@@ -201,6 +201,7 @@ export function fromLegacy(src: LegacyExport): Project {
     version: SCHEMA_VERSION,
     id: `wushi-courtyard-${src.scheme}`,
     name: `乌石合院 · ${src.name}`,
+    language: 'zh',
     units: 'mm',
     site: {
       boundary: rect(C.SITE.x0, 0, C.SITE.x0 + C.SITE.w, C.SITE.h).outer,

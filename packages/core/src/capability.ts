@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import { TxError, type Actor, type Session, type TxResult } from './session.js';
 import type { Project } from './schema.js';
+import { text } from './i18n.js';
 
 /** Permission level, matching the agent's degree of autonomy */
 export type Permission = 'read' | 'reversible' | 'main' | 'external';
@@ -46,6 +47,9 @@ export interface ReadCapability<I extends z.ZodType = z.ZodType, R = unknown> ex
 
 export type Capability = EditCapability<any, any> | ReadCapability<any, any>;
 
+/** Capability title in the UI language (`title` itself is the English title, also used for the LLM) */
+export const capabilityTitle = (c: { name: string; title: string }) => text(`cap_${c.name}`, c.title);
+
 export const defineEdit = <I extends z.ZodType, R>(c: Omit<EditCapability<I, R>, 'mode'>): EditCapability<I, R> => ({ ...c, mode: 'edit' });
 export const defineRead = <I extends z.ZodType, R>(c: Omit<ReadCapability<I, R>, 'mode'>): ReadCapability<I, R> => ({ ...c, mode: 'read' });
 
@@ -81,12 +85,12 @@ export class Registry {
     return [...this.map.values()];
   }
 
-  /** Keyword search: the more query words appear in name, title and description, the higher the rank */
+  /** Keyword search: the more query words appear in name, title (English and translated) and description, the higher the rank */
   search(query: string, limit = 10) {
     const words = query.toLowerCase().split(/[\s,，、]+/).filter(Boolean);
     return this.list()
       .map(c => {
-        const hay = `${c.name} ${c.title} ${c.description}`.toLowerCase();
+        const hay = `${c.name} ${c.title} ${capabilityTitle(c)} ${c.description}`.toLowerCase();
         return { c, score: words.reduce((s, w) => s + (hay.includes(w) ? 1 : 0), 0) };
       })
       .filter(x => x.score > 0 || !words.length)
@@ -98,7 +102,7 @@ export class Registry {
   /** Call: validate input → run mutations in a transaction → return a serializable result */
   async call(name: string, raw: unknown, ctx: CapabilityContext): Promise<CallResult> {
     const c = this.map.get(name);
-    if (!c) return { ok: false, error: { code: 'unknown-capability', message: `没有名为 ${name} 的能力` } };
+    if (!c) return { ok: false, error: { code: 'unknown-capability', message: text('err_unknown_capability', 'No capability named {name}', { name }) } };
     const parsed = c.input.safeParse(raw ?? {});
     if (!parsed.success) {
       return { ok: false, error: { code: 'invalid-input', message: z.prettifyError(parsed.error) } };

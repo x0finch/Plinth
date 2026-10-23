@@ -1,23 +1,25 @@
 /** Send OTP emails: Resend in production; printed to the terminal locally when not configured. */
 import { env } from 'cloudflare:workers';
+import { m } from '@/lib/i18n';
 
 export type OtpType = 'sign-in' | 'email-verification' | 'forget-password' | 'change-email';
 
-const PURPOSE: Record<OtpType, string> = {
-  'sign-in': '登录',
-  'email-verification': '验证邮箱',
-  'forget-password': '重设密码',
-  'change-email': '更换邮箱',
+// Looked up when the mail is sent, so the email is in the language of the request that asked for the code
+const PURPOSE: Record<OtpType, () => string> = {
+  'sign-in': m.server_mail_purpose_sign_in,
+  'email-verification': m.server_mail_purpose_email_verification,
+  'forget-password': m.server_mail_purpose_forget_password,
+  'change-email': m.server_mail_purpose_change_email,
 };
 
 /** Email sign-in is available when Resend is configured, or always in local development (codes go to the terminal). */
 export const mailEnabled = () => !!(env.RESEND_API_KEY && env.MAIL_FROM) || import.meta.env.DEV;
 
 export async function sendOtpMail(email: string, otp: string, type: OtpType = 'sign-in') {
-  const purpose = PURPOSE[type] ?? '登录';
+  const purpose = (PURPOSE[type] ?? PURPOSE['sign-in'])();
   if (!env.RESEND_API_KEY || !env.MAIL_FROM) {
     // Never pretend a code was sent in production
-    if (!import.meta.env.DEV) throw new Error('邮件服务还没配置，请用其他方式登录');
+    if (!import.meta.env.DEV) throw new Error(m.server_err_mail_not_configured());
     console.log(`[dev] OTP for ${email}: ${otp} (${type})`);
     return;
   }
@@ -27,9 +29,9 @@ export async function sendOtpMail(email: string, otp: string, type: OtpType = 's
     body: JSON.stringify({
       from: env.MAIL_FROM,
       to: email,
-      subject: `Plinth ${purpose}验证码 ${otp}`,
-      text: `你的 Plinth ${purpose}验证码是 ${otp}，10 分钟内有效。如果不是你本人操作，请忽略这封邮件。`,
+      subject: m.server_mail_subject({ purpose, otp }),
+      text: m.server_mail_body({ purpose, otp }),
     }),
   });
-  if (!res.ok) throw new Error(`验证码邮件发送失败（${res.status}）`);
+  if (!res.ok) throw new Error(m.server_err_mail_send_failed({ status: res.status }));
 }

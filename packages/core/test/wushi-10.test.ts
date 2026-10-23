@@ -45,6 +45,6 @@ describe('乌石合院 scheme 10', () => {
 describe('migrate', () => {
   it('rejects non-Plinth files and newer versions', () => {
     expect(() => migrate({})).toThrow();
-    expect(() => migrate({ schema: 'plinth/project', version: 99 })).toThrow(/比当前核心包/);
+    expect(() => migrate({ schema: 'plinth/project', version: 99 })).toThrow(/newer than/);
   });
 });

@@ -2,7 +2,7 @@
  * Chat with the agent. Every capability in the list is a browser-side tool: agent calls run here (same transaction and undo);
  * actions needing confirmation show a confirmation card. Chats are saved per user and per plan.
  */
-import type { Project } from '@plinth/core';
+import { capabilityTitle, type Project } from '@plinth/core';
 import { toolDefinition } from '@tanstack/ai';
 import { clientTools } from '@tanstack/ai-client';
 import { fetchServerSentEvents, useChat, type UIMessage } from '@tanstack/ai-react';
@@ -31,6 +31,12 @@ import { useEditor, useEditorStore } from './store';
 const SUGGESTIONS = [m.chat_suggestion_size, m.chat_suggestion_enlarge, m.chat_suggestion_window, m.chat_suggestion_check];
 const SUGGESTIONS_BLANK = [m.chat_suggestion_blank_family, m.chat_suggestion_blank_yard];
 
+/** Capability title in the UI language */
+function titleOf(name: string) {
+  const c = registry.get(name);
+  return c ? capabilityTitle(c) : name;
+}
+
 /** Describe a capability call in one sentence (for the confirmation card) */
 function describeCall(name: string, args: unknown, project: Project) {
   const c = registry.get(name);
@@ -39,7 +45,7 @@ function describeCall(name: string, args: unknown, project: Project) {
       return c.label(c.input.parse(args), project);
     } catch {}
   }
-  return m.chat_call_fallback({ title: c?.title ?? name, args: JSON.stringify(args) });
+  return m.chat_call_fallback({ title: titleOf(name), args: JSON.stringify(args) });
 }
 
 /** Strip large fields useless to the model (screenshots) */
@@ -277,7 +283,7 @@ export function ChatPanel() {
                     if (p.type === 'tool-call') {
                       const r = results.get(p.id);
                       const state = toolState(p, r);
-                      const title = registry.get(p.name)?.title ?? p.name;
+                      const title = titleOf(p.name);
                       const out = p.output ?? (r ? safeJson(typeof r.content === 'string' ? r.content : '') : undefined);
                       return (
                         <Tool key={i}>
@@ -312,7 +318,7 @@ export function ChatPanel() {
         it.kind === 'tool-approval' ? (
           <Alert key={it.id} className="mx-3 mb-2 w-auto">
             <ShieldQuestionIcon />
-            <AlertTitle>{m.chat_approval_title({ title: registry.get(it.toolName)?.title ?? it.toolName })}</AlertTitle>
+            <AlertTitle>{m.chat_approval_title({ title: titleOf(it.toolName) })}</AlertTitle>
             <AlertDescription>
               <p>{describeCall(it.toolName, it.originalArgs, project)}</p>
               <div className="mt-2 flex gap-2">

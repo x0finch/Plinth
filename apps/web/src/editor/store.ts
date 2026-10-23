@@ -2,7 +2,7 @@
  * Editor state, one per open plan. Data lives in the core package Session and all changes go through the capability list;
  * this only handles view state, autosave, conflicts and the before/after comparison.
  */
-import { Session, type Actor, type CallResult, type Project, type TxResult } from '@plinth/core';
+import { capabilityTitle, Session, type Actor, type CallResult, type Project, type TxResult } from '@plinth/core';
 import { createContext, useContext } from 'react';
 import { createStore, useStore } from 'zustand';
 import { registry } from '@/agent/registry';
@@ -136,9 +136,9 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
         const r = await registry.call(name, input, { session, actor, host: { view: get().viewHost(), comments: commentsHost(get().projectId) } });
         if (r.ok && cap?.mode === 'edit' && r.changed?.length) {
           set(s => ({
-            pendingLabels: [...s.pendingLabels, session.log.at(-1)?.label ?? cap.title],
+            pendingLabels: [...s.pendingLabels, session.log.at(-1)?.label ?? capabilityTitle(cap)],
             lastChange: {
-              label: session.log.at(-1)?.label ?? cap.title, actor: actor.kind, before, changed: r.changed!,
+              label: session.log.at(-1)?.label ?? capabilityTitle(cap), actor: actor.kind, before, changed: r.changed!,
               areaChanges: r.areaChanges ?? [], warnings: r.warnings ?? [], at: Date.now(),
             },
             view: { ...s.view, highlight: r.changed! },

@@ -10,13 +10,19 @@ import {
   sideOf, spaceNeighbors, spaceWalls, uniqueName, wallDir, wallLength, wallNormal, scale, sub, dot, TOL,
 } from './topology.js';
 import { TxError } from './session.js';
+import { text } from './i18n.js';
+import { directionOf, NAME_SEPARATOR, names, REF_SEPARATOR } from './names.js';
 import type { Element, Furniture, Id, Level, Opening, Point, Polygon, Project, Space, Wall } from './schema.js';
 
 // ---------- Reference resolution: ID or readable name ----------
 
 type Kind = 'level' | 'wall' | 'space' | 'opening' | 'furniture' | 'element' | 'constraint';
 
-const KIND_ZH: Record<Kind, string> = { level: '楼层', wall: '墙', space: '空间', opening: '门窗洞口', furniture: '家具', element: '构件', constraint: '约束' };
+const KIND_EN: Record<Kind, string> = { level: 'level', wall: 'wall', space: 'space', opening: 'opening', furniture: 'furniture', element: 'element', constraint: 'constraint' };
+const kindText = (k: Kind) => text(`err_kind_${k}`, KIND_EN[k]);
+/** Join a list for a message: “a、b” in Chinese, "a, b" in English */
+const listText = (items: string[]) => items.join(text('list_separator', ', '));
+const refItem = (name: string, id: string | undefined) => text('err_ref_item', '{name} ({id})', { name, id: id ?? '' });
 
 function pool(p: Project, kind: Kind): { id: Id; name: string; level?: Id }[] {
   switch (kind) {
@@ -30,13 +36,13 @@ function pool(p: Project, kind: Kind): { id: Id; name: string; level?: Id }[] {
   }
 }
 
-/** Find an object by ID or name; names may carry a level prefix, e.g. “二层·主卧” */
+/** Find an object by ID or name; names may carry a level prefix, e.g. “二层·主卧” or “Level 2·Bedroom” (also `:` / `：`) */
 export function resolve(p: Project, kind: Kind, ref: string, level?: string): { id: Id; name: string; level?: Id } {
   const all = pool(p, kind);
   const byId = all.find(o => o.id === ref);
   if (byId) return byId;
   let name = ref, lv = level ? resolveLevel(p, level).id : undefined;
-  const m = ref.match(/^(.+?)[·:：](.+)$/);
+  const m = ref.match(REF_SEPARATOR);
   if (!lv && m && p.levels.some(l => l.name === m[1] || l.id === m[1])) {
     lv = resolveLevel(p, m[1]).id;
     name = m[2];
@@ -44,14 +50,18 @@ export function resolve(p: Project, kind: Kind, ref: string, level?: string): { 
   const hits = all.filter(o => o.name === name && (!lv || o.level === lv));
   if (hits.length === 1) return hits[0];
   if (hits.length > 1)
-    throw new TxError('ambiguous-ref', `有 ${hits.length} 个${KIND_ZH[kind]}叫“${name}”，请用 ID 或加楼层：${hits.map(h => `${h.id}（${h.level}）`).join('、')}`);
+    throw new TxError('ambiguous-ref', text('err_ambiguous_ref', '{count} objects of type {kind} are named “{name}”; use an ID or add a level: {hits}', {
+      count: hits.length, kind: kindText(kind), name, hits: listText(hits.map(h => refItem(h.id, h.level))),
+    }));
   const near = all.filter(o => o.name.includes(name) || name.includes(o.name)).slice(0, 8);
-  throw new TxError('not-found', `找不到${KIND_ZH[kind]}“${ref}”${near.length ? `，相近的有：${near.map(h => `${h.name}（${h.id}）`).join('、')}` : ''}`);
+  if (near.length)
+    throw new TxError('not-found', text('err_not_found_similar', 'Cannot find {kind} “{ref}”; similar: {similar}', { kind: kindText(kind), ref, similar: listText(near.map(h => refItem(h.name, h.id))) }));
+  throw new TxError('not-found', text('err_not_found', 'Cannot find {kind} “{ref}”', { kind: kindText(kind), ref }));
 }
 
 export function resolveLevel(p: Project, ref: string): Level {
   const l = p.levels.find(x => x.id === ref || x.name === ref);
-  if (!l) throw new TxError('not-found', `找不到楼层“${ref}”，现有：${p.levels.map(x => `${x.name}（${x.id}）`).join('、')}`);
+  if (!l) throw new TxError('not-found', text('err_level_not_found', 'Cannot find level “{ref}”; existing levels: {levels}', { ref, levels: listText(p.levels.map(x => refItem(x.name, x.id))) }));
   return l;
 }
 
@@ -64,12 +74,12 @@ function getOpening(p: Project, ref: string) {
     const o = w.openings.find(x => x.id === id);
     if (o) return { w, o };
   }
-  throw new TxError('not-found', ref);
+  throw new TxError('not-found', text('err_not_found', 'Cannot find {kind} “{ref}”', { kind: kindText('opening'), ref }));
 }
 
 // ---------- Input fragments ----------
 
-const zRef = (what: string) => z.string().describe(`ID or name of the ${what} (names may take a level prefix, e.g. “二层·主卧”)`);
+const zRef = (what: string) => z.string().describe(`ID or name of the ${what} (names may take a level prefix, e.g. “Level 2·Bedroom” or “二层·主卧”)`);
 const zPoint = z.tuple([z.number(), z.number()]).describe('[x, y] in mm; x points east, y points south');
 const zRect = z.tuple([z.number(), z.number(), z.number(), z.number()]).describe('[x, y, width (east-west), depth (north-south)] in mm; x, y is the north-west corner');
 const zDirection = z.enum(['north', 'south', 'east', 'west']).describe('Direction: north / south / east / west');
@@ -85,16 +95,18 @@ const OPENING_DEFAULTS: Record<Opening['kind'], { width: number; height: number;
   window: { width: 1500, height: 1500, sill: 900 },
   opening: { width: 1000, height: 2400, sill: 0 },
 };
-const OPENING_WORD: Record<Opening['kind'], string> = { door: '门', 'sliding-door': '推拉门', gate: '大门', window: '窗', opening: '洞口' };
+const OPENING_EN: Record<Opening['kind'], string> = { door: 'door', 'sliding-door': 'sliding door', gate: 'gate', window: 'window', opening: 'opening' };
+/** Opening kind in UI text (operation log); names in project data use names.ts instead */
+const openingText = (k: Opening['kind']) => text(`log_opening_${k.replace('-', '_')}`, OPENING_EN[k]);
 
 const toPolygon = (input: { rect?: number[]; polygon?: Point[] }): Polygon => {
   if (input.rect) {
     const [x, y, w, h] = input.rect;
-    if (w <= 0 || h <= 0) throw new TxError('invalid-input', '矩形宽深必须大于 0');
+    if (w <= 0 || h <= 0) throw new TxError('invalid-input', text('err_rect_size', 'Rectangle width and depth must be greater than 0'));
     return rect(x, y, x + w, y + h);
   }
   if (input.polygon && input.polygon.length >= 3) return { outer: input.polygon.map(round) };
-  throw new TxError('invalid-input', '需要 rect 或 polygon');
+  throw new TxError('invalid-input', text('err_shape_required', 'Needs rect or polygon'));
 };
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -114,12 +126,11 @@ function wallInfo(p: Project, w: Wall) {
   };
 }
 
-const DIR_ZH = (v: Point) => (Math.abs(v[0]) > Math.abs(v[1]) ? (v[0] > 0 ? '东' : '西') : v[1] > 0 ? '南' : '北');
-
 function spaceInfo(p: Project, s: Space) {
+  const vocab = names(p);
   const walls = spaceWalls(p, s).map(b => {
     const toWall = scale(wallNormal(b.wall), -b.side);
-    return { id: b.wall.id, name: b.wall.name, direction: DIR_ZH(toWall), length: Math.round(b.length), kind: b.wall.kind, openings: b.wall.openings.map(o => o.name) };
+    return { id: b.wall.id, name: b.wall.name, direction: vocab.direction[directionOf(toWall)], length: Math.round(b.length), kind: b.wall.kind, openings: b.wall.openings.map(o => o.name) };
   });
   const xs = s.shape.flatMap(q => q.outer.map(v => v[0])), ys = s.shape.flatMap(q => q.outer.map(v => v[1]));
   return {
@@ -173,20 +184,20 @@ function findAny(p: Project, ref: string): Id {
       errors.push(k);
     }
   }
-  throw new TxError('not-found', `找不到“${ref}”。可以先用 find_objects 搜索`);
+  throw new TxError('not-found', text('err_object_not_found', 'Cannot find “{ref}”. Try searching with find_objects first', { ref }));
 }
 
 // ---------- Edit helpers ----------
 
 function addWall(p: Project, level: Id, start: Point, end: Point, o: { thickness?: number; kind?: Wall['kind']; height?: number; name?: string } = {}): Wall {
-  if (Math.hypot(end[0] - start[0], end[1] - start[1]) < 50) throw new TxError('invalid-input', '墙太短（小于 50 mm）');
+  if (Math.hypot(end[0] - start[0], end[1] - start[1]) < 50) throw new TxError('invalid-input', text('err_wall_too_short', 'Wall too short (under 50 mm)'));
   const w: Wall = {
     id: nextId(p, `${level}-w`), name: '', level, start: round(start), end: round(end),
     thickness: o.thickness ?? (o.kind === 'bearing' ? 240 : o.kind === 'railing' ? 60 : 120),
     kind: o.kind ?? 'partition', openings: [], ...(o.height ? { height: o.height } : {}),
   };
   p.walls.push(w);
-  w.name = uniqueName(p.walls.filter(x => x.level === level && x !== w).map(x => x.name), o.name ?? autoWallName(p, w));
+  w.name = uniqueName(p.walls.filter(x => x.level === level && x !== w).map(x => x.name), o.name ?? autoWallName(p, w), p.language);
   return w;
 }
 
@@ -194,10 +205,11 @@ function addOpening(p: Project, w: Wall, kind: Opening['kind'], o: { at?: number
   const d = OPENING_DEFAULTS[kind];
   const width = o.width ?? d.width;
   const at = Math.round(o.at ?? wallLength(w) / 2);
-  const word = (o.glassBlock ? '玻璃砖' : '') + OPENING_WORD[kind];
-  const names = w.openings.map(x => x.name);
+  const vocab = names(p);
+  const word = o.glassBlock ? vocab.glassBlock(vocab.opening[kind]) : vocab.opening[kind];
+  const taken = w.openings.map(x => x.name);
   const op: Opening = {
-    id: nextId(p, `${w.id}-o`), name: o.name ?? uniqueName(names, `${w.name}·${word}`), kind, at, width,
+    id: nextId(p, `${w.id}-o`), name: o.name ?? uniqueName(taken, `${w.name}${NAME_SEPARATOR}${word}`, p.language), kind, at, width,
     height: o.height ?? d.height, sill: o.sill ?? d.sill,
     ...(kind === 'door' ? { swing: o.swing ?? { hinge: 'start', side: 'right' } } : {}),
     ...(o.glassBlock ? { glazing: 'glass-block' as const } : {}),
@@ -256,7 +268,7 @@ function wallsAround(p: Project, level: Id, poly: Polygon, thickness: number, ki
 function addSpace(p: Project, level: Id, name: string, shape: Polygon[], kind: Space['kind'], floor: string): Space {
   if (!(floor in p.library.materials)) p.library.materials[floor] = { name: floor };
   const s: Space = {
-    id: nextId(p, `${level}-s`), name: uniqueName(p.spaces.filter(x => x.level === level).map(x => x.name), name),
+    id: nextId(p, `${level}-s`), name: uniqueName(p.spaces.filter(x => x.level === level).map(x => x.name), name, p.language),
     level, kind, shape: union(shape), floor,
   };
   p.spaces.push(s);
@@ -270,8 +282,8 @@ function renameWalls(p: Project, level: Id) {
     const base = autoWallName(p, w);
     if (w.name === base || w.name.startsWith(base)) continue;
     const others = p.walls.filter(x => x.level === level && x !== w).map(x => x.name);
-    const name = uniqueName(others, base);
-    for (const o of w.openings) if (o.name.startsWith(`${w.name}·`)) o.name = name + o.name.slice(w.name.length);
+    const name = uniqueName(others, base, p.language);
+    for (const o of w.openings) if (o.name.startsWith(`${w.name}${NAME_SEPARATOR}`)) o.name = name + o.name.slice(w.name.length);
     w.name = name;
   }
 }
@@ -281,7 +293,7 @@ function renameWalls(p: Project, level: Id) {
 const read = defineRead, edit = defineEdit;
 
 export const projectSummary = read({
-  name: 'project_summary', title: '项目概况', kind: 'query', permission: 'read', runtime: 'any',
+  name: 'project_summary', title: 'Project overview', kind: 'query', permission: 'read', runtime: 'any',
   description: 'Project name, levels, gross area per level, object counts, brief and constraint overview. Call this before starting work.',
   input: z.object({}),
   run: (_, { session }) => {
@@ -301,10 +313,10 @@ export const projectSummary = read({
 });
 
 export const findObjects = read({
-  name: 'find_objects', title: '搜索对象', kind: 'query', permission: 'read', runtime: 'any',
+  name: 'find_objects', title: 'Find objects', kind: 'query', permission: 'read', runtime: 'any',
   description: 'Search walls, spaces, openings, furniture and elements by name keyword, type and level. Returns ID, name, type and level.',
   input: z.object({
-    query: z.string().optional().describe('Name keyword, e.g. “老人房”, “北墙”, “窗”'),
+    query: z.string().optional().describe('Name keyword in the language the project data uses, e.g. “Bedroom”, “north wall”, “Window” (or “老人房”, “北墙”, “窗”)'),
     type: z.enum(['wall', 'space', 'opening', 'furniture', 'element', 'level', 'constraint']).optional(),
     level: z.string().optional().describe('Level ID or name'),
     limit: z.number().int().min(1).max(200).default(50),
@@ -320,14 +332,14 @@ export const findObjects = read({
 });
 
 export const getObject = read({
-  name: 'get_object', title: '查看对象', kind: 'query', permission: 'read', runtime: 'any',
+  name: 'get_object', title: 'View object', kind: 'query', permission: 'read', runtime: 'any',
   description: 'Get details of one object. Space: usable area, bounds, surrounding walls and their directions, neighboring spaces, furniture. Wall: endpoints, length, thickness, spaces on each side, openings. Opening: host wall, position, connected spaces.',
   input: z.object({ ref: z.string().describe('Object ID or name') }),
   run: ({ ref }, { session }) => objectInfo(session.project, findAny(session.project, ref)),
 });
 
 export const areaReportCap = read({
-  name: 'area_report', title: '面积统计', kind: 'query', permission: 'read', runtime: 'any',
+  name: 'area_report', title: 'Area report', kind: 'query', permission: 'read', runtime: 'any',
   description: 'Gross area per level and usable area per space (m²).',
   input: z.object({ level: z.string().optional() }),
   run: ({ level }, { session }) => {
@@ -342,7 +354,7 @@ export const areaReportCap = read({
 });
 
 export const checkRulesCap = read({
-  name: 'check_rules', title: '规则检查', kind: 'verify', permission: 'read', runtime: 'any',
+  name: 'check_rules', title: 'Rule check', kind: 'verify', permission: 'read', runtime: 'any',
   description: 'Check for overlapping rooms, openings beyond the wall or overlapping, rooms without an entrance, bedrooms without a window, door leaves hitting furniture, furniture outside any space, and whether constraints are satisfied.',
   input: z.object({}),
   run: (_, { session }) => ({
@@ -352,7 +364,7 @@ export const checkRulesCap = read({
 });
 
 export const listConstraints = read({
-  name: 'list_constraints', title: '约束列表', kind: 'query', permission: 'read', runtime: 'any',
+  name: 'list_constraints', title: 'Constraints', kind: 'query', permission: 'read', runtime: 'any',
   description: 'List all constraints and whether each is satisfied.',
   input: z.object({}),
   run: (_, { session }) => {
@@ -362,14 +374,14 @@ export const listConstraints = read({
 });
 
 export const wallAdd = edit({
-  name: 'wall_add', title: '加墙', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'wall_add', title: 'Add wall', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Add a straight wall on the given level. Endpoints lie on the wall centreline.',
   input: z.object({
     level: zRef('level'), start: zPoint, end: zPoint,
     thickness: z.number().positive().optional().describe('Wall thickness; defaults to 120 for partitions, 240 for bearing walls'),
     kind: zWallKind.default('partition'), height: z.number().positive().optional(), name: z.string().optional(),
   }),
-  label: i => `加墙`,
+  label: () => text('log_wall_add', 'Add wall'),
   apply: (p, i) => {
     const w = addWall(p, resolveLevel(p, i.level).id, i.start, i.end, i);
     if (i.name) w.extras = { ...w.extras, customName: true };
@@ -379,14 +391,14 @@ export const wallAdd = edit({
 });
 
 export const wallMove = edit({
-  name: 'wall_move', title: '移墙', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'wall_move', title: 'Move wall', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Translate a wall perpendicular to itself. Connected walls stretch to follow, the boundaries of spaces on both sides update, and openings keep their position on the wall.',
   input: z.object({
     wall: zRef('wall'),
     direction: zDirection.optional(), distance: z.number().optional().describe('Distance to move (mm)'),
     to: z.number().optional().describe('Move directly to a coordinate: y for east-west walls, x for north-south walls'),
   }),
-  label: (i, p) => `移动${resolve(p, 'wall', i.wall).name}`,
+  label: (i, p) => text('log_wall_move', 'Move {wall}', { wall: resolve(p, 'wall', i.wall).name }),
   apply: (p, i) => {
     const w = getWall(p, i.wall);
     const n = wallNormal(w);
@@ -395,12 +407,12 @@ export const wallMove = edit({
       const horiz = Math.abs(n[1]) > Math.abs(n[0]);
       v = horiz ? [0, i.to - w.start[1]] : [i.to - w.start[0], 0];
     } else {
-      if (!i.direction || i.distance == null) throw new TxError('invalid-input', '需要 direction + distance，或 to');
+      if (!i.direction || i.distance == null) throw new TxError('invalid-input', text('err_direction_or_to', 'Needs direction + distance, or to'));
       v = scale(DIR_VEC[i.direction], i.distance);
     }
     // Keep only the component perpendicular to the wall
     const k = dot(v, n);
-    if (Math.abs(k) < 1) throw new TxError('invalid-input', `${w.name}不能沿这个方向移动（方向与墙平行）`);
+    if (Math.abs(k) < 1) throw new TxError('invalid-input', text('err_move_parallel', '{wall} cannot move in this direction (it is parallel to the wall)', { wall: w.name }));
     moveWall(p, w.id, round(scale(n, k)));
     renameWalls(p, w.level);
     return { id: w.id, start: w.start, end: w.end };
@@ -409,10 +421,10 @@ export const wallMove = edit({
 });
 
 export const wallUpdate = edit({
-  name: 'wall_update', title: '改墙', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'wall_update', title: 'Edit wall', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Change a wall\'s thickness, kind, height or name.',
   input: z.object({ wall: zRef('wall'), thickness: z.number().positive().optional(), kind: zWallKind.optional(), height: z.number().positive().nullable().optional(), name: z.string().optional() }),
-  label: (i, p) => `修改${resolve(p, 'wall', i.wall).name}`,
+  label: (i, p) => text('log_wall_update', 'Edit {wall}', { wall: resolve(p, 'wall', i.wall).name }),
   apply: (p, i) => {
     const w = getWall(p, i.wall);
     if (i.thickness) w.thickness = i.thickness;
@@ -421,22 +433,22 @@ export const wallUpdate = edit({
     else if (i.height) w.height = i.height;
     if (i.name) {
       const old = w.name;
-      w.name = uniqueName(p.walls.filter(x => x.level === w.level && x !== w).map(x => x.name), i.name);
+      w.name = uniqueName(p.walls.filter(x => x.level === w.level && x !== w).map(x => x.name), i.name, p.language);
       w.extras = { ...w.extras, customName: true };
-      for (const o of w.openings) if (o.name.startsWith(`${old}·`)) o.name = w.name + o.name.slice(old.length);
+      for (const o of w.openings) if (o.name.startsWith(`${old}${NAME_SEPARATOR}`)) o.name = w.name + o.name.slice(old.length);
     }
     return { id: w.id };
   },
 });
 
 export const wallRemove = edit({
-  name: 'wall_remove', title: '拆墙', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'wall_remove', title: 'Remove wall', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Remove a wall (with its openings). Spaces on both sides are not merged automatically; use space_merge if needed.',
   input: z.object({ wall: zRef('wall') }),
-  label: (i, p) => `拆除${resolve(p, 'wall', i.wall).name}`,
+  label: (i, p) => text('log_wall_remove', 'Remove {wall}', { wall: resolve(p, 'wall', i.wall).name }),
   apply: (p, i) => {
     const w = getWall(p, i.wall);
-    if (w.kind === 'bearing') throw new TxError('structural', `${w.name}是承重墙，拆除涉及结构安全，需要专业人员复核，请先和业主确认后改为隔墙再拆`);
+    if (w.kind === 'bearing') throw new TxError('structural', text('err_remove_bearing_wall', '{wall} is a bearing wall: removing it affects structural safety and needs professional review. Confirm with the owner and change it to a partition before removing it', { wall: w.name }));
     p.walls = p.walls.filter(x => x.id !== w.id);
     p.constraints = p.constraints.filter(c => !c.targets.includes(w.id) && !w.openings.some(o => c.targets.includes(o.id)));
     return { removed: w.id };
@@ -444,7 +456,7 @@ export const wallRemove = edit({
 });
 
 export const openingAdd = edit({
-  name: 'opening_add', title: '开门窗', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'opening_add', title: 'Add opening', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Add a door, window, sliding door or opening to a wall. Position it with at (distance from the opening centre to the wall start) or center_on (centred on the segment where a space meets this wall); with neither it goes at the wall midpoint.',
   input: z.object({
     wall: zRef('wall'), kind: zOpeningKind,
@@ -453,13 +465,13 @@ export const openingAdd = edit({
     swing: z.object({ hinge: z.enum(['start', 'end']), side: z.enum(['left', 'right']) }).optional().describe('Hinge end and swing side of a swing door (looking from start → end)'),
     glass_block: z.boolean().optional(), name: z.string().optional(),
   }),
-  label: (i, p) => `在${resolve(p, 'wall', i.wall).name}上开${OPENING_WORD[i.kind]}`,
+  label: (i, p) => text('log_opening_add', 'Add a {opening} to {wall}', { wall: resolve(p, 'wall', i.wall).name, opening: openingText(i.kind) }),
   apply: (p, i) => {
     const w = getWall(p, i.wall);
     let at = i.at;
     if (at == null && i.center_on) {
       const c = centerOnSpace(w, getSpace(p, i.center_on));
-      if (c == null) throw new TxError('invalid-input', `${i.center_on}不挨着${w.name}`);
+      if (c == null) throw new TxError('invalid-input', text('err_not_adjacent', '{space} does not touch {wall}', { space: i.center_on, wall: w.name }));
       at = c;
     }
     const o = addOpening(p, w, i.kind, { ...i, at, glassBlock: i.glass_block });
@@ -469,14 +481,14 @@ export const openingAdd = edit({
 });
 
 export const openingUpdate = edit({
-  name: 'opening_update', title: '改门窗', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'opening_update', title: 'Edit opening', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Change an opening\'s position, size, kind or swing.',
   input: z.object({
     opening: zRef('opening'), at: z.number().optional(), move_by: z.number().optional().describe('Move along the wall (mm; positive toward the wall end)'),
     width: z.number().positive().optional(), height: z.number().positive().optional(), sill: z.number().min(0).optional(), kind: zOpeningKind.optional(),
     swing: z.object({ hinge: z.enum(['start', 'end']), side: z.enum(['left', 'right']) }).optional(), name: z.string().optional(),
   }),
-  label: (i, p) => `修改${resolve(p, 'opening', i.opening).name}`,
+  label: (i, p) => text('log_opening_update', 'Edit {opening}', { opening: resolve(p, 'opening', i.opening).name }),
   apply: (p, i) => {
     const { o } = getOpening(p, i.opening);
     if (i.at != null) o.at = Math.round(i.at);
@@ -493,10 +505,10 @@ export const openingUpdate = edit({
 });
 
 export const openingRemove = edit({
-  name: 'opening_remove', title: '封门窗', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'opening_remove', title: 'Close opening', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Close up (remove) an opening.',
   input: z.object({ opening: zRef('opening') }),
-  label: (i, p) => `封掉${resolve(p, 'opening', i.opening).name}`,
+  label: (i, p) => text('log_opening_remove', 'Close up {opening}', { opening: resolve(p, 'opening', i.opening).name }),
   apply: (p, i) => {
     const { w, o } = getOpening(p, i.opening);
     w.openings = w.openings.filter(x => x.id !== o.id);
@@ -508,7 +520,7 @@ export const openingRemove = edit({
 const zShape = { rect: zRect.optional(), polygon: z.array(zPoint).optional().describe('Vertices of an arbitrary polygon (in order)') };
 
 export const roomAdd = edit({
-  name: 'room_add', title: '加房间', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'room_add', title: 'Add room', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Add a room: creates the space and adds walls wherever its edges have none (existing walls are reused). Can also add a door on one side. Use it to build a design room by room from scratch.',
   input: z.object({
     level: zRef('level'), name: z.string(), ...zShape,
@@ -516,7 +528,7 @@ export const roomAdd = edit({
     wall_thickness: z.number().positive().default(120), wall_kind: zWallKind.default('partition'),
     door: z.object({ side: zDirection, width: z.number().positive().optional() }).optional().describe('Which side\'s wall gets a centred door'),
   }),
-  label: i => `加房间“${i.name}”`,
+  label: i => text('log_room_add', 'Add room “{name}”', { name: i.name }),
   apply: (p, i) => {
     const level = resolveLevel(p, i.level).id;
     const poly = toPolygon(i);
@@ -530,7 +542,7 @@ export const roomAdd = edit({
         .map(x => ({ ...x, toward: scale(wallNormal(x.wall), -x.side) }))
         .filter(x => dot(x.toward, want) > 0.9)
         .sort((a, b2) => b2.length - a.length)[0];
-      if (!b) throw new TxError('invalid-input', `${s.name}的${i.door.side}侧没有墙可以开门`);
+      if (!b) throw new TxError('invalid-input', text('err_no_wall_for_door', 'There is no wall on the {side} side of {space} to put a door in', { space: s.name, side: text(`err_side_${i.door.side}`, i.door.side) }));
       door = addOpening(p, b.wall, 'door', { at: centerOnSpace(b.wall, s) ?? undefined, width: i.door.width });
     }
     return { id: s.id, name: s.name, walls: walls.map(w => ({ id: w.id, name: w.name })), door: door && { id: door.id, name: door.name } };
@@ -539,10 +551,10 @@ export const roomAdd = edit({
 });
 
 export const spaceAdd = edit({
-  name: 'space_add', title: '划空间', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'space_add', title: 'Define space', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Define a space only (e.g. courtyard, terrace, corridor), without adding walls.',
   input: z.object({ level: zRef('level'), name: z.string(), ...zShape, kind: zSpaceKind.default('indoor'), floor: z.string().default('tile') }),
-  label: i => `划出“${i.name}”`,
+  label: i => text('log_space_add', 'Define space “{name}”', { name: i.name }),
   apply: (p, i) => {
     const level = resolveLevel(p, i.level).id;
     const s = addSpace(p, level, i.name, [toPolygon(i)], i.kind, i.floor);
@@ -551,14 +563,14 @@ export const spaceAdd = edit({
 });
 
 export const spaceUpdate = edit({
-  name: 'space_update', title: '改空间', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'space_update', title: 'Edit space', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Change a space\'s name, kind or floor material, or redefine its extent with rect / polygon (walls are not moved).',
   input: z.object({ space: zRef('space'), name: z.string().optional(), kind: zSpaceKind.optional(), floor: z.string().optional(), ...zShape }),
-  label: (i, p) => `修改${resolve(p, 'space', i.space).name}`,
+  label: (i, p) => text('log_space_update', 'Edit {space}', { space: resolve(p, 'space', i.space).name }),
   apply: (p, i) => {
     const s = getSpace(p, i.space);
     if (i.name) {
-      s.name = uniqueName(p.spaces.filter(x => x.level === s.level && x !== s).map(x => x.name), i.name);
+      s.name = uniqueName(p.spaces.filter(x => x.level === s.level && x !== s).map(x => x.name), i.name, p.language);
       renameWalls(p, s.level);
     }
     if (i.kind) s.kind = i.kind;
@@ -572,10 +584,10 @@ export const spaceUpdate = edit({
 });
 
 export const spaceRemove = edit({
-  name: 'space_remove', title: '删空间', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'space_remove', title: 'Delete space', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Delete a space. With walls=true, also removes partitions that belong only to this space (bearing walls are kept).',
   input: z.object({ space: zRef('space'), walls: z.boolean().default(false) }),
-  label: (i, p) => `删除${resolve(p, 'space', i.space).name}`,
+  label: (i, p) => text('log_space_remove', 'Delete {space}', { space: resolve(p, 'space', i.space).name }),
   apply: (p, i) => {
     const s = getSpace(p, i.space);
     const removed: Id[] = [];
@@ -594,16 +606,16 @@ export const spaceRemove = edit({
 });
 
 export const spaceMerge = edit({
-  name: 'space_merge', title: '合并空间', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'space_merge', title: 'Merge spaces', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Merge several adjacent spaces into one (removing the partitions between them).',
   input: z.object({ spaces: z.array(zRef('space')).min(2), name: z.string().optional() }),
-  label: (i, p) => `合并${i.spaces.map(s => resolve(p, 'space', s).name).join('、')}`,
+  label: (i, p) => text('log_space_merge', 'Merge {spaces}', { spaces: listText(i.spaces.map(s => resolve(p, 'space', s).name)) }),
   apply: (p, i) => {
     const ss = i.spaces.map(r => getSpace(p, r));
     const level = ss[0].level;
-    if (ss.some(s => s.level !== level)) throw new TxError('invalid-input', '只能合并同一层的空间');
+    if (ss.some(s => s.level !== level)) throw new TxError('invalid-input', text('err_merge_other_level', 'Only spaces on the same level can be merged'));
     const between = p.walls.filter(w => w.level === level && ss.filter(s => sharedLength(w, s) > 100).length >= 2);
-    if (between.some(w => w.kind === 'bearing')) throw new TxError('structural', '它们之间有承重墙，拆除涉及结构安全，需要专业人员复核');
+    if (between.some(w => w.kind === 'bearing')) throw new TxError('structural', text('err_merge_bearing_wall', 'There is a bearing wall between them: removing it affects structural safety and needs professional review'));
     p.walls = p.walls.filter(w => !between.includes(w));
     const keep = ss[0];
     keep.shape = union(ss.flatMap(s => s.shape));
@@ -615,14 +627,14 @@ export const spaceMerge = edit({
 });
 
 export const spaceSetArea = edit({
-  name: 'space_set_area', title: '调面积', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'space_set_area', title: 'Set area', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Move one wall of a space so its usable area approaches the target (m²). Without a wall given, a partition is chosen automatically. Neighboring spaces shrink or grow accordingly.',
   input: z.object({ space: zRef('space'), area: z.number().positive().describe('Target usable area (m²)'), wall: z.string().optional().describe('Wall to move') }),
-  label: (i, p) => `把${resolve(p, 'space', i.space).name}调到约 ${i.area} m²`,
+  label: (i, p) => text('log_space_set_area', 'Resize {space} to about {area} m²', { space: resolve(p, 'space', i.space).name, area: i.area }),
   apply: (p, i) => {
     const s = getSpace(p, i.space);
     const sol = solveAreaMove(p, s.id, i.area, i.wall ? getWall(p, i.wall).id : undefined);
-    if (!sol) throw new TxError('cannot-resize', `${s.name}没有合适的墙可以移动，请指定 wall`);
+    if (!sol) throw new TxError('cannot-resize', text('err_cannot_resize', '{space} has no suitable wall to move; specify wall', { space: s.name }));
     moveWall(p, sol.wall.id, sol.vector);
     renameWalls(p, s.level);
     return { space: s.id, wall: { id: sol.wall.id, name: sol.wall.name }, moved: sol.vector, area: r2(sol.area) };
@@ -631,7 +643,7 @@ export const spaceSetArea = edit({
 });
 
 export const furnitureAdd = edit({
-  name: 'furniture_add', title: '放家具', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'furniture_add', title: 'Place furniture', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Place a piece of furniture. type is a furniture category (see furnitureTypes in project_summary; a new category is allowed if size is given). Without position it goes at the centre of space.',
   input: z.object({
     level: zRef('level').optional(), type: z.string(), position: zPoint.optional(), space: z.string().optional(),
@@ -639,27 +651,27 @@ export const furnitureAdd = edit({
     size: z.object({ w: z.number().positive(), d: z.number().positive(), h: z.number().positive() }).optional(),
     elevation: z.number().optional(), label: z.string().optional().describe('Display name of a new category, in the language the project data uses'),
   }),
-  label: i => `放${i.type}`,
+  label: (i, p) => text('log_furniture_add', 'Place {type}', { type: p.library.furniture[i.type]?.name ?? i.label ?? i.type }),
   apply: (p, i) => {
     const s = i.space ? getSpace(p, i.space) : undefined;
     const level = s?.level ?? (i.level ? resolveLevel(p, i.level).id : undefined);
-    if (!level) throw new TxError('invalid-input', '需要 level 或 space');
+    if (!level) throw new TxError('invalid-input', text('err_level_or_space', 'Needs level or space'));
     let pos = i.position;
     if (!pos && s) {
       const xs = s.shape.flatMap(q => q.outer.map(v => v[0])), ys = s.shape.flatMap(q => q.outer.map(v => v[1]));
       pos = [Math.round((Math.min(...xs) + Math.max(...xs)) / 2), Math.round((Math.min(...ys) + Math.max(...ys)) / 2)];
     }
-    if (!pos) throw new TxError('invalid-input', '需要 position 或 space');
+    if (!pos) throw new TxError('invalid-input', text('err_position_or_space', 'Needs position or space'));
     const def = p.library.furniture[i.type];
     if (!def) {
-      if (!i.size) throw new TxError('invalid-input', `家具类别 ${i.type} 未登记，请给 size（和 label）`);
+      if (!i.size) throw new TxError('invalid-input', text('err_unknown_furniture', 'Furniture category {type} is not registered; give size (and label)', { type: i.type }));
       p.library.furniture[i.type] = { name: i.label ?? i.type, size: i.size };
     }
     const size = i.size ?? def.size;
     const host = p.spaces.find(x => x.level === level && x.shape.some(q => pointInPolygon(pos!, q)));
     const label = p.library.furniture[i.type].name;
     const f: Furniture = {
-      id: nextId(p, `${level}-f`), name: uniqueName(p.furniture.filter(x => x.level === level).map(x => x.name), host ? `${host.name}·${label}` : label),
+      id: nextId(p, `${level}-f`), name: uniqueName(p.furniture.filter(x => x.level === level).map(x => x.name), host ? `${host.name}${NAME_SEPARATOR}${label}` : label, p.language),
       type: i.type, level, position: round(pos), rotation: i.rotation, size: { ...size }, ...(i.elevation ? { elevation: i.elevation } : {}),
     };
     p.furniture.push(f);
@@ -668,10 +680,10 @@ export const furnitureAdd = edit({
 });
 
 export const furnitureMove = edit({
-  name: 'furniture_move', title: '挪家具', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'furniture_move', title: 'Move furniture', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Move or rotate furniture: position for an absolute location or by for a relative offset; rotation for the new angle.',
   input: z.object({ furniture: zRef('furniture'), position: zPoint.optional(), by: zPoint.optional(), rotation: z.number().optional() }),
-  label: (i, p) => `挪动${resolve(p, 'furniture', i.furniture).name}`,
+  label: (i, p) => text('log_furniture_move', 'Move {furniture}', { furniture: resolve(p, 'furniture', i.furniture).name }),
   apply: (p, i) => {
     const f = getFurniture(p, i.furniture);
     if (i.position) f.position = round(i.position);
@@ -682,10 +694,10 @@ export const furnitureMove = edit({
 });
 
 export const furnitureRemove = edit({
-  name: 'furniture_remove', title: '移走家具', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'furniture_remove', title: 'Remove furniture', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Remove a piece of furniture.',
   input: z.object({ furniture: zRef('furniture') }),
-  label: (i, p) => `移走${resolve(p, 'furniture', i.furniture).name}`,
+  label: (i, p) => text('log_furniture_remove', 'Remove {furniture}', { furniture: resolve(p, 'furniture', i.furniture).name }),
   apply: (p, i) => {
     const f = getFurniture(p, i.furniture);
     p.furniture = p.furniture.filter(x => x.id !== f.id);
@@ -694,10 +706,10 @@ export const furnitureRemove = edit({
 });
 
 export const levelAdd = edit({
-  name: 'level_add', title: '加楼层', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'level_add', title: 'Add level', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Add a level above the topmost non-roof level (the roof level moves up). With copy_from, copies that level\'s walls and spaces (not furniture).',
   input: z.object({ name: z.string(), height: z.number().positive().default(3000), copy_from: z.string().optional() }),
-  label: i => `加楼层“${i.name}”`,
+  label: i => text('log_level_add', 'Add level “{name}”', { name: i.name }),
   apply: (p, i) => {
     const roof = p.levels.find(l => l.roof);
     const floors = p.levels.filter(l => !l.roof);
@@ -721,13 +733,13 @@ export const levelAdd = edit({
 });
 
 export const levelRemove = edit({
-  name: 'level_remove', title: '删楼层', kind: 'edit', permission: 'main', runtime: 'any',
+  name: 'level_remove', title: 'Delete level', kind: 'edit', permission: 'main', runtime: 'any',
   description: 'Delete a level with all its walls, spaces and furniture. Levels above move down. Affects the main design and needs owner confirmation.',
   input: z.object({ level: zRef('level') }),
-  label: (i, p) => `删除${resolveLevel(p, i.level).name}`,
+  label: (i, p) => text('log_level_remove', 'Delete {level}', { level: resolveLevel(p, i.level).name }),
   apply: (p, i) => {
     const lv = resolveLevel(p, i.level);
-    if (p.levels.filter(l => !l.roof).length <= 1 && !lv.roof) throw new TxError('invalid-input', '至少保留一层');
+    if (p.levels.filter(l => !l.roof).length <= 1 && !lv.roof) throw new TxError('invalid-input', text('err_last_level', 'At least one level must remain'));
     p.levels = p.levels.filter(l => l.id !== lv.id);
     for (const l of p.levels) if (l.elevation > lv.elevation) l.elevation -= lv.height;
     p.walls = p.walls.filter(x => x.level !== lv.id);
@@ -739,7 +751,7 @@ export const levelRemove = edit({
 });
 
 export const constraintAdd = edit({
-  name: 'constraint_add', title: '加约束', kind: 'relation', permission: 'reversible', runtime: 'any',
+  name: 'constraint_add', title: 'Add constraint', kind: 'relation', permission: 'reversible', runtime: 'any',
   description: [
     'Store a relationship stated by the owner as a constraint, maintained automatically on later edits. Supported: ',
     'align (targets: several parallel walls, kept collinear); ',
@@ -755,7 +767,7 @@ export const constraintAdd = edit({
     hard: z.boolean().default(false), source: z.enum(['user', 'agent', 'default']).default('user'),
     note: z.string().optional().describe('Record in the owner\'s own words'),
   }),
-  label: i => `加约束：${i.note ?? i.type}`,
+  label: i => text('log_constraint_add', 'Add constraint: {note}', { note: i.note ?? i.type }),
   apply: (p, i) => {
     const targets = i.targets.map(t => findAny(p, t));
     const c = {
@@ -772,10 +784,10 @@ export const constraintAdd = edit({
 });
 
 export const constraintRemove = edit({
-  name: 'constraint_remove', title: '删约束', kind: 'relation', permission: 'reversible', runtime: 'any',
+  name: 'constraint_remove', title: 'Delete constraint', kind: 'relation', permission: 'reversible', runtime: 'any',
   description: 'Delete a constraint.',
   input: z.object({ constraint: z.string() }),
-  label: i => `删除约束 ${i.constraint}`,
+  label: i => text('log_constraint_remove', 'Delete constraint {id}', { id: i.constraint }),
   apply: (p, i) => {
     const id = resolve(p, 'constraint', i.constraint).id;
     p.constraints = p.constraints.filter(c => c.id !== id);
@@ -784,13 +796,13 @@ export const constraintRemove = edit({
 });
 
 export const briefUpdate = edit({
-  name: 'brief_update', title: '记录需求', kind: 'relation', permission: 'reversible', runtime: 'any',
+  name: 'brief_update', title: 'Record brief', kind: 'relation', permission: 'reversible', runtime: 'any',
   description: 'Record or update the owner\'s brief: household members, room list, preferences, budget, notes. Array fields are replaced wholesale.',
   input: z.object({
     household: z.array(z.string()).optional(), rooms: z.array(z.string()).optional(), preferences: z.array(z.string()).optional(),
     budget: z.string().optional(), notes: z.array(z.string()).optional(),
   }),
-  label: () => '更新需求',
+  label: () => text('log_brief_update', 'Update brief'),
   apply: (p, i) => {
     p.brief = { ...p.brief, ...Object.fromEntries(Object.entries(i).filter(([, v]) => v !== undefined)) };
     return p.brief;
@@ -798,10 +810,10 @@ export const briefUpdate = edit({
 });
 
 export const decisionAdd = edit({
-  name: 'decision_add', title: '记录决策', kind: 'relation', permission: 'reversible', runtime: 'any',
+  name: 'decision_add', title: 'Record decision', kind: 'relation', permission: 'reversible', runtime: 'any',
   description: 'Write a trade-off to the decision log: what was done, why, and which options were rejected.',
   input: z.object({ summary: z.string(), reason: z.string().optional(), rejected: z.array(z.string()).optional() }),
-  label: i => `记录决策：${i.summary}`,
+  label: i => text('log_decision_add', 'Record decision: {summary}', { summary: i.summary }),
   apply: (p, i) => {
     const d = { id: nextId(p, 'd-'), at: new Date().toISOString(), ...i };
     p.decisions.push(d);
@@ -810,7 +822,7 @@ export const decisionAdd = edit({
 });
 
 export const historyUndo = defineRead({
-  name: 'history_undo', title: '撤销', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'history_undo', title: 'Undo', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Undo the last change.',
   input: z.object({}),
   run: (_, { session }) => {
@@ -820,7 +832,7 @@ export const historyUndo = defineRead({
 });
 
 export const historyRedo = defineRead({
-  name: 'history_redo', title: '重做', kind: 'edit', permission: 'reversible', runtime: 'any',
+  name: 'history_redo', title: 'Redo', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Redo the change just undone.',
   input: z.object({}),
   run: (_, { session }) => {
@@ -830,7 +842,7 @@ export const historyRedo = defineRead({
 });
 
 export const historyLog = read({
-  name: 'history_log', title: '操作记录', kind: 'query', permission: 'read', runtime: 'any',
+  name: 'history_log', title: 'Operation log', kind: 'query', permission: 'read', runtime: 'any',
   description: 'Operation log for this session: who, when, what and why.',
   input: z.object({ limit: z.number().int().positive().default(20) }),
   run: ({ limit }, { session }) => session.log.slice(-limit),
@@ -839,7 +851,7 @@ export const historyLog = read({
 /** Batch: several edits combined into one transaction, undone together */
 export function batchCapability(registry: Registry) {
   return edit({
-    name: 'batch', title: '批量修改', kind: 'edit', permission: 'reversible', runtime: 'any',
+    name: 'batch', title: 'Batch edit', kind: 'edit', permission: 'reversible', runtime: 'any',
     description: 'Run several edit capabilities as one step: all succeed or all roll back, and they undo together. Use for large changes or building a design from scratch.',
     input: z.object({
       label: z.string().describe('One-sentence summary of this batch'),
@@ -850,13 +862,13 @@ export function batchCapability(registry: Registry) {
       const results: unknown[] = [];
       for (const [k, call] of i.calls.entries()) {
         const c = registry.get(call.name);
-        if (!c || c.mode !== 'edit' || c.name === 'batch') throw new TxError('invalid-input', `第 ${k + 1} 步：${call.name} 不是可批量的修改类能力`);
+        if (!c || c.mode !== 'edit' || c.name === 'batch') throw new TxError('invalid-input', text('err_batch_not_edit', 'Step {step}: {name} is not an edit capability that can be batched', { step: k + 1, name: call.name }));
         const parsed = c.input.safeParse(call.input);
-        if (!parsed.success) throw new TxError('invalid-input', `第 ${k + 1} 步 ${call.name}：${z.prettifyError(parsed.error)}`);
+        if (!parsed.success) throw new TxError('invalid-input', text('err_batch_step', 'Step {step} ({name}): {message}', { step: k + 1, name: call.name, message: z.prettifyError(parsed.error) }));
         try {
           results.push(c.apply(p, parsed.data, ctx));
         } catch (e) {
-          if (e instanceof TxError) throw new TxError(e.code, `第 ${k + 1} 步 ${call.name}：${e.message}`);
+          if (e instanceof TxError) throw new TxError(e.code, text('err_batch_step', 'Step {step} ({name}): {message}', { step: k + 1, name: call.name, message: e.message }));
           throw e;
         }
       }
@@ -866,7 +878,7 @@ export function batchCapability(registry: Registry) {
 }
 
 export const searchCapabilitiesFor = (registry: Registry) => read({
-  name: 'search_capabilities', title: '搜索能力', kind: 'query', permission: 'read', runtime: 'any',
+  name: 'search_capabilities', title: 'Search capabilities', kind: 'query', permission: 'read', runtime: 'any',
   description: 'Search available capabilities by keyword; returns name, description, input schema and examples.',
   input: z.object({ query: z.string().default('') }),
   run: ({ query }) => registry.search(query, 15),

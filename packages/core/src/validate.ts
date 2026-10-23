@@ -1,4 +1,5 @@
 import { area } from './geometry.js';
+import { text } from './i18n.js';
 import type { Project } from './schema.js';
 
 export interface ValidationIssue {
@@ -11,44 +12,46 @@ export function validate(p: Project): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const ids = new Map<string, string>();
   const claim = (id: string, path: string) => {
-    if (ids.has(id)) issues.push({ path, message: `ID ${id} 与 ${ids.get(id)} 重复` });
+    if (ids.has(id)) issues.push({ path, message: text('validate_duplicate_id', 'ID {id} duplicates {other}', { id, other: ids.get(id)! }) });
     else ids.set(id, path);
   };
   const levels = new Set(p.levels.map(l => l.id));
   const lib = p.library;
 
+  if (p.language !== 'zh' && p.language !== 'en')
+    issues.push({ path: 'language', message: text('validate_language', 'Invalid project language {language}', { language: String(p.language) }) });
   p.levels.forEach((l, i) => claim(l.id, `levels[${i}]`));
   p.walls.forEach((w, i) => {
-    const at = `walls[${i}]（${w.name}）`;
+    const at = `walls[${i}] (${w.name})`;
     claim(w.id, at);
-    if (!levels.has(w.level)) issues.push({ path: at, message: `楼层 ${w.level} 不存在` });
+    if (!levels.has(w.level)) issues.push({ path: at, message: text('validate_missing_level', 'Level {level} does not exist', { level: w.level }) });
     const len = Math.hypot(w.end[0] - w.start[0], w.end[1] - w.start[1]);
-    if (len <= 0) issues.push({ path: at, message: '墙长为 0' });
-    if (w.thickness <= 0) issues.push({ path: at, message: '墙厚必须大于 0' });
+    if (len <= 0) issues.push({ path: at, message: text('validate_zero_length', 'Wall length is 0') });
+    if (w.thickness <= 0) issues.push({ path: at, message: text('validate_thickness', 'Wall thickness must be greater than 0') });
     w.openings.forEach((o, j) => {
       claim(o.id, `${at}.openings[${j}]`);
       if (o.at - o.width / 2 < -1 || o.at + o.width / 2 > len + 1)
-        issues.push({ path: `${at}.openings[${j}]（${o.name}）`, message: '洞口超出墙长' });
+        issues.push({ path: `${at}.openings[${j}] (${o.name})`, message: text('validate_opening_outside', 'Opening extends beyond the wall') });
     });
   });
   p.spaces.forEach((s, i) => {
-    const at = `spaces[${i}]（${s.name}）`;
+    const at = `spaces[${i}] (${s.name})`;
     claim(s.id, at);
-    if (!levels.has(s.level)) issues.push({ path: at, message: `楼层 ${s.level} 不存在` });
-    if (!(s.floor in lib.materials)) issues.push({ path: at, message: `材质 ${s.floor} 未登记` });
-    if (area(s.shape) <= 0) issues.push({ path: at, message: '范围面积为 0' });
+    if (!levels.has(s.level)) issues.push({ path: at, message: text('validate_missing_level', 'Level {level} does not exist', { level: s.level }) });
+    if (!(s.floor in lib.materials)) issues.push({ path: at, message: text('validate_unknown_material', 'Material {material} is not registered', { material: s.floor }) });
+    if (area(s.shape) <= 0) issues.push({ path: at, message: text('validate_zero_area', 'Shape area is 0') });
   });
   p.elements.forEach((e, i) => {
-    const at = `elements[${i}]（${e.name}）`;
+    const at = `elements[${i}] (${e.name})`;
     claim(e.id, at);
-    if (!levels.has(e.level) || (e.topLevel && !levels.has(e.topLevel))) issues.push({ path: at, message: '楼层不存在' });
-    if (!(e.type in lib.elements)) issues.push({ path: at, message: `构件类型 ${e.type} 未登记` });
+    if (!levels.has(e.level) || (e.topLevel && !levels.has(e.topLevel))) issues.push({ path: at, message: text('validate_level_missing', 'Level does not exist') });
+    if (!(e.type in lib.elements)) issues.push({ path: at, message: text('validate_unknown_element', 'Element type {type} is not registered', { type: e.type }) });
   });
   p.furniture.forEach((f, i) => {
-    const at = `furniture[${i}]（${f.name}）`;
+    const at = `furniture[${i}] (${f.name})`;
     claim(f.id, at);
-    if (!levels.has(f.level)) issues.push({ path: at, message: `楼层 ${f.level} 不存在` });
-    if (!(f.type in lib.furniture)) issues.push({ path: at, message: `家具类型 ${f.type} 未登记` });
+    if (!levels.has(f.level)) issues.push({ path: at, message: text('validate_missing_level', 'Level {level} does not exist', { level: f.level }) });
+    if (!(f.type in lib.furniture)) issues.push({ path: at, message: text('validate_unknown_furniture', 'Furniture type {type} is not registered', { type: f.type }) });
   });
   return issues;
 }

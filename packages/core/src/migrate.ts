@@ -1,22 +1,27 @@
+import { text } from './i18n.js';
 import { SCHEMA, SCHEMA_VERSION, type Project } from './schema.js';
 
 /**
  * When the schema is upgraded, add a step here: MIGRATIONS[n] converts version n data to version n+1.
  * Old samples therefore always load, and changing the schema costs just one function.
  */
-const MIGRATIONS: Record<number, (doc: any) => any> = {};
+const MIGRATIONS: Record<number, (doc: any) => any> = {
+  // v2 adds the project language; all data before it was written in Chinese
+  1: doc => ({ ...doc, language: doc.language ?? 'zh' }),
+};
 
 export class SchemaError extends Error {}
 
 export function migrate(doc: unknown): Project {
   const d = doc as any;
-  if (!d || d.schema !== SCHEMA) throw new SchemaError(`不是 Plinth 项目文件（schema 应为 ${SCHEMA}）`);
-  if (typeof d.version !== 'number') throw new SchemaError('缺少 version');
-  if (d.version > SCHEMA_VERSION) throw new SchemaError(`文件版本 ${d.version} 比当前核心包（${SCHEMA_VERSION}）新，请升级`);
+  if (!d || d.schema !== SCHEMA) throw new SchemaError(text('schema_not_plinth', 'Not a Plinth project file (schema should be {schema})', { schema: SCHEMA }));
+  if (typeof d.version !== 'number') throw new SchemaError(text('schema_no_version', 'Missing version'));
+  if (d.version > SCHEMA_VERSION)
+    throw new SchemaError(text('schema_too_new', 'File version {version} is newer than this app supports ({current}); please upgrade', { version: d.version, current: SCHEMA_VERSION }));
   let cur = d;
   for (let v = d.version; v < SCHEMA_VERSION; v++) {
     const step = MIGRATIONS[v];
-    if (!step) throw new SchemaError(`缺少从 v${v} 到 v${v + 1} 的迁移`);
+    if (!step) throw new SchemaError(text('schema_no_migration', 'Missing migration from v{from} to v{to}', { from: v, to: v + 1 }));
     cur = { ...step(cur), version: v + 1 };
   }
   return cur as Project;

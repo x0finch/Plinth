@@ -3,7 +3,7 @@
 A general-purpose house design platform with a built-in agent: the homeowner states needs and makes decisions, and the agent authors the design — drawing walls and openings, laying out rooms, computing areas and checking its own work.
 Overall design and roadmap: [#1](https://github.com/x0finch/Plinth/issues/1). Requirements are tracked as GitHub issues.
 
-The product UI is in Chinese; everything in the repository is in English (see `CLAUDE.md`).
+The UI is available in Chinese (default) and English, chosen in Settings → Language (Paraglide JS, messages in `apps/web/messages/`). Each design also has its own language for the names it generates (levels, walls, openings). Everything in the repository is in English (see `CLAUDE.md`).
 
 ## Layout
 

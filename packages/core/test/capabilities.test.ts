@@ -4,7 +4,14 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createProject, createRegistry, migrate, openingCenter, Session, spaceNetArea, type CallResult, type Project } from '../src/index.js';
+import { createProject, createRegistry, migrate, openingCenter, Session, setTranslator, spaceNetArea, type CallResult, type Project, type Translator } from '../src/index.js';
+
+/** Core messages of the web app: the core_* keys in apps/web/messages/<locale>.json */
+const readMessages = (locale: string): Record<string, string> =>
+  Object.fromEntries(Object.entries(JSON.parse(readFileSync(join(import.meta.dirname, `../../../apps/web/messages/${locale}.json`), 'utf8')) as Record<string, string>).filter(([k]) => k.startsWith('core_')));
+const zhMessages = readMessages('zh');
+const zhTranslator: Translator = (key, params) =>
+  zhMessages[`core_${key}`]?.replace(/\{(\w+)\}/g, (_, k: string) => String(params[k]));
 
 const registry = createRegistry();
 const actor = { kind: 'agent' as const };
@@ -162,8 +169,24 @@ describe('capability registry', () => {
       expect(c.description.length, c.name).toBeGreaterThan(5);
       expect(['read', 'reversible', 'main', 'external']).toContain(c.permission);
     }
-    const found = registry.search('面积');
-    expect(found.map(f => f.name)).toContain('space_set_area');
-    expect(found[0].input).toHaveProperty('type', 'object');
+    // English titles match without a translator; Chinese ones through the app's translation (as in the web app)
+    expect(registry.search('area').map(f => f.name)).toContain('space_set_area');
+    setTranslator(zhTranslator);
+    try {
+      const found = registry.search('面积');
+      expect(found.map(f => f.name)).toContain('space_set_area');
+      expect(found[0].input).toHaveProperty('type', 'object');
+    } finally {
+      setTranslator(null);
+    }
+  });
+
+  it('every capability title has a Chinese and an English translation', () => {
+    const zh = readMessages('zh'), en = readMessages('en');
+    for (const c of registry.list()) {
+      expect(zh[`core_cap_${c.name}`], c.name).toBeTruthy();
+      expect(en[`core_cap_${c.name}`], c.name).toBe(c.title);
+    }
+    expect(Object.keys(zh).sort()).toEqual(Object.keys(en).sort());
   });
 });

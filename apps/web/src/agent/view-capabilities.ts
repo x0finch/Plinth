@@ -4,6 +4,7 @@
  */
 import { defineRead, type CapabilityContext } from '@plinth/core';
 import { z } from 'zod';
+import { m } from '@/lib/i18n';
 
 export interface ViewState {
   mode: '2d' | '3d';
@@ -24,12 +25,12 @@ export interface ViewHost {
 
 const host = (ctx: CapabilityContext) => {
   const v = ctx.host?.view as ViewHost | undefined;
-  if (!v) throw new Error('这项能力需要在浏览器里打开方案才能用');
+  if (!v) throw new Error(m.server_err_view_needs_browser());
   return v;
 };
 
 export const viewGet = defineRead({
-  name: 'view_get', title: '读取视图', kind: 'view', permission: 'read', runtime: 'browser',
+  name: 'view_get', title: 'Read view', kind: 'view', permission: 'read', runtime: 'browser',
   description: 'Read the current view: plan or 3D, current level, selected objects, recently changed objects, camera, layer toggles. When the user says "this wall" or "here", read the selected objects first.',
   input: z.object({}),
   run: (_, ctx) => {
@@ -42,7 +43,7 @@ export const viewGet = defineRead({
 });
 
 export const viewSet = defineRead({
-  name: 'view_set', title: '切换视图', kind: 'view', permission: 'read', runtime: 'browser',
+  name: 'view_set', title: 'Change view', kind: 'view', permission: 'read', runtime: 'browser',
   description: 'Switch between plan and 3D, change level, and toggle the furniture, dimensions and labels layers.',
   input: z.object({
     mode: z.enum(['2d', '3d']).optional(), level: z.string().optional().describe('Level ID or name'),
@@ -56,14 +57,14 @@ export const viewSet = defineRead({
 });
 
 export const viewFocus = defineRead({
-  name: 'view_focus', title: '指给你看', kind: 'view', permission: 'read', runtime: 'browser',
+  name: 'view_focus', title: 'Show you', kind: 'view', permission: 'read', runtime: 'browser',
   description: 'Turn the camera to these objects and make them pulse on the drawing (switches to their level automatically). Use it after a change to show the homeowner what changed.',
   input: z.object({ ids: z.array(z.string()).min(1).describe('Object IDs'), highlight: z.boolean().default(true) }),
   run: (i, ctx) => host(ctx).focus(i.ids, i.highlight),
 });
 
 export const viewScreenshot = defineRead({
-  name: 'view_screenshot', title: '截图', kind: 'verify', permission: 'read', runtime: 'browser',
+  name: 'view_screenshot', title: 'Screenshot', kind: 'verify', permission: 'read', runtime: 'browser',
   description: 'Take a screenshot of the current view to show the homeowner (the image appears in the chat).',
   input: z.object({}),
   run: async (_, ctx) => {
@@ -81,12 +82,12 @@ export interface CommentsHost {
 
 const comments = (ctx: CapabilityContext) => {
   const c = ctx.host?.comments as CommentsHost | undefined;
-  if (!c) throw new Error('这项能力需要在浏览器里打开方案才能用');
+  if (!c) throw new Error(m.server_err_view_needs_browser());
   return c;
 };
 
 export const commentsList = defineRead({
-  name: 'comments_list', title: '看评论', kind: 'query', permission: 'read', runtime: 'browser',
+  name: 'comments_list', title: 'Read comments', kind: 'query', permission: 'read', runtime: 'browser',
   description: 'List the comments in the project (target object, author, status, replies). By default only unresolved ones.',
   input: z.object({ all: z.boolean().default(false) }),
   run: async (i, ctx) => {
@@ -97,7 +98,7 @@ export const commentsList = defineRead({
 });
 
 export const commentReply = defineRead({
-  name: 'comment_reply', title: '回复评论', kind: 'relation', permission: 'reversible', runtime: 'browser',
+  name: 'comment_reply', title: 'Reply to comment', kind: 'relation', permission: 'reversible', runtime: 'browser',
   description: 'Reply to a comment and set its status: use resolved when the change is done; when the homeowner must decide, spell out the options and use pending-confirm (awaiting the homeowner\'s confirmation). Write the reply in the language the comment thread uses.',
   input: z.object({ comment: z.string().describe('Comment ID'), body: z.string(), status: z.enum(['open', 'pending-confirm', 'resolved']) }),
   run: async (i, ctx) => {
