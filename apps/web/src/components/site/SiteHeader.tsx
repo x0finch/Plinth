@@ -3,6 +3,7 @@ import { LogOutIcon, SettingsIcon, UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { authClient } from '@/lib/auth-client';
+import { m } from '@/lib/i18n';
 import { queryClient, useMe } from '@/lib/query';
 
 export function Logo() {
@@ -29,20 +30,20 @@ export function SiteHeader() {
       <div className="flex-1" />
       {user ? (
         <>
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link to="/projects" />}>我的方案</Button>
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link to="/projects" />}>{m.site_my_projects()}</Button>
           <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="账号" />}><UserIcon /></DropdownMenuTrigger>
+            <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={m.site_account()} />}><UserIcon /></DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel className="font-normal text-muted-foreground">{user.isAnonymous ? '访客（试用中）' : user.email}</DropdownMenuLabel>
+              <DropdownMenuLabel className="font-normal text-muted-foreground">{user.isAnonymous ? m.site_guest() : user.email}</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {user.isAnonymous && <DropdownMenuItem render={<Link to="/login" />}><UserIcon /> 登录以保存方案</DropdownMenuItem>}
-              <DropdownMenuItem render={<Link to="/settings" />}><SettingsIcon /> 设置</DropdownMenuItem>
-              <DropdownMenuItem onClick={signOut}><LogOutIcon /> 退出</DropdownMenuItem>
+              {user.isAnonymous && <DropdownMenuItem render={<Link to="/login" />}><UserIcon /> {m.site_sign_in_to_save()}</DropdownMenuItem>}
+              <DropdownMenuItem render={<Link to="/settings" />}><SettingsIcon /> {m.site_settings()}</DropdownMenuItem>
+              <DropdownMenuItem onClick={signOut}><LogOutIcon /> {m.site_sign_out()}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </>
       ) : (
-        <Button size="sm" variant="outline" nativeButton={false} render={<Link to="/login" />}>登录</Button>
+        <Button size="sm" variant="outline" nativeButton={false} render={<Link to="/login" />}>{m.site_sign_in()}</Button>
       )}
     </header>
   );
@@ -52,10 +53,10 @@ export function SiteFooter() {
   return (
     <footer className="mx-auto flex w-full max-w-5xl flex-wrap gap-4 px-4 py-8 text-xs text-muted-foreground">
       <span>Plinth</span>
-      <Link to="/privacy" className="hover:underline">隐私政策</Link>
-      <Link to="/terms" className="hover:underline">使用条款</Link>
+      <Link to="/privacy" className="hover:underline">{m.site_privacy()}</Link>
+      <Link to="/terms" className="hover:underline">{m.site_terms()}</Link>
       <span className="flex-1" />
-      <span>方案仅供参考；结构、消防、规范相关内容需专业人员复核。</span>
+      <span>{m.site_disclaimer()}</span>
     </footer>
   );
 }

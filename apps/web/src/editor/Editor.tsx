@@ -19,7 +19,8 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { registry } from '@/agent/registry';
 import { PlanPreview } from '@/components/site/PlanPreview';
-import { api, can, ROLE_ZH } from '@/lib/api';
+import { api, can, roleLabel } from '@/lib/api';
+import { m } from '@/lib/i18n';
 import { ChatPanel } from './ChatPanel';
 import { CanvasFrame } from '@/canvas/CanvasFrame';
 import { Spinner } from '@/components/ui/spinner';
@@ -30,7 +31,7 @@ import { ShareDialog } from './ShareDialog';
 import { createEditorStore, EditorContext, useEditor, type InitialProject } from './store';
 
 /** 3D (three.js) is most of the plan page script; load it only when switching to 3D */
-const Model3D = lazy(() => import('./Model3D').then(m => ({ default: m.Model3D })));
+const Model3D = lazy(() => import('./Model3D').then(mod => ({ default: mod.Model3D })));
 
 declare global {
   interface Window {
@@ -44,24 +45,31 @@ declare global {
 }
 
 type Tab = 'chat' | 'props' | 'areas' | 'comments' | 'versions';
-const TABS: { id: Tab; label: string; icon: typeof InfoIcon }[] = [
-  { id: 'chat', label: '对话', icon: MessagesSquareIcon },
-  { id: 'props', label: '属性', icon: InfoIcon },
-  { id: 'areas', label: '面积', icon: RulerIcon },
-  { id: 'comments', label: '评论', icon: MessageSquareIcon },
-  { id: 'versions', label: '版本', icon: HistoryIcon },
+const TABS: { id: Tab; label: () => string; icon: typeof InfoIcon }[] = [
+  { id: 'chat', label: m.editor_tab_chat, icon: MessagesSquareIcon },
+  { id: 'props', label: m.editor_tab_props, icon: InfoIcon },
+  { id: 'areas', label: m.editor_tab_areas, icon: RulerIcon },
+  { id: 'comments', label: m.editor_tab_comments, icon: MessageSquareIcon },
+  { id: 'versions', label: m.editor_tab_versions, icon: HistoryIcon },
 ];
 
+/** Layer toggle labels: [show, hide] */
+const LAYER_LABELS = {
+  furniture: [m.editor_show_furniture, m.editor_hide_furniture],
+  labels: [m.editor_show_labels, m.editor_hide_labels],
+  dimensions: [m.editor_show_dimensions, m.editor_hide_dimensions],
+} as const;
+
 function useIsMobile() {
-  const [m, setM] = useState(false);
+  const [mobile, setMobile] = useState(false);
   useEffect(() => {
     const q = window.matchMedia('(max-width: 767px)');
-    const f = () => setM(q.matches);
+    const f = () => setMobile(q.matches);
     f();
     q.addEventListener('change', f);
     return () => q.removeEventListener('change', f);
   }, []);
-  return m;
+  return mobile;
 }
 
 /** Download a file. Browsers download large data: URLs unreliably, so always convert to a Blob URL */
@@ -81,11 +89,11 @@ function SaveStatus() {
   const dirty = useEditor(s => s.dirty);
   const version = useEditor(s => s.version);
   const viewing = useEditor(s => s.readOnlyVersion);
-  if (viewing != null) return <span className="text-xs text-muted-foreground">查看第 {viewing} 版（只读）</span>;
+  if (viewing != null) return <span className="text-xs text-muted-foreground">{m.editor_viewing_version({ version: viewing })}</span>;
   return (
     <span className="flex items-center gap-1 text-xs text-muted-foreground" aria-live="polite">
       {saving ? <LoaderIcon className="size-3.5 animate-spin" /> : dirty ? <CloudIcon className="size-3.5" /> : <CloudCheckIcon className="size-3.5" />}
-      <span className="hidden sm:inline">{saving ? '保存中' : dirty ? '未保存' : `已保存 · 第 ${version} 版`}</span>
+      <span className="hidden sm:inline">{saving ? m.editor_saving() : dirty ? m.editor_unsaved() : m.editor_saved_version({ version })}</span>
     </span>
   );
 }
@@ -97,12 +105,12 @@ function Conflict() {
   return (
     <Alert className="absolute inset-x-0 top-0 z-20 m-3 w-auto shadow-sm">
       <TriangleAlertIcon />
-      <AlertTitle>别人刚保存了第 {conflict.version} 版</AlertTitle>
+      <AlertTitle>{m.editor_conflict_title({ version: conflict.version })}</AlertTitle>
       <AlertDescription>
-        要保留谁的修改？
+        {m.editor_conflict_question()}
         <div className="mt-1 flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => resolve('theirs')}>用他们的</Button>
-          <Button size="sm" onClick={() => resolve('mine')}>用我的覆盖</Button>
+          <Button size="sm" variant="outline" onClick={() => resolve('theirs')}>{m.editor_conflict_theirs()}</Button>
+          <Button size="sm" onClick={() => resolve('mine')}>{m.editor_conflict_mine()}</Button>
         </div>
       </AlertDescription>
     </Alert>
@@ -127,7 +135,7 @@ function Toolbar({ onShare, onExport }: { onShare: () => void; onExport: () => v
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2">
-      <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link to="/projects" />} aria-label="返回我的方案"><ArrowLeftIcon /></Button>
+      <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link to="/projects" />} aria-label={m.editor_back_to_projects()}><ArrowLeftIcon /></Button>
       <div className="min-w-0 flex-1 md:flex-none">
         <p className="truncate text-sm font-medium">{project.name}</p>
       </div>
@@ -137,25 +145,25 @@ function Toolbar({ onShare, onExport }: { onShare: () => void; onExport: () => v
         {project.levels.map(l => <ToggleGroupItem key={l.id} value={l.id}>{l.name}</ToggleGroupItem>)}
       </ToggleGroup>
       <ToggleGroup value={[view.mode]} onValueChange={v => v[0] && setView({ mode: v[0] as '2d' | '3d' })} variant="outline" size="sm">
-        <ToggleGroupItem value="2d" aria-label="平面"><SquareIcon /><span className="max-sm:hidden">平面</span></ToggleGroupItem>
-        <ToggleGroupItem value="3d" aria-label="三维"><BoxIcon /><span className="max-sm:hidden">三维</span></ToggleGroupItem>
+        <ToggleGroupItem value="2d" aria-label={m.editor_view_2d()}><SquareIcon /><span className="max-sm:hidden">{m.editor_view_2d()}</span></ToggleGroupItem>
+        <ToggleGroupItem value="3d" aria-label={m.editor_view_3d()}><BoxIcon /><span className="max-sm:hidden">{m.editor_view_3d()}</span></ToggleGroupItem>
       </ToggleGroup>
       {canEdit && (
         <div className="flex max-sm:hidden">
-          <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={undo} disabled={!session.canUndo} aria-label="撤销" />}><Undo2Icon /></TooltipTrigger><TooltipContent>撤销（⌘Z）</TooltipContent></Tooltip>
-          <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={redo} disabled={!session.canRedo} aria-label="重做" />}><Redo2Icon /></TooltipTrigger><TooltipContent>重做（⇧⌘Z）</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={undo} disabled={!session.canUndo} aria-label={m.editor_undo()} />}><Undo2Icon /></TooltipTrigger><TooltipContent>{m.editor_undo_shortcut()}</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={redo} disabled={!session.canRedo} aria-label={m.editor_redo()} />}><Redo2Icon /></TooltipTrigger><TooltipContent>{m.editor_redo_shortcut()}</TooltipContent></Tooltip>
         </div>
       )}
-      <Button size="sm" variant="outline" onClick={onShare}><Share2Icon /><span className="max-sm:hidden">{role === 'owner' ? '分享' : ROLE_ZH[role]}</span></Button>
+      <Button size="sm" variant="outline" onClick={onShare}><Share2Icon /><span className="max-sm:hidden">{role === 'owner' ? m.editor_share() : roleLabel(role)}</span></Button>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="更多" />}><EllipsisIcon /></DropdownMenuTrigger>
+        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={m.editor_more()} />}><EllipsisIcon /></DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={onExport}><ImageIcon /> 导出图片</DropdownMenuItem>
-          <DropdownMenuItem onClick={exportJson}><DownloadIcon /> 下载方案数据（JSON）</DropdownMenuItem>
+          <DropdownMenuItem onClick={onExport}><ImageIcon /> {m.editor_export_image()}</DropdownMenuItem>
+          <DropdownMenuItem onClick={exportJson}><DownloadIcon /> {m.editor_download_json()}</DropdownMenuItem>
           <DropdownMenuSeparator />
           {(['furniture', 'labels', 'dimensions'] as const).map(k => (
             <DropdownMenuItem key={k} onClick={() => setView({ layers: { ...view.layers, [k]: !view.layers[k] } })}>
-              <LayoutPanelLeftIcon /> {view.layers[k] ? '隐藏' : '显示'}{k === 'furniture' ? '家具' : k === 'labels' ? '房间名和面积' : '尺寸'}
+              <LayoutPanelLeftIcon /> {LAYER_LABELS[k][view.layers[k] ? 1 : 0]()}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
@@ -216,7 +224,7 @@ function Workspace() {
   // In plan mode the SVG provides the screenshot
   useEffect(() => {
     if (view.mode === '2d') {
-      setCapture(() => (svgRef.current ? svgToPng(svgRef.current) : Promise.reject(new Error('平面图未就绪'))));
+      setCapture(() => (svgRef.current ? svgToPng(svgRef.current) : Promise.reject(new Error(m.editor_plan_not_ready()))));
       return () => setCapture(null);
     }
   }, [view.mode]);
@@ -226,9 +234,9 @@ function Workspace() {
     try {
       const r = await capture!();
       const lv = project.levels.find(l => l.id === view.level)?.name ?? '';
-      await download(r.dataUrl, `${project.name}-${lv}-${view.mode === '3d' ? '三维' : '平面'}.png`);
+      await download(r.dataUrl, `${project.name}-${lv}-${view.mode === '3d' ? m.editor_view_3d() : m.editor_view_2d()}.png`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '导出失败');
+      toast.error(e instanceof Error ? e.message : m.editor_export_failed());
     }
   };
 
@@ -241,7 +249,7 @@ function Workspace() {
   const tabs = (
     <Tabs value={tab} onValueChange={v => setTab(v as Tab)} className="flex h-full min-h-0 flex-col gap-0">
       <TabsList variant="line" className="w-full shrink-0 justify-start border-b px-2">
-        {TABS.map(t => <TabsTrigger key={t.id} value={t.id} className="flex-none">{t.label}</TabsTrigger>)}
+        {TABS.map(t => <TabsTrigger key={t.id} value={t.id} className="flex-none">{t.label()}</TabsTrigger>)}
       </TabsList>
       <PanelBody tab={tab} setTab={setTab} />
     </Tabs>
@@ -251,7 +259,7 @@ function Workspace() {
     <div className="flex h-dvh flex-col">
       <Toolbar onShare={() => setShare(true)} onExport={exportImage} />
       <div className="flex min-h-0 flex-1">
-        <main className="relative min-w-0 flex-1" aria-label="画布">
+        <main className="relative min-w-0 flex-1" aria-label={m.editor_canvas()}>
           <Conflict />
           <CanvasFrame className="absolute inset-0 size-full border-0">
             <HopDriver />
@@ -271,7 +279,7 @@ function Workspace() {
             <nav className="absolute inset-x-0 bottom-0 flex justify-around border-t bg-background/95 pb-[env(safe-area-inset-bottom)]">
               {TABS.slice(0, 4).map(t => (
                 <Button key={t.id} variant="ghost" className="h-auto flex-1 flex-col gap-0.5 rounded-none py-2 text-xs font-normal" onClick={() => { setTab(t.id); setSheet(true); }}>
-                  <t.icon className="size-5" />{t.label}
+                  <t.icon className="size-5" />{t.label()}
                 </Button>
               ))}
             </nav>
@@ -282,7 +290,7 @@ function Workspace() {
       {mobile && (
         <Sheet open={sheet} onOpenChange={setSheet}>
           <SheetContent side="bottom" className="h-[75dvh] gap-0 p-0">
-            <SheetHeader className="sr-only"><SheetTitle>{TABS.find(t => t.id === tab)?.label}</SheetTitle></SheetHeader>
+            <SheetHeader className="sr-only"><SheetTitle>{TABS.find(t => t.id === tab)?.label()}</SheetTitle></SheetHeader>
             {tabs}
           </SheetContent>
         </Sheet>

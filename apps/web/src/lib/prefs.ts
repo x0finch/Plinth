@@ -1,12 +1,16 @@
 /** Local preferences (this browser only): agent autonomy level */
 import type { Autonomy } from '@/agent/policy';
+import { m } from './i18n';
 
 const KEY = 'plinth.autonomy';
-export const AUTONOMY_ZH: Record<Autonomy, { label: string; hint: string }> = {
-  ask: { label: '谨慎', hint: '每次修改都先问我' },
-  balanced: { label: '默认', hint: '可撤销的修改直接做；影响主方案、不可逆或对外的先问我' },
-  auto: { label: '放手', hint: '除了对外分享和产生费用，都直接做' },
+export const AUTONOMIES: Autonomy[] = ['ask', 'balanced', 'auto'];
+const AUTONOMY_TEXT: Record<Autonomy, { label: () => string; hint: () => string }> = {
+  ask: { label: m.autonomy_ask, hint: m.autonomy_ask_hint },
+  balanced: { label: m.autonomy_balanced, hint: m.autonomy_balanced_hint },
+  auto: { label: m.autonomy_auto, hint: m.autonomy_auto_hint },
 };
+export const autonomyLabel = (a: Autonomy) => AUTONOMY_TEXT[a].label();
+export const autonomyHint = (a: Autonomy) => AUTONOMY_TEXT[a].hint();
 
 export function getAutonomy(): Autonomy {
   try {

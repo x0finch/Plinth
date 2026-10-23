@@ -2,6 +2,7 @@
 import type { Project } from '@plinth/core';
 import { useMemo } from 'react';
 import { levelShapes } from '@/editor/plan-geometry';
+import { m } from '@/lib/i18n';
 
 export function PlanPreview({ project, level, className }: { project: Project; level?: string; className?: string }) {
   const lv = level ?? project.levels.find(l => !l.roof)?.id ?? 'L1';
@@ -10,7 +11,7 @@ export function PlanPreview({ project, level, className }: { project: Project; l
   const pad = 600;
   const font = Math.max(220, (x1 - x0) / 40);
   return (
-    <svg viewBox={`${x0 - pad} ${y0 - pad} ${x1 - x0 + 2 * pad} ${y1 - y0 + 2 * pad}`} className={className} role="img" aria-label={`${project.name}平面图`}>
+    <svg viewBox={`${x0 - pad} ${y0 - pad} ${x1 - x0 + 2 * pad} ${y1 - y0 + 2 * pad}`} className={className} role="img" aria-label={m.site_plan_aria({ name: project.name })}>
       {s.spaces.map(({ s: sp, d }) => <path key={sp.id} d={d} fill={sp.kind === 'indoor' ? 'var(--card)' : 'var(--muted)'} />)}
       <path d={s.light} fill="var(--muted-foreground)" fillOpacity={0.5} />
       <path d={s.solid} fill="var(--muted-foreground)" />

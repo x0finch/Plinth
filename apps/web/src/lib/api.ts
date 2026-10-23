@@ -1,4 +1,6 @@
 /** Thin client wrapper for /api: shared JSON handling and error messages */
+import { m } from './i18n';
+
 export class ApiError extends Error {
   constructor(public status: number, message: string, public data?: any) {
     super(message);
@@ -15,12 +17,13 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   });
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new ApiError(res.status, data?.error ?? `请求失败（${res.status}）`, data);
+  if (!res.ok) throw new ApiError(res.status, data?.error ?? m.api_request_failed({ status: res.status }), data);
   return data as T;
 }
 
 export type Role = 'owner' | 'editor' | 'commenter' | 'viewer';
-export const ROLE_ZH: Record<Role, string> = { owner: '主人', editor: '可编辑', commenter: '可评论', viewer: '只读' };
+const ROLE_LABEL: Record<Role, () => string> = { owner: m.role_owner, editor: m.role_editor, commenter: m.role_commenter, viewer: m.role_viewer };
+export const roleLabel = (r: Role) => ROLE_LABEL[r]();
 export const ROLE_RANK: Record<Role, number> = { viewer: 0, commenter: 1, editor: 2, owner: 3 };
 export const can = (role: Role | undefined, min: Role) => !!role && ROLE_RANK[role] >= ROLE_RANK[min];
 

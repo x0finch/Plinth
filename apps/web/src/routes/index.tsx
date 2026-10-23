@@ -8,6 +8,7 @@ import { PlanPreview } from '@/components/site/PlanPreview';
 import { SiteFooter, SiteHeader } from '@/components/site/SiteHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription } from '@/components/ui/card';
+import { m } from '@/lib/i18n';
 import { useMe } from '@/lib/query';
 import { startTrial } from '@/lib/trial';
 
@@ -16,17 +17,12 @@ export const Route = createFileRoute('/')({ component: Landing });
 const sample = migrate(sampleJson);
 
 const STEPS = [
-  { t: '说出需求', d: '家里几口人、要几间房、偏好什么。也可以在图上点一面墙，说“这面墙往东挪半米”。' },
-  { t: 'agent 画方案、自己检查', d: '它直接改方案数据：墙、门窗、房间、家具。改完自检房间重叠、门开向、面积，再把改动指给你看。' },
-  { t: '和家人一起定', d: '一个链接发给家人，能看平面和三维、在墙上评论。每一版都留着，随时回退。' },
+  { t: m.home_step_1_title, d: m.home_step_1_body },
+  { t: m.home_step_2_title, d: m.home_step_2_body },
+  { t: m.home_step_3_title, d: m.home_step_3_body },
 ];
 
-const POINTS = [
-  '每间多大、改前改后差多少，自动算',
-  '“门在房间中间”“老人房约 12 平”这类要求会被记住，之后改别处也保持',
-  '结构、消防相关的改动会标注“需专业人员复核”，不替你拍板',
-  '大模型用你自己的密钥，支持 Claude、GPT、Gemini、通过 OpenRouter 用国内模型',
-];
+const POINTS = [m.home_point_1, m.home_point_2, m.home_point_3, m.home_point_4];
 
 function Landing() {
   const me = useMe();
@@ -38,7 +34,7 @@ function Landing() {
       const id = await startTrial(t);
       await navigate({ to: '/p/$projectId', params: { projectId: id } });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : '出错了');
+      toast.error(e instanceof Error ? e.message : m.home_error());
       setBusy(null);
     }
   };
@@ -48,44 +44,44 @@ function Landing() {
       <main className="mx-auto w-full max-w-5xl flex-1 px-4">
         <section className="grid items-center gap-10 py-12 md:grid-cols-[1fr_1.1fr] md:py-20">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-balance md:text-4xl">说话就能改的房屋方案</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-balance md:text-4xl">{m.home_title()}</h1>
             <p className="mt-4 text-muted-foreground text-pretty">
-              你提需求、做决定；内置的 agent 是方案的作者：画墙开窗、排房间、算面积、自己检查。不用懂坐标、墙厚或软件操作。
+              {m.home_intro()}
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
               <Button size="lg" onClick={() => go('sample')} disabled={!!busy}>
-                {busy === 'sample' ? <LoaderIcon className="animate-spin" /> : null}打开样例方案试试 <ArrowRightIcon />
+                {busy === 'sample' ? <LoaderIcon className="animate-spin" /> : null}{m.home_try_sample()} <ArrowRightIcon />
               </Button>
               <Button size="lg" variant="outline" onClick={() => go('blank')} disabled={!!busy}>
-                {busy === 'blank' ? <LoaderIcon className="animate-spin" /> : null}从零开始
+                {busy === 'blank' ? <LoaderIcon className="animate-spin" /> : null}{m.home_start_blank()}
               </Button>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              无需注册即可试用。{me.data?.user && !me.data.user.isAnonymous ? <Button variant="link" className="h-auto p-0 text-xs" nativeButton={false} render={<Link to="/projects" />}>进入我的方案</Button> : <><Button variant="link" className="h-auto p-0 text-xs" nativeButton={false} render={<Link to="/login" />}>登录</Button>后方案会一直保存在你的账号里。</>}
+              {m.home_no_sign_up()}{me.data?.user && !me.data.user.isAnonymous ? <Button variant="link" className="h-auto p-0 text-xs" nativeButton={false} render={<Link to="/projects" />}>{m.home_my_projects()}</Button> : <><Button variant="link" className="h-auto p-0 text-xs" nativeButton={false} render={<Link to="/login" />}>{m.home_sign_in()}</Button>{m.home_sign_in_after()}</>}
             </p>
           </div>
           <Card className="gap-2 p-3">
             <figure>
               <PlanPreview project={sample} className="w-full" />
-              <CardDescription className="px-1 pt-2 text-xs">样例：乌石合院一层，房间面积由方案数据实时算出</CardDescription>
+              <CardDescription className="px-1 pt-2 text-xs">{m.home_sample_caption()}</CardDescription>
             </figure>
           </Card>
         </section>
 
         <section className="grid gap-6 border-t py-12 md:grid-cols-3">
           {STEPS.map((s, i) => (
-            <div key={s.t}>
+            <div key={i}>
               <p className="font-mono text-xs text-muted-foreground">0{i + 1}</p>
-              <h2 className="mt-1 font-medium">{s.t}</h2>
-              <p className="mt-2 text-sm text-muted-foreground">{s.d}</p>
+              <h2 className="mt-1 font-medium">{s.t()}</h2>
+              <p className="mt-2 text-sm text-muted-foreground">{s.d()}</p>
             </div>
           ))}
         </section>
 
         <section className="border-t py-12">
           <ul className="grid gap-3 md:grid-cols-2">
-            {POINTS.map(p => (
-              <li key={p} className="flex gap-2 text-sm"><CheckIcon className="mt-0.5 size-4 shrink-0" />{p}</li>
+            {POINTS.map((p, i) => (
+              <li key={i} className="flex gap-2 text-sm"><CheckIcon className="mt-0.5 size-4 shrink-0" />{p()}</li>
             ))}
           </ul>
         </section>

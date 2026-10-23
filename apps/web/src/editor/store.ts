@@ -8,6 +8,7 @@ import { createStore, useStore } from 'zustand';
 import { registry } from '@/agent/registry';
 import type { CommentsHost, ViewHost, ViewState } from '@/agent/view-capabilities';
 import { api, ApiError, can, type Role } from '@/lib/api';
+import { m } from '@/lib/i18n';
 
 export interface LastChange {
   label: string;
@@ -129,7 +130,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
       async call(name, input, actor = { kind: 'user' }) {
         const cap = registry.get(name);
         if (cap && cap.mode === 'edit' && !get().canEdit()) {
-          return { ok: false, error: { code: 'forbidden', message: get().readOnlyVersion != null ? '正在查看历史版本，不能修改' : '你只有查看权限' } };
+          return { ok: false, error: { code: 'forbidden', message: get().readOnlyVersion != null ? m.store_readonly_history() : m.store_readonly_viewer() } };
         }
         const before = session.project;
         const r = await registry.call(name, input, { session, actor, host: { view: get().viewHost(), comments: commentsHost(get().projectId) } });
@@ -167,12 +168,12 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
 
       undo() {
         const e = session.undo();
-        if (e) set(s => ({ pendingLabels: [...s.pendingLabels, `撤销：${e.label}`], view: { ...s.view, highlight: e.changed }, lastChange: null }));
+        if (e) set(s => ({ pendingLabels: [...s.pendingLabels, m.store_undo_label({ label: e.label })], view: { ...s.view, highlight: e.changed }, lastChange: null }));
       },
 
       redo() {
         const e = session.redo();
-        if (e) set(s => ({ pendingLabels: [...s.pendingLabels, `重做：${e.label}`], view: { ...s.view, highlight: e.changed } }));
+        if (e) set(s => ({ pendingLabels: [...s.pendingLabels, m.store_redo_label({ label: e.label })], view: { ...s.view, highlight: e.changed } }));
       },
 
       async save(force = false) {
@@ -180,7 +181,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
         if (!s.dirty || s.saving || s.conflict || !s.canEdit()) return;
         set({ saving: true });
         const labels = s.pendingLabels;
-        const summary = (labels.length > 3 ? [...labels.slice(0, 3), `等 ${labels.length} 项`] : labels).join('；').slice(0, 200) || '保存';
+        const summary = (labels.length > 3 ? [...labels.slice(0, 3), m.store_summary_more({ count: labels.length })] : labels).join(m.store_summary_separator()).slice(0, 200) || m.store_summary_default();
         const snapshot = session.project;
         try {
           const r = await api<{ version: number }>(`/projects/${s.projectId}`, {
@@ -248,7 +249,7 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
           focus: (ids, hl) => get().focus(ids, hl),
           screenshot: async () => {
             const cap = get().capture;
-            if (!cap) throw new Error('画布还没准备好');
+            if (!cap) throw new Error(m.store_canvas_not_ready());
             return cap();
           },
         };
@@ -263,7 +264,7 @@ function commentsHost(projectId: string): CommentsHost {
   return {
     list: () => api(`/projects/${projectId}/comments`),
     async reply(parentId, body, status) {
-      await api(`/projects/${projectId}/comments`, { method: 'POST', json: { body: `【agent】${body}`, parentId } });
+      await api(`/projects/${projectId}/comments`, { method: 'POST', json: { body: m.store_agent_comment({ body }), parentId } });
       if (status) await api(`/projects/${projectId}/comments/${parentId}`, { method: 'PATCH', json: { status } });
       window.dispatchEvent(new Event('plinth:comments-changed'));
     },

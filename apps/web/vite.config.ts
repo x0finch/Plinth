@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { cloudflare } from '@cloudflare/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
+import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
@@ -15,5 +16,9 @@ export default defineConfig({
   build: { sourcemap: false },
   // Minify the Worker environment too (named after `name` in wrangler.jsonc): faster parsing on cold start
   environments: { plinth: { build: { minify: true } } },
-  plugins: [tanstackRouter({ target: 'react', autoCodeSplitting: true }), viteReact(), tailwindcss(), cloudflare()],
+  plugins: [
+    // UI text lives in messages/{locale}.json. Chinese is the base locale and the default;
+    // a choice made in the language switcher is kept in localStorage. No locale prefix in URLs.
+    paraglideVitePlugin({ project: './project.inlang', outdir: './src/paraglide', strategy: ['localStorage', 'baseLocale'] }),
+    tanstackRouter({ target: 'react', autoCodeSplitting: true }), viteReact(), tailwindcss(), cloudflare()],
 });

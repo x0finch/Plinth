@@ -6,6 +6,7 @@ import { hopCurve, hops, PROFILE } from '@/canvas/hop';
 import { useReducedMotion } from '@/canvas/HopDriver';
 import { levelShapes, polyPath } from './plan-geometry';
 import { useEditor } from './store';
+import { m } from '@/lib/i18n';
 
 const pts = (p: Point[]) => p.map(([x, y]) => `${x},${y}`).join(' ');
 
@@ -117,7 +118,7 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
           style={{ background: 'var(--background)' }}
           onClick={() => select([])}
           role="img"
-          aria-label={`${project.levels.find(l => l.id === view.level)?.name ?? ''}平面图`}
+          aria-label={m.editor_plan_aria({ level: project.levels.find(l => l.id === view.level)?.name ?? '' })}
         >
           <defs>
             <pattern id="hatch" width="200" height="200" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">

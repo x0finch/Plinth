@@ -14,11 +14,14 @@
     "fake-llm": "node e2e/fake-llm.mjs",
     "e2e": "node e2e/agent.e2e.mjs && node e2e/collab.e2e.mjs && node e2e/auth.e2e.mjs",
     "check:theme": "node scripts/check-theme.mjs",
+    "check:i18n": "node scripts/check-i18n.mjs",
+    "i18n": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --strategy localStorage baseLocale",
     "walkthrough": "node e2e/walkthrough.mjs"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.64.0",
     "@cloudflare/workers-types": "^5.20261022.1",
+    "@inlang/paraglide-js": "^2.29.1",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/router-plugin": "^1.168.47",
     "@types/polylabel": "^2.0.0",

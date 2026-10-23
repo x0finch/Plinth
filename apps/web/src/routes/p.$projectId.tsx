@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Editor } from '@/editor/Editor';
 import type { InitialProject } from '@/editor/store';
 import { api, ApiError } from '@/lib/api';
+import { m } from '@/lib/i18n';
 
 export const Route = createFileRoute('/p/$projectId')({
   validateSearch: z.object({
@@ -33,10 +34,10 @@ function ProjectPage() {
     const status = q.error instanceof ApiError ? q.error.status : 0;
     return (
       <div className="flex h-dvh flex-col items-center justify-center gap-3 px-4 text-center">
-        <p className="text-lg font-medium">{status === 401 ? '请先登录' : '打不开这个方案'}</p>
+        <p className="text-lg font-medium">{status === 401 ? m.project_page_sign_in_first() : m.project_page_cannot_open()}</p>
         <p className="text-sm text-muted-foreground">{q.error?.message}</p>
         <div className="flex gap-2">
-          {status === 401 ? <Button nativeButton={false} render={<Link to="/login" search={{ redirect: `/p/${projectId}` }} />}>登录</Button> : <Button nativeButton={false} render={<Link to="/projects" />}>回到我的方案</Button>}
+          {status === 401 ? <Button nativeButton={false} render={<Link to="/login" search={{ redirect: `/p/${projectId}` }} />}>{m.project_page_sign_in()}</Button> : <Button nativeButton={false} render={<Link to="/projects" />}>{m.project_page_back_to_projects()}</Button>}
         </div>
       </div>
     );

@@ -23,12 +23,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { registry } from '@/agent/registry';
 import type { AgentContext } from '@/agent/prompt';
 import { api, can } from '@/lib/api';
-import { AUTONOMY_ZH, getAutonomy, setAutonomy } from '@/lib/prefs';
+import { m } from '@/lib/i18n';
+import { AUTONOMIES, autonomyHint, autonomyLabel, getAutonomy, setAutonomy } from '@/lib/prefs';
 import { needsApproval, type Autonomy } from '@/agent/policy';
 import { useEditor, useEditorStore } from './store';
 
-const SUGGESTIONS = ['这个方案一共多大？每层都有哪些房间？', '老人房一扩到 12 平方米', '在主卧北墙开一扇 1.5 米宽的窗', '帮我检查一下方案有没有问题'];
-const SUGGESTIONS_BLANK = ['一家四口，两层，要三间卧室、一个书房，院子朝南', '帮我在 12×10 米的地上排一个一层的小院'];
+const SUGGESTIONS = [m.chat_suggestion_size, m.chat_suggestion_enlarge, m.chat_suggestion_window, m.chat_suggestion_check];
+const SUGGESTIONS_BLANK = [m.chat_suggestion_blank_family, m.chat_suggestion_blank_yard];
 
 /** Describe a capability call in one sentence (for the confirmation card) */
 function describeCall(name: string, args: unknown, project: Project) {
@@ -38,7 +39,7 @@ function describeCall(name: string, args: unknown, project: Project) {
       return c.label(c.input.parse(args), project);
     } catch {}
   }
-  return `${c?.title ?? name}：${JSON.stringify(args)}`;
+  return m.chat_call_fallback({ title: c?.title ?? name, args: JSON.stringify(args) });
 }
 
 /** Strip large fields useless to the model (screenshots) */
@@ -84,10 +85,10 @@ function ChangeCard() {
         <span className="font-medium">{last.label}</span>
         <div className="flex gap-1">
           <Button size="xs" variant={compare ? 'secondary' : 'ghost'} onClick={() => setCompare(!compare)}>
-            <Columns2Icon /> {compare ? '隐藏改前' : '对比改前'}
+            <Columns2Icon /> {compare ? m.chat_hide_before() : m.chat_compare_before()}
           </Button>
           <Button size="xs" variant="ghost" onClick={undo}>
-            <Undo2Icon /> 撤销
+            <Undo2Icon /> {m.chat_undo()}
           </Button>
         </div>
       </div>
@@ -95,11 +96,11 @@ function ChangeCard() {
         <ul className="mt-2 space-y-0.5 font-mono text-xs text-muted-foreground">
           {changes.map(c => (
             <li key={c.id}>
-              {c.name}：{c.before!.toFixed(1)} → <span className="text-foreground">{c.after!.toFixed(1)} m²</span>（{c.after! > c.before! ? '+' : ''}{(c.after! - c.before!).toFixed(1)}）
+              {m.chat_area_changed({ name: c.name, before: c.before!.toFixed(1) })}<span className="text-foreground">{c.after!.toFixed(1)} m²</span>{m.chat_area_delta({ delta: `${c.after! > c.before! ? '+' : ''}${(c.after! - c.before!).toFixed(1)}` })}
             </li>
           ))}
-          {added.map(c => <li key={c.id}>新增 {c.name}：{c.after!.toFixed(1)} m²</li>)}
-          {removed.map(c => <li key={c.id}>去掉 {c.name}</li>)}
+          {added.map(c => <li key={c.id}>{m.chat_area_added({ name: c.name, area: c.after!.toFixed(1) })}</li>)}
+          {removed.map(c => <li key={c.id}>{m.chat_area_removed({ name: c.name })}</li>)}
         </ul>
       )}
       {last.warnings.length > 0 && (
@@ -169,7 +170,7 @@ export function ChatPanel() {
   // Load chat history
   useEffect(() => {
     api<UIMessage[]>(`/projects/${projectId}/chat-thread`)
-      .then(m => Array.isArray(m) && m.length && setMessages(m as any))
+      .then(saved => Array.isArray(saved) && saved.length && setMessages(saved as any))
       .catch(() => {})
       .finally(() => setLoaded(true));
   }, [projectId]);
@@ -204,7 +205,7 @@ export function ChatPanel() {
     .filter(Boolean);
 
   const results = new Map<string, any>();
-  for (const m of messages) for (const p of m.parts as any[]) if (p.type === 'tool-result') results.set(p.toolCallId, p);
+  for (const msg of messages) for (const p of msg.parts as any[]) if (p.type === 'tool-result') results.set(p.toolCallId, p);
 
   const blank = project.walls.length === 0;
 
@@ -212,18 +213,18 @@ export function ChatPanel() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
         <div className="min-w-0 text-xs text-muted-foreground">
-          {model ? <span className="truncate">模型：{model.label}</span> : <span>还没有配置模型</span>}
+          {model ? <span className="truncate">{m.chat_model({ label: model.label })}</span> : <span>{m.chat_no_model()}</span>}
         </div>
         <Select value={autonomy} onValueChange={v => { setAuto(v as Autonomy); setAutonomy(v as Autonomy); }}>
-          <SelectTrigger size="sm" className="h-7 w-auto gap-1 text-xs" aria-label="agent 自主程度">
-            <SelectValue>{AUTONOMY_ZH[autonomy].label}</SelectValue>
+          <SelectTrigger size="sm" className="h-7 w-auto gap-1 text-xs" aria-label={m.chat_autonomy_aria()}>
+            <SelectValue>{autonomyLabel(autonomy)}</SelectValue>
           </SelectTrigger>
           <SelectContent align="end">
-            {(Object.keys(AUTONOMY_ZH) as Autonomy[]).map(k => (
+            {AUTONOMIES.map(k => (
               <SelectItem key={k} value={k}>
                 <div className="flex flex-col">
-                  <span>{AUTONOMY_ZH[k].label}</span>
-                  <span className="text-xs text-muted-foreground">{AUTONOMY_ZH[k].hint}</span>
+                  <span>{autonomyLabel(k)}</span>
+                  <span className="text-xs text-muted-foreground">{autonomyHint(k)}</span>
                 </div>
               </SelectItem>
             ))}
@@ -234,12 +235,12 @@ export function ChatPanel() {
       {!model && editable && (
         <Alert className="m-3 w-auto">
           <SettingsIcon />
-          <AlertTitle>先配置大模型</AlertTitle>
+          <AlertTitle>{m.chat_setup_model_title()}</AlertTitle>
           <AlertDescription>
             {role === 'owner' ? (
-              <span>大模型由你自带。到<Button variant="link" className="h-auto p-0" nativeButton={false} render={<Link to="/settings" />}>设置</Button>添加密钥，再在右上角“分享”里给这个方案选用。</span>
+              <span>{m.chat_setup_model_owner_before()}<Button variant="link" className="h-auto p-0" nativeButton={false} render={<Link to="/settings" />}>{m.chat_setup_model_owner_link()}</Button>{m.chat_setup_model_owner_after()}</span>
             ) : (
-              <span>请方案主人给这个方案配置大模型。</span>
+              <span>{m.chat_setup_model_member()}</span>
             )}
           </AlertDescription>
         </Alert>
@@ -250,11 +251,11 @@ export function ChatPanel() {
           {messages.length === 0 ? (
             <ConversationEmptyState
               icon={<SparklesIcon className="size-6" />}
-              title={blank ? '说说你想要什么样的房子' : '说说想怎么改'}
-              description={blank ? '家里几口人、要几间房、地多大、偏好什么，我来排出第一版。' : '可以先在图上点选一面墙或一个房间，再说“这面墙……”。'}
+              title={blank ? m.chat_empty_title_blank() : m.chat_empty_title()}
+              description={blank ? m.chat_empty_description_blank() : m.chat_empty_description()}
             >
               <div className="mt-3 flex flex-col gap-2">
-                {(blank ? SUGGESTIONS_BLANK : SUGGESTIONS).map(s => (
+                {(blank ? SUGGESTIONS_BLANK : SUGGESTIONS).map(suggestion => suggestion()).map(s => (
                   <Button key={s} variant="outline" size="sm" className="h-auto justify-start whitespace-normal py-1.5 text-left" disabled={!editable || !model} onClick={() => send(s)}>
                     {s}
                   </Button>
@@ -262,11 +263,11 @@ export function ChatPanel() {
               </div>
             </ConversationEmptyState>
           ) : (
-            messages.map(m => (
-              <Message key={m.id} from={m.role === 'user' ? 'user' : 'assistant'}>
+            messages.map(msg => (
+              <Message key={msg.id} from={msg.role === 'user' ? 'user' : 'assistant'}>
                 <MessageContent>
-                  {(m.parts as any[]).map((p, i) => {
-                    if (p.type === 'text') return m.role === 'user' ? <p key={i} className="whitespace-pre-wrap">{p.content}</p> : <MessageResponse key={i}>{p.content}</MessageResponse>;
+                  {(msg.parts as any[]).map((p, i) => {
+                    if (p.type === 'text') return msg.role === 'user' ? <p key={i} className="whitespace-pre-wrap">{p.content}</p> : <MessageResponse key={i}>{p.content}</MessageResponse>;
                     if (p.type === 'thinking') return (
                       <Reasoning key={i} isStreaming={isLoading}>
                         <ReasoningTrigger />
@@ -295,9 +296,9 @@ export function ChatPanel() {
             ))
           )}
           {shots.map((s, i) => (
-            <img key={i} src={s} alt="当前视图截图" className="rounded-md border" />
+            <img key={i} src={s} alt={m.chat_screenshot_alt()} className="rounded-md border" />
           ))}
-          {isLoading && <Shimmer className="text-sm">正在思考…</Shimmer>}
+          {isLoading && <Shimmer className="text-sm">{m.chat_thinking()}</Shimmer>}
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error.message}</AlertDescription>
@@ -311,12 +312,12 @@ export function ChatPanel() {
         it.kind === 'tool-approval' ? (
           <Alert key={it.id} className="mx-3 mb-2 w-auto">
             <ShieldQuestionIcon />
-            <AlertTitle>agent 想要：{registry.get(it.toolName)?.title ?? it.toolName}</AlertTitle>
+            <AlertTitle>{m.chat_approval_title({ title: registry.get(it.toolName)?.title ?? it.toolName })}</AlertTitle>
             <AlertDescription>
               <p>{describeCall(it.toolName, it.originalArgs, project)}</p>
               <div className="mt-2 flex gap-2">
-                <Button size="sm" onClick={() => it.resolveInterrupt(true)}>同意</Button>
-                <Button size="sm" variant="outline" onClick={() => it.resolveInterrupt(false)}>不要</Button>
+                <Button size="sm" onClick={() => it.resolveInterrupt(true)}>{m.chat_approve()}</Button>
+                <Button size="sm" variant="outline" onClick={() => it.resolveInterrupt(false)}>{m.chat_deny()}</Button>
               </div>
             </AlertDescription>
           </Alert>
@@ -334,7 +335,7 @@ export function ChatPanel() {
       >
         {selection.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1">
-            {selection.slice(0, 4).map(n => <Badge key={n} variant="secondary">已选：{n}</Badge>)}
+            {selection.slice(0, 4).map(n => <Badge key={n} variant="secondary">{m.chat_selected({ name: n ?? '' })}</Badge>)}
           </div>
         )}
         <InputGroup>
@@ -347,18 +348,18 @@ export function ChatPanel() {
                 send(input);
               }
             }}
-            placeholder={!editable ? (readOnly ? '正在查看历史版本' : '你只有查看权限') : !model ? '先配置大模型' : '说说想怎么改…'}
+            placeholder={!editable ? (readOnly ? m.chat_placeholder_history() : m.chat_placeholder_viewer()) : !model ? m.chat_placeholder_no_model() : m.chat_placeholder()}
             disabled={!editable || !model}
             rows={2}
             className="max-h-40"
           />
           <InputGroupAddon align="block-end" className="justify-end">
             {isLoading ? (
-              <InputGroupButton size="icon-sm" variant="secondary" onClick={() => stop()} aria-label="停止">
+              <InputGroupButton size="icon-sm" variant="secondary" onClick={() => stop()} aria-label={m.chat_stop()}>
                 <CircleStopIcon />
               </InputGroupButton>
             ) : (
-              <InputGroupButton type="submit" size="icon-sm" variant="default" disabled={!input.trim() || !editable || !model} aria-label="发送">
+              <InputGroupButton type="submit" size="icon-sm" variant="default" disabled={!input.trim() || !editable || !model} aria-label={m.chat_send()}>
                 <ArrowUpIcon />
               </InputGroupButton>
             )}

@@ -15,7 +15,8 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { api, ROLE_ZH, type Role } from '@/lib/api';
+import { api, roleLabel, type Role } from '@/lib/api';
+import { m } from '@/lib/i18n';
 import { fmtTime, useMe } from '@/lib/query';
 
 export const Route = createFileRoute('/projects')({ component: Projects });
@@ -24,7 +25,7 @@ interface Row { id: string; name: string; head_version: number; thumbnail: strin
 
 function NewProject({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const navigate = useNavigate();
-  const [name, setName] = useState('我的新房子');
+  const [name, setName] = useState<string>(() => m.projects_default_name());
   const [template, setTemplate] = useState<'blank' | 'sample'>('blank');
   const [floors, setFloors] = useState('2');
   const create = useMutation({
@@ -35,29 +36,29 @@ function NewProject({ open, onOpenChange }: { open: boolean; onOpenChange: (o: b
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>新建方案</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{m.projects_new()}</DialogTitle></DialogHeader>
         <form className="space-y-4" onSubmit={e => { e.preventDefault(); create.mutate(); }}>
-          <Field><FieldLabel htmlFor="pname">名称</FieldLabel><Input id="pname" value={name} onChange={e => setName(e.target.value)} required maxLength={60} /></Field>
+          <Field><FieldLabel htmlFor="pname">{m.projects_name()}</FieldLabel><Input id="pname" value={name} onChange={e => setName(e.target.value)} required maxLength={60} /></Field>
           <Field>
-            <FieldLabel>从哪开始</FieldLabel>
+            <FieldLabel>{m.projects_start_from()}</FieldLabel>
             <Select value={template} onValueChange={v => setTemplate(v as 'blank' | 'sample')}>
-              <SelectTrigger className="w-full"><SelectValue>{template === 'blank' ? '空白：和 agent 从一句需求开始' : '样例：乌石合院（三层带院子）'}</SelectValue></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue>{template === 'blank' ? m.projects_template_blank() : m.projects_template_sample()}</SelectValue></SelectTrigger>
               <SelectContent>
-                <SelectItem value="blank">空白：和 agent 从一句需求开始</SelectItem>
-                <SelectItem value="sample">样例：乌石合院（三层带院子）</SelectItem>
+                <SelectItem value="blank">{m.projects_template_blank()}</SelectItem>
+                <SelectItem value="sample">{m.projects_template_sample()}</SelectItem>
               </SelectContent>
             </Select>
           </Field>
           {template === 'blank' && (
             <Field>
-              <FieldLabel>楼层数</FieldLabel>
+              <FieldLabel>{m.projects_floors()}</FieldLabel>
               <Select value={floors} onValueChange={v => setFloors(v as string)}>
-                <SelectTrigger className="w-full"><SelectValue>{floors} 层</SelectValue></SelectTrigger>
-                <SelectContent>{['1', '2', '3', '4'].map(n => <SelectItem key={n} value={n}>{n} 层</SelectItem>)}</SelectContent>
+                <SelectTrigger className="w-full"><SelectValue>{m.projects_floor_count({ n: floors })}</SelectValue></SelectTrigger>
+                <SelectContent>{['1', '2', '3', '4'].map(n => <SelectItem key={n} value={n}>{m.projects_floor_count({ n })}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
           )}
-          <DialogFooter><Button type="submit" disabled={create.isPending || !name.trim()}>{create.isPending && <LoaderIcon className="animate-spin" />}创建</Button></DialogFooter>
+          <DialogFooter><Button type="submit" disabled={create.isPending || !name.trim()}>{create.isPending && <LoaderIcon className="animate-spin" />}{m.projects_create()}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
@@ -101,13 +102,13 @@ function Projects() {
         {user?.isAnonymous && (
           <Item variant="outline" className="mb-6">
             <ItemMedia variant="icon"><UserIcon /></ItemMedia>
-            <ItemContent><ItemDescription className="text-foreground">你正在以访客身份试用。登录后这些方案会转到你的账号，换设备也能打开。</ItemDescription></ItemContent>
-            <ItemActions><Button size="sm" nativeButton={false} render={<Link to="/login" search={{ redirect: '/projects' }} />}>登录保存</Button></ItemActions>
+            <ItemContent><ItemDescription className="text-foreground">{m.projects_guest_notice()}</ItemDescription></ItemContent>
+            <ItemActions><Button size="sm" nativeButton={false} render={<Link to="/login" search={{ redirect: '/projects' }} />}>{m.projects_sign_in_to_save()}</Button></ItemActions>
           </Item>
         )}
         <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">我的方案</h1>
-          <Button size="sm" onClick={() => setCreating(true)}><PlusIcon /> 新建方案</Button>
+          <h1 className="text-xl font-semibold">{m.projects_title()}</h1>
+          <Button size="sm" onClick={() => setCreating(true)}><PlusIcon /> {m.projects_new()}</Button>
         </div>
         {list.isLoading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map(i => <Skeleton key={i} className="h-52" />)}</div>
@@ -115,10 +116,10 @@ function Projects() {
           <Empty className="border">
             <EmptyHeader>
               <EmptyMedia variant="icon"><HouseIcon /></EmptyMedia>
-              <EmptyTitle>还没有方案</EmptyTitle>
-              <EmptyDescription>新建一个空白方案，和 agent 从一句需求开始；或者先打开样例看看。</EmptyDescription>
+              <EmptyTitle>{m.projects_empty_title()}</EmptyTitle>
+              <EmptyDescription>{m.projects_empty_description()}</EmptyDescription>
             </EmptyHeader>
-            <EmptyContent><Button onClick={() => setCreating(true)}><PlusIcon /> 新建方案</Button></EmptyContent>
+            <EmptyContent><Button onClick={() => setCreating(true)}><PlusIcon /> {m.projects_new()}</Button></EmptyContent>
           </Empty>
         ) : (
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -130,17 +131,17 @@ function Projects() {
                   </div>
                   <CardHeader className="border-t px-3 py-2">
                     <CardTitle className="truncate text-sm">{r.name}</CardTitle>
-                    <CardDescription className="text-xs">{r.role === 'owner' ? '我的' : `${r.owner_name || '别人'}分享 · ${ROLE_ZH[r.role]}`} · 第 {r.head_version} 版 · {fmtTime(r.updated_at)}</CardDescription>
+                    <CardDescription className="text-xs">{r.role === 'owner' ? m.projects_mine() : m.projects_shared_by({ owner: r.owner_name || m.projects_someone(), role: roleLabel(r.role) })} · {m.projects_version({ version: r.head_version })} · {fmtTime(r.updated_at)}</CardDescription>
                   </CardHeader>
                 </Link>
                 <DropdownMenu>
-                  <DropdownMenuTrigger render={<Button variant="secondary" size="icon-sm" className="absolute top-2 right-2" aria-label="更多" />}><EllipsisIcon /></DropdownMenuTrigger>
+                  <DropdownMenuTrigger render={<Button variant="secondary" size="icon-sm" className="absolute top-2 right-2" aria-label={m.projects_more()} />}><EllipsisIcon /></DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    {r.role !== 'viewer' && r.role !== 'commenter' && <DropdownMenuItem onClick={() => { setNewName(r.name); setRenaming(r); }}>重命名</DropdownMenuItem>}
+                    {r.role !== 'viewer' && r.role !== 'commenter' && <DropdownMenuItem onClick={() => { setNewName(r.name); setRenaming(r); }}>{m.projects_rename()}</DropdownMenuItem>}
                     {r.role === 'owner' ? (
-                      <DropdownMenuItem variant="destructive" onClick={() => setDeleting(r)}>删除</DropdownMenuItem>
+                      <DropdownMenuItem variant="destructive" onClick={() => setDeleting(r)}>{m.projects_delete()}</DropdownMenuItem>
                     ) : (
-                      <DropdownMenuItem onClick={() => leave.mutate(r)}>退出这个方案</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => leave.mutate(r)}>{m.projects_leave()}</DropdownMenuItem>
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -153,22 +154,22 @@ function Projects() {
       <NewProject open={creating} onOpenChange={setCreating} />
       <Dialog open={!!renaming} onOpenChange={o => !o && setRenaming(null)}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>重命名</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{m.projects_rename()}</DialogTitle></DialogHeader>
           <form onSubmit={e => { e.preventDefault(); renaming && rename.mutate(renaming); }} className="space-y-4">
             <Input value={newName} onChange={e => setNewName(e.target.value)} maxLength={60} required autoFocus />
-            <DialogFooter><Button type="submit" disabled={rename.isPending}>保存</Button></DialogFooter>
+            <DialogFooter><Button type="submit" disabled={rename.isPending}>{m.projects_save()}</Button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
       <AlertDialog open={!!deleting} onOpenChange={o => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除“{deleting?.name}”？</AlertDialogTitle>
-            <AlertDialogDescription>方案和它的所有版本、评论、对话都会删除，分享出去的链接也会失效。这个操作不能撤销。</AlertDialogDescription>
+            <AlertDialogTitle>{m.projects_delete_title({ name: deleting?.name ?? '' })}</AlertDialogTitle>
+            <AlertDialogDescription>{m.projects_delete_description()}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => deleting && del.mutate(deleting)}>删除</AlertDialogAction>
+            <AlertDialogCancel>{m.projects_cancel()}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => deleting && del.mutate(deleting)}>{m.projects_delete()}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

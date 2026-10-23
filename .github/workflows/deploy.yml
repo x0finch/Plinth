@@ -27,6 +27,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run check:theme -w @plinth/web
+      - run: npm run check:i18n -w @plinth/web
       # The build generates the route tree routeTree.gen.ts (not committed); the web typecheck must run after it
       - run: npm run build -w @plinth/web
       - run: npx tsc --noEmit -p apps/web

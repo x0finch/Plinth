@@ -5,6 +5,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import css from './canvas.css?inline';
+import { m } from '@/lib/i18n';
 
 const CanvasDoc = createContext<Document | null>(null);
 
@@ -47,7 +48,7 @@ export function CanvasFrame({ children, className }: { children: ReactNode; clas
   }, [doc, css]);
 
   return (
-    <iframe ref={ref} title="画布" srcDoc="<!doctype html><html><head><meta charset='utf-8'></head><body></body></html>"
+    <iframe ref={ref} title={m.editor_canvas()} srcDoc="<!doctype html><html><head><meta charset='utf-8'></head><body></body></html>"
       onLoad={mount} className={className}>
       {doc && createPortal(<CanvasDoc.Provider value={doc}>{children}</CanvasDoc.Provider>, doc.body)}
     </iframe>

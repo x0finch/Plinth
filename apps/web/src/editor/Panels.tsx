@@ -17,13 +17,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { registry } from '@/agent/registry';
 import { api, can } from '@/lib/api';
 import { fmtArea, fmtTime } from '@/lib/query';
+import { m } from '@/lib/i18n';
 import { useEditor, useEditorStore } from './store';
 
-const KIND_ZH: Record<string, string> = {
-  bearing: '承重墙', partition: '隔墙', fence: '围墙', parapet: '女儿墙', railing: '栏杆',
-  indoor: '室内', 'semi-outdoor': '半室外', outdoor: '室外', 'roof-terrace': '屋顶平台', void: '通高',
-  door: '门', 'sliding-door': '推拉门', gate: '大门', window: '窗', opening: '洞口',
+const KIND_LABEL: Record<string, () => string> = {
+  bearing: m.panels_kind_bearing, partition: m.panels_kind_partition, fence: m.panels_kind_fence, parapet: m.panels_kind_parapet, railing: m.panels_kind_railing,
+  indoor: m.panels_kind_indoor, 'semi-outdoor': m.panels_kind_semi_outdoor, outdoor: m.panels_kind_outdoor, 'roof-terrace': m.panels_kind_roof_terrace, void: m.panels_kind_void,
+  door: m.panels_kind_door, 'sliding-door': m.panels_kind_sliding_door, gate: m.panels_kind_gate, window: m.panels_kind_window, opening: m.panels_kind_opening,
 };
+const kindLabel = (k: string) => KIND_LABEL[k]?.() ?? k;
+
+const TYPE_LABEL: Record<string, () => string> = { space: m.panels_type_space, wall: m.panels_type_wall, opening: m.panels_type_opening, furniture: m.panels_type_furniture };
 
 function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
@@ -60,20 +64,20 @@ export function PropsPanel() {
 
   const run = async (n: string, input: unknown) => {
     const r = await call(n, input);
-    if (!r.ok) toast.error(r.error?.message ?? '操作失败');
+    if (!r.ok) toast.error(r.error?.message ?? m.panels_action_failed());
     return r;
   };
 
   if (!data) {
     return (
       <div className="space-y-4 p-4 text-sm">
-        <p className="text-muted-foreground">在图上点选一面墙、一个房间、一扇门窗或一件家具，查看它的信息。按住 Shift 可以多选。</p>
+        <p className="text-muted-foreground">{m.panels_props_empty_hint()}</p>
         <ConstraintsList />
         <Separator />
         <div>
-          <p className="mb-2 font-medium">本层检查</p>
+          <p className="mb-2 font-medium">{m.panels_level_check()}</p>
           {levelIssues.length === 0 ? (
-            <p className="flex items-center gap-1.5 text-muted-foreground"><CheckIcon className="size-4" /> 没有发现问题</p>
+            <p className="flex items-center gap-1.5 text-muted-foreground"><CheckIcon className="size-4" /> {m.panels_no_issues()}</p>
           ) : (
             <ItemGroup className="gap-1">
               {levelIssues.map((i, k) => (
@@ -93,7 +97,7 @@ export function PropsPanel() {
   return (
     <div className="space-y-3 p-4">
       <div>
-        <p className="text-xs text-muted-foreground">{t === 'space' ? '空间' : t === 'wall' ? '墙' : t === 'opening' ? '门窗' : t === 'furniture' ? '家具' : t}</p>
+        <p className="text-xs text-muted-foreground">{TYPE_LABEL[t]?.() ?? t}</p>
         {canEdit && (t === 'space' || t === 'wall') ? (
           <Input
             className="mt-1 h-8 font-medium"
@@ -104,7 +108,7 @@ export function PropsPanel() {
               setName(null);
             }}
             onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-            aria-label="名称"
+            aria-label={m.panels_name()}
           />
         ) : (
           <h3 className="text-base font-medium">{data.name}</h3>
@@ -113,71 +117,75 @@ export function PropsPanel() {
       {t === 'space' && (
         <div>
           <p className="text-lg font-medium">{fmtArea(data.netArea)}</p>
-          <Row k="类型" v={KIND_ZH[data.kind]} />
-          <Row k="开间 × 进深" v={`${(data.bounds.width / 1000).toFixed(2)} × ${(data.bounds.depth / 1000).toFixed(2)} m`} />
-          <Row k="地面" v={project.library.materials[data.floor]?.name ?? data.floor} />
+          <Row k={m.panels_row_kind()} v={kindLabel(data.kind)} />
+          <Row k={m.panels_row_bay_depth()} v={`${(data.bounds.width / 1000).toFixed(2)} × ${(data.bounds.depth / 1000).toFixed(2)} m`} />
+          <Row k={m.panels_row_floor()} v={project.library.materials[data.floor]?.name ?? data.floor} />
           <Separator className="my-2" />
-          <p className="mb-1 text-xs text-muted-foreground">四周</p>
+          <p className="mb-1 text-xs text-muted-foreground">{m.panels_surroundings()}</p>
           <ItemGroup className="gap-0">
             {data.walls.map((w: any) => (
               <Item key={w.id} size="xs" render={<button type="button" />} onClick={() => store.getState().select([w.id])} className="cursor-pointer hover:bg-muted">
                 <ItemContent><ItemTitle>{w.direction} · {w.name}</ItemTitle></ItemContent>
-                {w.openings.length > 0 && <ItemActions className="text-xs text-muted-foreground">{w.openings.length} 个门窗</ItemActions>}
+                {w.openings.length > 0 && <ItemActions className="text-xs text-muted-foreground">{m.panels_openings_count({ count: w.openings.length })}</ItemActions>}
               </Item>
             ))}
           </ItemGroup>
           {data.neighbors.length > 0 && (
             <>
-              <p className="mt-2 mb-1 text-xs text-muted-foreground">相邻</p>
-              <p className="text-sm">{data.neighbors.map((n: any) => n.name).join('、')}</p>
+              <p className="mt-2 mb-1 text-xs text-muted-foreground">{m.panels_neighbors()}</p>
+              <p className="text-sm">{data.neighbors.map((n: any) => n.name).join(m.panels_list_separator())}</p>
             </>
           )}
         </div>
       )}
       {t === 'wall' && (
         <div>
-          <Row k="类型" v={KIND_ZH[data.kind]} />
-          <Row k="长度" v={`${(data.length / 1000).toFixed(2)} m`} />
-          <Row k="厚度" v={`${data.thickness} mm`} />
-          <Row k="两侧" v={data.spaces.map((s: any) => s.space).join(' / ') || '—'} />
-          {data.openings.length > 0 && <Row k="门窗" v={data.openings.map((o: any) => KIND_ZH[o.kind]).join('、')} />}
-          {data.kind === 'bearing' && <p className="mt-2 text-xs text-muted-foreground">承重墙：改动需专业人员复核</p>}
+          <Row k={m.panels_row_kind()} v={kindLabel(data.kind)} />
+          <Row k={m.panels_row_length()} v={`${(data.length / 1000).toFixed(2)} m`} />
+          <Row k={m.panels_row_thickness()} v={`${data.thickness} mm`} />
+          <Row k={m.panels_row_sides()} v={data.spaces.map((s: any) => s.space).join(' / ') || '—'} />
+          {data.openings.length > 0 && <Row k={m.panels_row_openings()} v={data.openings.map((o: any) => kindLabel(o.kind)).join(m.panels_list_separator())} />}
+          {data.kind === 'bearing' && <p className="mt-2 text-xs text-muted-foreground">{m.panels_bearing_note()}</p>}
         </div>
       )}
       {t === 'opening' && (
         <div>
-          <Row k="类型" v={KIND_ZH[data.kind]} />
-          <Row k="宽 × 高" v={`${data.width} × ${data.height} mm`} />
-          {data.sill > 0 && <Row k="窗台高" v={`${data.sill} mm`} />}
-          <Row k="所在墙" v={data.wall.name} />
-          <Row k="连通" v={data.connects.map((s: any) => s.name).join(' ↔ ') || '—'} />
+          <Row k={m.panels_row_kind()} v={kindLabel(data.kind)} />
+          <Row k={m.panels_row_width_height()} v={`${data.width} × ${data.height} mm`} />
+          {data.sill > 0 && <Row k={m.panels_row_sill()} v={`${data.sill} mm`} />}
+          <Row k={m.panels_row_host_wall()} v={data.wall.name} />
+          <Row k={m.panels_row_connects()} v={data.connects.map((s: any) => s.name).join(' ↔ ') || '—'} />
         </div>
       )}
       {t === 'furniture' && (
         <div>
-          <Row k="类别" v={data.label ?? data.type} />
-          <Row k="尺寸" v={`${data.size.w} × ${data.size.d} × ${data.size.h} mm`} />
-          <Row k="旋转" v={`${data.rotation}°`} />
+          <Row k={m.panels_row_category()} v={data.label ?? data.type} />
+          <Row k={m.panels_row_size()} v={`${data.size.w} × ${data.size.d} × ${data.size.h} mm`} />
+          <Row k={m.panels_row_rotation()} v={`${data.rotation}°`} />
         </div>
       )}
       {canEdit && (
         <div className="flex flex-wrap gap-2 pt-1">
           {t === 'furniture' && (
             <>
-              <Button size="sm" variant="outline" onClick={() => run('furniture_move', { furniture: data.id, rotation: (data.rotation + 90) % 360 })}>旋转 90°</Button>
-              <Button size="sm" variant="outline" onClick={() => run('furniture_remove', { furniture: data.id })}><Trash2Icon /> 移走</Button>
+              <Button size="sm" variant="outline" onClick={() => run('furniture_move', { furniture: data.id, rotation: (data.rotation + 90) % 360 })}>{m.panels_rotate_90()}</Button>
+              <Button size="sm" variant="outline" onClick={() => run('furniture_remove', { furniture: data.id })}><Trash2Icon /> {m.panels_remove_furniture()}</Button>
             </>
           )}
-          {t === 'opening' && <Button size="sm" variant="outline" onClick={() => run('opening_remove', { opening: data.id })}><Trash2Icon /> 封掉</Button>}
-          {t === 'wall' && data.kind !== 'bearing' && <Button size="sm" variant="outline" onClick={() => run('wall_remove', { wall: data.id })}><Trash2Icon /> 拆除</Button>}
-          {t === 'space' && <Button size="sm" variant="outline" onClick={() => run('space_remove', { space: data.id })}><Trash2Icon /> 删除空间</Button>}
+          {t === 'opening' && <Button size="sm" variant="outline" onClick={() => run('opening_remove', { opening: data.id })}><Trash2Icon /> {m.panels_remove_opening()}</Button>}
+          {t === 'wall' && data.kind !== 'bearing' && <Button size="sm" variant="outline" onClick={() => run('wall_remove', { wall: data.id })}><Trash2Icon /> {m.panels_remove_wall()}</Button>}
+          {t === 'space' && <Button size="sm" variant="outline" onClick={() => run('space_remove', { space: data.id })}><Trash2Icon /> {m.panels_remove_space()}</Button>}
         </div>
       )}
     </div>
   );
 }
 
-const CONSTRAINT_ZH: Record<string, string> = { align: '对齐', center: '居中', spacing: '间距', 'size-target': '面积目标', reference: '引用', rule: '规则' };
+const CONSTRAINT_LABEL: Record<string, () => string> = {
+  align: m.panels_constraint_align, center: m.panels_constraint_center, spacing: m.panels_constraint_spacing,
+  'size-target': m.panels_constraint_size_target, reference: m.panels_constraint_reference, rule: m.panels_constraint_rule,
+};
+const constraintLabel = (t: string) => CONSTRAINT_LABEL[t]?.() ?? t;
 
 function ConstraintsList() {
   const project = useEditor(s => s.project);
@@ -190,8 +198,8 @@ function ConstraintsList() {
     <>
       <Separator />
       <div>
-        <p className="mb-2 font-medium">约束</p>
-        <p className="mb-2 text-xs text-muted-foreground">你说过的相对关系，改别处时会自动保持。</p>
+        <p className="mb-2 font-medium">{m.panels_constraints_title()}</p>
+        <p className="mb-2 text-xs text-muted-foreground">{m.panels_constraints_hint()}</p>
         <ItemGroup className="gap-1">
           {project.constraints.map(c => {
             const st = status.get(c.id);
@@ -199,10 +207,10 @@ function ConstraintsList() {
               <Item key={c.id} size="xs" variant="outline">
                 {!st?.ok && <ItemMedia variant="icon"><TriangleAlertIcon className="text-chart-1" /></ItemMedia>}
                 <ItemContent className="cursor-pointer" onClick={() => focus(c.targets)}>
-                  <ItemTitle>{c.note ?? st?.message ?? CONSTRAINT_ZH[c.type]}</ItemTitle>
-                  <ItemDescription>{CONSTRAINT_ZH[c.type]}{c.hard ? ' · 必须' : ''}{st?.ok ? '' : ' · 未满足'}</ItemDescription>
+                  <ItemTitle>{c.note ?? st?.message ?? constraintLabel(c.type)}</ItemTitle>
+                  <ItemDescription>{constraintLabel(c.type)}{c.hard ? m.panels_constraint_hard() : ''}{st?.ok ? '' : m.panels_constraint_unmet()}</ItemDescription>
                 </ItemContent>
-                {canEdit && <ItemActions><Button size="icon-xs" variant="ghost" aria-label="删除约束" onClick={() => call('constraint_remove', { constraint: c.id })}><Trash2Icon /></Button></ItemActions>}
+                {canEdit && <ItemActions><Button size="icon-xs" variant="ghost" aria-label={m.panels_constraint_remove()} onClick={() => call('constraint_remove', { constraint: c.id })}><Trash2Icon /></Button></ItemActions>}
               </Item>
             );
           })}
@@ -219,7 +227,7 @@ export function AreasPanel() {
   return (
     <div className="space-y-4 p-4">
       <div>
-        <p className="text-xs text-muted-foreground">合计建筑面积</p>
+        <p className="text-xs text-muted-foreground">{m.panels_total_gross()}</p>
         <p className="text-2xl font-medium">{fmtArea(report.totalGross)}</p>
       </div>
       {report.levels.filter(l => l.spaces.length).map(l => {
@@ -228,13 +236,13 @@ export function AreasPanel() {
           <div key={l.id}>
             <div className="flex items-baseline justify-between">
               <p className="font-medium">{l.name}</p>
-              <p className="text-xs text-muted-foreground">建筑 {fmtArea(l.gross)} · 室内使用 {fmtArea(inner)}</p>
+              <p className="text-xs text-muted-foreground">{m.panels_level_summary({ gross: fmtArea(l.gross), inner: fmtArea(inner) })}</p>
             </div>
             <Table className="mt-1">
               <TableBody>
                 {l.spaces.map(s => (
                   <TableRow key={s.id} className="cursor-pointer" onClick={() => focus([s.id])}>
-                    <TableCell className="py-1.5">{s.name}{s.kind !== 'indoor' && <span className="text-muted-foreground">（{KIND_ZH[s.kind]}）</span>}</TableCell>
+                    <TableCell className="py-1.5">{s.name}{s.kind !== 'indoor' && <span className="text-muted-foreground">{m.panels_area_kind_suffix({ kind: kindLabel(s.kind) })}</span>}</TableCell>
                     <TableCell className="py-1.5 text-right font-mono">{s.net.toFixed(1)}</TableCell>
                   </TableRow>
                 ))}
@@ -243,7 +251,7 @@ export function AreasPanel() {
           </div>
         );
       })}
-      <p className="text-xs text-muted-foreground">使用面积按墙内净尺寸计算；建筑面积量到外墙外皮，不含檐廊、露台和屋顶平台。</p>
+      <p className="text-xs text-muted-foreground">{m.panels_area_note()}</p>
     </div>
   );
 }
@@ -285,13 +293,13 @@ export function CommentsPanel({ onAskAgent }: { onAskAgent?: (text: string) => v
   const roots = data.filter(c => !c.parent_id);
   const open = roots.filter(c => c.status !== 'resolved');
   const done = roots.filter(c => c.status === 'resolved');
-  const STATUS: Record<CommentRow['status'], string> = { open: '待处理', 'pending-confirm': '待业主确认', resolved: '已解决' };
+  const STATUS: Record<CommentRow['status'], () => string> = { open: m.panels_status_open, 'pending-confirm': m.panels_status_pending_confirm, resolved: m.panels_status_resolved };
 
   const Thread = ({ c }: { c: CommentRow }) => (
     <Card size="sm" className="gap-1 px-3 text-sm">
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>{c.author ?? '某人'} · {fmtTime(c.created_at)}</span>
-        <Badge variant={c.status === 'pending-confirm' ? 'default' : 'secondary'}>{STATUS[c.status]}</Badge>
+        <span>{c.author ?? m.panels_someone()} · {fmtTime(c.created_at)}</span>
+        <Badge variant={c.status === 'pending-confirm' ? 'default' : 'secondary'}>{STATUS[c.status]()}</Badge>
       </div>
       {c.target_name && (
         <Button variant="link" size="xs" className="h-auto justify-start p-0 text-foreground" onClick={() => c.target_id && focus([c.target_id])}>@{c.target_name}</Button>
@@ -299,17 +307,17 @@ export function CommentsPanel({ onAskAgent }: { onAskAgent?: (text: string) => v
       <p className="mt-1 whitespace-pre-wrap">{c.body}</p>
       {data.filter(r => r.parent_id === c.id).map(r => (
         <div key={r.id} className="mt-2 border-l-2 pl-2 text-sm">
-          <p className="text-xs text-muted-foreground">{r.author ?? '某人'} · {fmtTime(r.created_at)}</p>
+          <p className="text-xs text-muted-foreground">{r.author ?? m.panels_someone()} · {fmtTime(r.created_at)}</p>
           <p className="whitespace-pre-wrap">{r.body}</p>
         </div>
       ))}
       {can(role, 'commenter') && (
         <div className="mt-2 flex flex-wrap gap-1">
-          {c.status !== 'resolved' && <Button size="xs" variant="ghost" onClick={() => setStatus.mutate({ id: c.id, status: 'resolved' })}><CheckIcon /> 解决</Button>}
-          {c.status === 'resolved' && <Button size="xs" variant="ghost" onClick={() => setStatus.mutate({ id: c.id, status: 'open' })}>重新打开</Button>}
+          {c.status !== 'resolved' && <Button size="xs" variant="ghost" onClick={() => setStatus.mutate({ id: c.id, status: 'resolved' })}><CheckIcon /> {m.panels_resolve()}</Button>}
+          {c.status === 'resolved' && <Button size="xs" variant="ghost" onClick={() => setStatus.mutate({ id: c.id, status: 'open' })}>{m.panels_reopen()}</Button>}
           {can(role, 'editor') && c.status !== 'resolved' && onAskAgent && (
-            <Button size="xs" variant="ghost" onClick={() => onAskAgent(`请处理这条评论${c.target_name ? `（关于“${c.target_name}”）` : ''}：“${c.body}”。能直接改就改；需要业主拍板的，说明选项。评论 ID：${c.id}`)}>
-              交给 agent
+            <Button size="xs" variant="ghost" onClick={() => onAskAgent(m.panels_ask_agent_prompt({ about: c.target_name ? m.panels_ask_agent_about({ name: c.target_name }) : '', body: c.body, id: c.id }))}>
+              {m.panels_ask_agent()}
             </Button>
           )}
         </div>
@@ -324,23 +332,23 @@ export function CommentsPanel({ onAskAgent }: { onAskAgent?: (text: string) => v
           <Empty className="border-0">
             <EmptyHeader>
               <EmptyMedia variant="icon"><MessageSquareIcon /></EmptyMedia>
-              <EmptyTitle>还没有评论</EmptyTitle>
-              <EmptyDescription>选中图上的对象再写评论，评论会挂在它上面（比如“厨房东墙：窗再高点”）。</EmptyDescription>
+              <EmptyTitle>{m.panels_no_comments()}</EmptyTitle>
+              <EmptyDescription>{m.panels_no_comments_hint()}</EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
           <div className="space-y-2">
             {open.map(c => <Thread key={c.id} c={c} />)}
-            {done.length > 0 && <p className="pt-2 text-xs text-muted-foreground">已解决（{done.length}）</p>}
+            {done.length > 0 && <p className="pt-2 text-xs text-muted-foreground">{m.panels_resolved_count({ count: done.length })}</p>}
             {done.map(c => <Thread key={c.id} c={c} />)}
           </div>
         )}
       </div>
       {can(role, 'commenter') && (
         <form className="space-y-2 border-t p-3" onSubmit={e => { e.preventDefault(); if (text.trim()) add.mutate({ body: text.trim() }); }}>
-          <p className="text-xs text-muted-foreground">{targetName ? `评论：${targetName}` : '对整个方案评论（先在图上选中对象，可挂到对象上）'}</p>
-          <Textarea value={text} onChange={e => setText(e.target.value)} rows={2} placeholder="写评论…" />
-          <Button size="sm" type="submit" disabled={!text.trim() || add.isPending}>发表</Button>
+          <p className="text-xs text-muted-foreground">{targetName ? m.panels_comment_on({ name: targetName }) : m.panels_comment_on_project()}</p>
+          <Textarea value={text} onChange={e => setText(e.target.value)} rows={2} placeholder={m.panels_comment_placeholder()} />
+          <Button size="sm" type="submit" disabled={!text.trim() || add.isPending}>{m.panels_comment_submit()}</Button>
         </form>
       )}
     </div>
@@ -364,9 +372,9 @@ export function VersionsPanel() {
     await loadVersion(null);
     const s = store.getState();
     s.session.load(r.content);
-    store.setState({ dirty: true, pendingLabels: [`回退到第 ${v} 版`] });
+    store.setState({ dirty: true, pendingLabels: [m.panels_restore_label({ version: v })] });
     await s.save();
-    toast.success(`已回退到第 ${v} 版（存为新版本，之前的版本都还在）`);
+    toast.success(m.panels_restored({ version: v }));
   };
 
   return (
@@ -374,11 +382,11 @@ export function VersionsPanel() {
       {viewing != null && (
         <Alert className="mb-3">
           <EyeIcon />
-          <AlertTitle>正在查看第 {viewing} 版（只读）</AlertTitle>
+          <AlertTitle>{m.panels_viewing_version({ version: viewing })}</AlertTitle>
           <AlertDescription>
             <div className="mt-1 flex gap-2">
-              {canEdit && <Button size="sm" onClick={() => restore(viewing)}>回退到这一版</Button>}
-              <Button size="sm" variant="outline" onClick={() => loadVersion(null)}>回到最新</Button>
+              {canEdit && <Button size="sm" onClick={() => restore(viewing)}>{m.panels_restore_this()}</Button>}
+              <Button size="sm" variant="outline" onClick={() => loadVersion(null)}>{m.panels_back_to_latest()}</Button>
             </div>
           </AlertDescription>
         </Alert>
@@ -395,8 +403,8 @@ export function VersionsPanel() {
           >
             <ItemMedia variant="icon"><HistoryIcon className="text-muted-foreground" /></ItemMedia>
             <ItemContent className="min-w-0">
-              <ItemTitle className="w-full truncate">{v.summary ?? '保存'}</ItemTitle>
-              <ItemDescription>第 {v.version} 版 · {v.author || '某人'} · {fmtTime(v.created_at)}{v.version === version ? ' · 最新' : ''}</ItemDescription>
+              <ItemTitle className="w-full truncate">{v.summary ?? m.panels_version_default_summary()}</ItemTitle>
+              <ItemDescription>{m.panels_version_number({ version: v.version })} · {v.author || m.panels_someone()} · {fmtTime(v.created_at)}{v.version === version ? m.panels_version_latest() : ''}</ItemDescription>
             </ItemContent>
           </Item>
         ))}

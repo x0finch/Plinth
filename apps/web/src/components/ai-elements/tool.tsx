@@ -6,6 +6,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { m } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
 import {
@@ -47,14 +48,14 @@ export type ToolHeaderProps = {
     }
 );
 
-const statusLabels: Record<ToolPart["state"], string> = {
-  "approval-requested": "等你确认",
-  "approval-responded": "已回复",
-  "input-available": "进行中",
-  "input-streaming": "准备中",
-  "output-available": "完成",
-  "output-denied": "已拒绝",
-  "output-error": "失败",
+const statusLabels: Record<ToolPart["state"], () => string> = {
+  "approval-requested": m.tool_status_approval_requested,
+  "approval-responded": m.tool_status_approval_responded,
+  "input-available": m.tool_status_input_available,
+  "input-streaming": m.tool_status_input_streaming,
+  "output-available": m.tool_status_output_available,
+  "output-denied": m.tool_status_output_denied,
+  "output-error": m.tool_status_output_error,
 };
 
 const statusIcons: Record<ToolPart["state"], ReactNode> = {
@@ -70,7 +71,7 @@ const statusIcons: Record<ToolPart["state"], ReactNode> = {
 export const getStatusBadge = (status: ToolPart["state"]) => (
   <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
     {statusIcons[status]}
-    {statusLabels[status]}
+    {statusLabels[status]()}
   </Badge>
 );
 
@@ -122,7 +123,7 @@ export type ToolInputProps = ComponentProps<"div"> & {
 export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
   <div className={cn("space-y-2 overflow-hidden", className)} {...props}>
     <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-      输入
+      {m.tool_input()}
     </h4>
     <div className="rounded-md bg-muted/50">
       <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
@@ -158,7 +159,7 @@ export const ToolOutput = ({
   return (
     <div className={cn("space-y-2", className)} {...props}>
       <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        {errorText ? "出错" : "结果"}
+        {errorText ? m.tool_error() : m.tool_result()}
       </h4>
       <div
         className={cn(
