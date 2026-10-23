@@ -1,5 +1,6 @@
 # Check + deploy to Cloudflare Workers
-# - Pull requests and pushes: typecheck, core and web unit tests, theme color check, build; API permission matrix against a local Worker
+# - Pull requests and pushes, in parallel: core (typecheck + tests), lint (theme + i18n checks), web (build + typecheck + unit tests),
+#   api (permission matrix against a local Worker)
 # - Pushes to main: after checks pass, migrate the production D1, deploy, sync Worker secrets
 # Configure under the repo's Settings → Secrets and variables → Actions; see "Deployment" in the README
 name: deploy
@@ -15,8 +16,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  check:
+  # Independent checks run as parallel jobs so wall-clock time is the slowest job, not the sum
+  core:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -26,8 +29,29 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      # Both checks are plain node:fs scripts, so no dependency install is needed
       - run: npm run check:theme -w @plinth/web
       - run: npm run check:i18n -w @plinth/web
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
       # The build generates the route tree routeTree.gen.ts (not committed); the web typecheck must run after it
       - run: npm run build -w @plinth/web
       - run: npx tsc --noEmit -p apps/web
@@ -62,7 +86,8 @@ jobs:
         run: cat dev.log
 
   deploy:
-    needs: [check, api]
+    needs: [core, lint, web, api]
+    timeout-minutes: 20
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production

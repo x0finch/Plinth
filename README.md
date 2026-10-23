@@ -44,7 +44,7 @@ DEV_LOG=dev.log npm run e2e            # end to end: permissions, agent chat, ap
 ## Deployment (Cloudflare Workers free plan, via GitHub Actions)
 
 `.github/workflows/deploy.yml`:
-- Pull requests and pushes: typecheck, core tests, theme color check, build.
+- Pull requests and pushes: three parallel jobs — `core` (typecheck + tests), `lint` (theme color and i18n checks), `web` (build + typecheck).
 - Pushes to `main`: after the checks pass, migrate the remote D1 database → deploy → sync the secrets below to the Worker. Until the Cloudflare secrets are set, the deploy job is skipped with a warning.
 
 The D1 database `plinth` already exists (its ID is in `apps/web/wrangler.jsonc`); the token must belong to the same Cloudflare account.
