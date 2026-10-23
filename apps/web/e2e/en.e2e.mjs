@@ -1,5 +1,5 @@
 // E2E: English UI smoke test → landing page in English → sample design → Plan/3D switch on the canvas → pick in 3D → select a room in the canvas
-// → properties tab shows its area → Settings shows English selected → a blank design gets English level names
+// → properties tab shows its area → Settings shows English selected → the style gallery → a blank design gets English level names
 import { chromium } from 'playwright';
 
 const BASE = process.env.BASE ?? 'http://localhost:3000';
@@ -73,6 +73,16 @@ const langSection = page.locator('section', { has: page.getByRole('heading', { n
 check(await langSection.isVisible(), 'Settings has a "Language" section');
 check((await langSection.innerText()).includes('English'), 'language selector shows "English"');
 check(await page.getByRole('heading', { name: 'Settings', exact: true }).first().isVisible(), 'Settings page title is English');
+
+// Style gallery, from Settings: the specimens named in English, and picking one shows its properties
+await page.locator('a[href="/gallery"]').click();
+await page.waitForURL(/\/gallery/);
+check(await page.getByRole('heading', { name: 'Style gallery', exact: true }).isVisible(), 'the style gallery opens from Settings');
+const gallery = page.frameLocator('iframe[title="Canvas"]');
+await gallery.getByText('Light oak flooring', { exact: true }).first().click();
+const picked3 = await page.locator('aside h3').innerText({ timeout: 5000 }).catch(() => '');
+check(picked3 === 'Light oak flooring', `clicking a specimen shows its name in the details (${picked3})`);
+await page.screenshot({ path: `${OUT}/en-gallery.png` });
 
 // Blank design: project data follows the UI language
 await page.goto(BASE, { waitUntil: 'networkidle' });

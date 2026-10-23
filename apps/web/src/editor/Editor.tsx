@@ -266,9 +266,43 @@ function Thumbnail() {
   return snap ? <div ref={ref} className="hidden" aria-hidden><PlanPreview project={snap} /></div> : null;
 }
 
-function Workspace() {
+/**
+ * The canvas with its floating controls: the plan or the 3D view (the plan stays on screen while 3D gets ready), the level
+ * switcher top-left and the view tools top-right. Shared by the editor and the style gallery.
+ */
+export function EditorCanvas({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | null> }) {
   const view = useEditor(s => s.view);
   const planUntil3D = useEditor(s => s.planUntil3D);
+  // Fetch the 3D view's code once the canvas is idle, so switching to 3D grows the house without a loading pause first
+  useEffect(() => {
+    const id = setTimeout(() => void loadModel3D(), 1500);
+    return () => clearTimeout(id);
+  }, []);
+  return (
+    <>
+      <CanvasFrame className="absolute inset-0 size-full border-0">
+        <HopDriver />
+        {view.mode === '2d' ? <Plan2D svgRef={svgRef} /> : (
+          <Suspense fallback={<div className="flex size-full items-center justify-center text-muted-foreground"><Spinner className="size-6" /></div>}>
+            <Model3D />
+          </Suspense>
+        )}
+        {view.mode === '3d' && planUntil3D && (
+          <div aria-hidden className="pointer-events-none absolute inset-0">
+            <Plan2D />
+          </div>
+        )}
+      </CanvasFrame>
+      <div className="absolute top-2 left-2">
+        <LevelSwitcher className="bg-background shadow-xs" />
+      </div>
+      <CanvasTools className="absolute top-2 right-2" />
+    </>
+  );
+}
+
+function Workspace() {
+  const view = useEditor(s => s.view);
   const project = useEditor(s => s.project);
   const setCapture = useEditor(s => s.setCapture);
   const ask = useEditor(s => s.ask);
@@ -323,23 +357,7 @@ function Workspace() {
       <div className="flex min-h-0 flex-1">
         <main className="relative min-w-0 flex-1" aria-label={m.editor_canvas()}>
           <Conflict />
-          <CanvasFrame className="absolute inset-0 size-full border-0">
-            <HopDriver />
-            {view.mode === '2d' ? <Plan2D svgRef={svgRef} /> : (
-              <Suspense fallback={<div className="flex size-full items-center justify-center text-muted-foreground"><Spinner className="size-6" /></div>}>
-                <Model3D />
-              </Suspense>
-            )}
-            {view.mode === '3d' && planUntil3D && (
-              <div aria-hidden className="pointer-events-none absolute inset-0">
-                <Plan2D />
-              </div>
-            )}
-          </CanvasFrame>
-          <div className="absolute top-2 left-2">
-            <LevelSwitcher className="bg-background shadow-xs" />
-          </div>
-          <CanvasTools className="absolute top-2 right-2" />
+          <EditorCanvas svgRef={svgRef} />
           {mobile && (
             <nav className="absolute inset-x-0 bottom-0 flex justify-around border-t bg-background/95 pb-[env(safe-area-inset-bottom)]">
               {TABS.slice(0, 4).map(t => (
@@ -374,12 +392,6 @@ export function Editor({ initial, search }: { initial: InitialProject; search: {
   );
   useEffect(() => store.getState().connect(), [store]);
   const navigate = useNavigate();
-
-  // Fetch the 3D view's code once the editor is idle, so switching to 3D grows the house without a loading pause first
-  useEffect(() => {
-    const id = setTimeout(() => void loadModel3D(), 1500);
-    return () => clearTimeout(id);
-  }, []);
 
   // Open read-only when the link specifies a version
   useEffect(() => {
