@@ -647,7 +647,7 @@ export function Model3D() {
                 </group>
                 {/* Outside the growing group, so the drawing stays just above the floor while the floor is flat; shown with its floor */}
                 <group ref={g => void (g ? drawings.current.set(l.id, g) : drawings.current.delete(l.id))}>
-                  <FloorDrawing project={project} level={l.id} furniture={view.layers.furniture} labels={view.layers.labels} quality={q} growth={growth} />
+                  <FloorDrawing project={project} level={l.id} current={l.id === current?.id} furniture={view.layers.furniture} labels={view.layers.labels} quality={q} growth={growth} />
                 </group>
               </group>
             ))}

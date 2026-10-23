@@ -47,8 +47,9 @@ const fits = await page.frames().find(f => f !== page.mainFrame()).evaluate(() =
   return Math.abs(r.width - p.width) < 1 && Math.abs(r.height - p.height) < 1;
 });
 check(fits, 'the 3D canvas fits its frame on a 2x screen');
-// Clicking the model in 3D selects what is under the pointer (after the entry animation settles)
-await page.waitForTimeout(2500);
+// Clicking the model in 3D selects what is under the pointer, once the house has grown out of the plan (entering 3D first
+// waits for the floor drawings, then grows for about 1.6 s)
+await page.waitForTimeout(6000);
 const frameBox = await page.locator('iframe[title="Canvas"]').boundingBox();
 await page.mouse.click(frameBox.x + frameBox.width / 2, frameBox.y + frameBox.height / 2);
 const picked = await page.waitForFunction(() => window.artifact.call('view_get', {}).then(r => r.result?.selection?.length === 1), null, { timeout: 5000 }).then(() => true, () => false);
