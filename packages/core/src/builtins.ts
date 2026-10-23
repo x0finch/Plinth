@@ -1,6 +1,6 @@
 /** Built-in capabilities: query, edit, relation, verify. Browser-only view capabilities are registered at runtime. */
 import { z } from 'zod';
-import { defineEdit, defineRead, Registry, type Capability, type CapabilityContext } from './capability.js';
+import { defineEdit, defineRead, defineSession, Registry, type Capability, type CapabilityContext } from './capability.js';
 import { areaReport, grossArea, netArea } from './area.js';
 import { area, pointInPolygon, rect, union } from './geometry.js';
 import { checkRules } from './rules.js';
@@ -818,7 +818,7 @@ export const decisionAdd = edit({
   },
 });
 
-export const historyUndo = defineRead({
+export const historyUndo = defineSession({
   name: 'history_undo', title: 'Undo', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Undo the last change.',
   input: z.object({}),
@@ -828,7 +828,7 @@ export const historyUndo = defineRead({
   },
 });
 
-export const historyRedo = defineRead({
+export const historyRedo = defineSession({
   name: 'history_redo', title: 'Redo', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Redo the change just undone.',
   input: z.object({}),

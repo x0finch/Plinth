@@ -45,13 +45,23 @@ export interface ReadCapability<I extends z.ZodType = z.ZodType, R = unknown> ex
   run: (input: z.output<I>, ctx: CapabilityContext) => R | Promise<R>;
 }
 
-export type Capability = EditCapability<any, any> | ReadCapability<any, any>;
+/** Session operation: changes the project outside a transaction (undo, redo replay recorded patches), so it is gated like an edit */
+export interface SessionCapability<I extends z.ZodType = z.ZodType, R = unknown> extends Base<I> {
+  mode: 'session';
+  run: (input: z.output<I>, ctx: CapabilityContext) => R | Promise<R>;
+}
+
+export type Capability = EditCapability<any, any> | ReadCapability<any, any> | SessionCapability<any, any>;
+
+/** Whether calling the capability can change the project (edits and session operations) */
+export const mutates = (c: Capability) => c.mode !== 'read';
 
 /** Capability title in the UI language (`title` itself is the English title, also used for the LLM) */
 export const capabilityTitle = (c: { name: string; title: string }) => text(`cap_${c.name}`, c.title);
 
 export const defineEdit = <I extends z.ZodType, R>(c: Omit<EditCapability<I, R>, 'mode'>): EditCapability<I, R> => ({ ...c, mode: 'edit' });
 export const defineRead = <I extends z.ZodType, R>(c: Omit<ReadCapability<I, R>, 'mode'>): ReadCapability<I, R> => ({ ...c, mode: 'read' });
+export const defineSession = <I extends z.ZodType, R>(c: Omit<SessionCapability<I, R>, 'mode'>): SessionCapability<I, R> => ({ ...c, mode: 'session' });
 
 export interface CallResult {
   ok: boolean;
@@ -108,7 +118,7 @@ export class Registry {
       return { ok: false, error: { code: 'invalid-input', message: z.prettifyError(parsed.error) } };
     }
     try {
-      if (c.mode === 'read') return { ok: true, result: await c.run(parsed.data, ctx) };
+      if (c.mode !== 'edit') return { ok: true, result: await c.run(parsed.data, ctx) };
       const tx = ctx.session.transact(c.label(parsed.data, ctx.session.project), ctx.actor, d => c.apply(d, parsed.data, ctx));
       if (!tx.ok) return { ok: false, error: { code: tx.error!.code, message: tx.error!.message, details: tx.error!.issues } };
       return {
