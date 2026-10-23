@@ -37,6 +37,7 @@ describe('editor store', () => {
     const body = (saves()[0][1] as { json: { base: number; summary: string } }).json;
     expect(body.base).toBe(1);
     expect(body.summary).toContain('A');
+    expect(body).not.toHaveProperty('checkpoint');
     expect(s()).toMatchObject({ dirty: false, version: 2, pendingLabels: [] });
   });
 
@@ -98,8 +99,10 @@ describe('editor store', () => {
       return { version: 4 };
     });
     await s().restoreVersion(1);
-    const body = (saves().at(-1)![1] as { json: { base: number; content: Project; summary: string } }).json;
+    const body = (saves().at(-1)![1] as { json: { base: number; content: Project; summary: string; checkpoint?: boolean } }).json;
     expect(body.base).toBe(3);
+    // A restore must not be merged into the autosave before it
+    expect(body.checkpoint).toBe(true);
     expect(body.content.name).toBe('v1');
     expect(s()).toMatchObject({ version: 4, dirty: false, readOnlyVersion: null });
   });

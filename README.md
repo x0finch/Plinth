@@ -38,6 +38,7 @@ npm test                               # web unit tests: editor store (autosave,
 npm run fake-llm &                     # fake model (OpenAI-compatible API, scripted tool calls)
 npm run dev > dev.log &
 node e2e/permissions.e2e.mjs           # API permission matrix: every route × every role (also runs in CI)
+node e2e/versions.e2e.mjs              # version history: quick autosaves by one author merge into one version (also runs in CI)
 DEV_LOG=dev.log npm run e2e            # end to end: permissions, agent chat, approvals, starting from scratch, sharing, comments, versions, mobile layout, email/password sign-in (OTP codes read from dev.log)
 ```
 
