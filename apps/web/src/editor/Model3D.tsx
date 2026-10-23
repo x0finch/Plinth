@@ -6,7 +6,7 @@
  */
 import { Edges, OrbitControls, PerformanceMonitor } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { findObject, projectBoxes, projectElements, type Box, type Project, type Solid, type Space } from '@plinth/core';
+import { findObject, projectBoxes, projectElements, rect, union, wallBoxes, wallDir, type Box, type Project, type Solid, type Space, type Wall } from '@plinth/core';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { m } from '@/lib/i18n';
@@ -23,11 +23,27 @@ const M = 0.001;
 const PLINTH = 0.3;
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
 
+/** SketchUp's sky: a vertical gradient from the sky color at the top to the backdrop at the horizon */
+function skyTexture(sky: string, horizon: string) {
+  const data = new Uint8Array(4 * 64);
+  const a = new THREE.Color(sky), b = new THREE.Color(horizon), c = new THREE.Color();
+  for (let i = 0; i < 64; i++) {
+    // Row 0 is the bottom of the screen: the horizon color up to the middle, then the sky
+    c.copy(b).lerp(a, THREE.MathUtils.smoothstep(i / 63, 0.35, 1));
+    data.set([Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255), 255], i * 4);
+  }
+  const t = new THREE.DataTexture(data, 1, 64);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  return t;
+}
+
 /** All 3D model colors come from the theme */
 const useColors = () =>
   useThemeColors({
     backdrop: '--canvas-backdrop', sun: '--canvas-sun', skylight: '--canvas-skylight', wall: '--card', furn: '--muted', grate: '--muted-foreground',
-    page: '--canvas-backdrop', shadow: '--canvas-shadow', sel: '--chart-2', changed: '--chart-1',
+    page: '--canvas-backdrop', sky: '--canvas-sky', edge: '--foreground', shadow: '--canvas-shadow', sel: '--chart-2', changed: '--chart-1',
   }, useCanvasDocument());
 
 /** Selected objects are tinted with the selection color and outlined; just-changed objects get a tint that fades out */
@@ -143,6 +159,42 @@ function Reveal({ ownerOf }: { ownerOf: (id: string) => string | undefined }) {
 
 /** No outlines on the model, except the selected object's edges in the selection color */
 type Outline = { sel?: string };
+
+/**
+ * A wall as one solid: the elevation of its pieces (piers, sills, lintels; see wallBoxes) merged into one outline with the
+ * openings as holes, extruded through the wall's thickness. Drawn as separate boxes, the faces where pieces meet would flicker
+ * through the wall face as dotted edges; SketchUp's walls are one solid too. A glass-block infill stays its own box.
+ */
+function WallMesh({ w, project, base, color, ...o }: Outline & { w: Wall; project: Project; base: number; color: string }) {
+  const ref = useFeedback<THREE.Mesh>(w.id, color, !!o.sel);
+  const geo = useMemo(() => {
+    const d = wallDir(w);
+    // Each piece as a rectangle in elevation: along the wall from its start, and height
+    const rects = wallBoxes(project, w).filter(b => b.kind !== 'glass-block').map(b => {
+      const u = (b.center[0] - w.start[0]) * d[0] + (b.center[1] - w.start[1]) * d[1];
+      return { outer: rect(u - b.length / 2, b.z, u + b.length / 2, b.z + b.height).outer };
+    });
+    const shapes = union(rects).map(p => {
+      const sh = new THREE.Shape(p.outer.map(([u, v]) => new THREE.Vector2(u * M, v * M)));
+      for (const h of p.holes ?? []) sh.holes.push(new THREE.Path(h.map(([u, v]) => new THREE.Vector2(u * M, v * M))));
+      return sh;
+    });
+    const g = new THREE.ExtrudeGeometry(shapes, { depth: w.thickness * M, bevelEnabled: false });
+    g.translate(0, 0, (-w.thickness / 2) * M);
+    // Elevation axes to the plan: u along the wall, v up, extruded across it
+    const x = new THREE.Vector3(d[0], 0, d[1]), y = new THREE.Vector3(0, 1, 0);
+    g.applyMatrix4(new THREE.Matrix4().makeBasis(x, y, new THREE.Vector3().crossVectors(x, y)));
+    return g;
+  }, [w, project]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  const y = base * M;
+  return (
+    <mesh ref={ref} geometry={geo} position={[w.start[0] * M, y, w.start[1] * M]} castShadow receiveShadow userData={{ id: w.id, restY: y }}>
+      <meshStandardMaterial color={color} roughness={0.9} />
+      {o.sel && <Edges threshold={20} color={o.sel} lineWidth={2} />}
+    </mesh>
+  );
+}
 
 function BoxMesh({ b, base, color, ...o }: Outline & { b: Box; base: number; color: string }) {
   const y = (base + b.z + b.height / 2) * M;
@@ -579,8 +631,8 @@ export function Model3D() {
         <Canvas
           shadows="percentage"
           frameloop="demand"
-          // Occlusion is costly per pixel: cap the resolution where it runs
-          dpr={q === 'high' ? [1, 1.5] : [1, 2]}
+          // Full resolution for crisp edges; low-end phones a little less
+          dpr={q === 'high' ? [1, 2] : [1, 1.5]}
           // No tone mapping: white surfaces stay white instead of the filmic gray
           flat
           gl={{ preserveDrawingBuffer: true, antialias: true }}
@@ -592,7 +644,7 @@ export function Model3D() {
           // so the model sits off-center and clicks miss. Fill the wrapper instead.
           onCreated={({ gl, scene }) => {
             Object.assign(gl.domElement.style, { width: '100%', height: '100%' });
-            scene.background = new THREE.Color(c.backdrop);
+            scene.background = skyTexture(c.sky, c.backdrop);
             setQuality(detectQuality(doc.defaultView!, gl.getContext()));
           }}
         >
@@ -632,7 +684,10 @@ export function Model3D() {
                       <Slab key={s.id} s={s} y={s.kind === 'outdoor' && l.elevation === 0 ? project.site.groundLevel + 20 : l.elevation} thickness={s.kind === 'outdoor' ? 20 : 120}
                         color={c.wall} sel={sel.has(s.id) ? c.sel : undefined} />
                     ))}
-                    {boxes.filter(b => b.level === l.id).map((b, i) => (
+                    {project.walls.filter(w => w.level === l.id).map(w => (
+                      <WallMesh key={w.id} w={w} project={project} base={elev.get(l.id) ?? 0} sel={sel.has(w.id) ? c.sel : undefined} color={c.wall} />
+                    ))}
+                    {boxes.filter(b => b.level === l.id && b.kind === 'glass-block').map((b, i) => (
                       // Openings are left open; a glass-block infill is part of the white model like the walls
                       <BoxMesh key={`${b.id}-${i}`} b={b} base={elev.get(l.id) ?? 0} sel={sel.has(b.id) ? c.sel : undefined} color={c.wall} />
                     ))}
@@ -658,7 +713,7 @@ export function Model3D() {
           <SafariPinch />
           <Picker />
           <Reveal ownerOf={ownerOf} />
-          <Renderer quality={q} draw={draw} />
+          <Renderer draw={draw} edgeColor={c.edge} growth={growth} />
           {/* A phone that wasn't recognized as low-end but can't keep up drops to the light setup, for good */}
           {touch && q === 'high' && <PerformanceMonitor bounds={() => [25, 50]} onDecline={() => setQuality('low')} />}
           <Wake on={[view.selection, view.highlight]} />
