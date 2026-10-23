@@ -25,6 +25,10 @@ export function MessageView({ msg, results, streaming }: { msg: UIMessage; resul
       <MessageContent>
         {msg.parts.map((p, i) => {
           if (p.type === 'text') return msg.role === 'user' ? <p key={i} className="whitespace-pre-wrap">{p.content}</p> : <MessageResponse key={i}>{p.content}</MessageResponse>;
+          if (p.type === 'image') {
+            const src = p.source.type === 'data' ? `data:${p.source.mimeType};base64,${p.source.value}` : p.source.type === 'url' ? p.source.value : null;
+            return src ? <img key={i} src={src} alt="" className="max-h-48 rounded-md border" /> : null;
+          }
           if (p.type === 'thinking') return (
             <Reasoning key={i} isStreaming={streaming}>
               <ReasoningTrigger />

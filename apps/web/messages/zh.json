@@ -626,5 +626,22 @@
   "panels_look_follow": "跟随同类（{name}）",
   "panels_look_use_all": "所有同类都用“{name}”",
   "panels_look_reset_all": "同类改回默认外观",
-  "panels_look_gallery": "在样式画板中查看"
+  "panels_look_gallery": "在样式画板中查看",
+  "agent_err_look_not_found": "找不到外观“{look}”",
+  "agent_err_look_preview_input": "需要给出配方（recipe）或外观（look）",
+  "chat_look_new": "新外观：{name}",
+  "chat_look_changed": "外观已修改：{name}",
+  "chat_look_preview_alt": "{name}的预览（斜视、正面、俯视）",
+  "chat_look_keep": "就用它",
+  "chat_look_use_all": "采用，用于所有同类",
+  "chat_look_use_all_label": "所有同类改用外观“{name}”",
+  "chat_look_discard": "丢弃",
+  "chat_look_revert": "撤销修改",
+  "chat_look_hint": "想改哪里，直接在对话里说。",
+  "chat_attach": "添加图片",
+  "chat_attachment_alt": "要发送的图片",
+  "chat_attachment_remove": "移除图片",
+  "core_cap_look_get": "读取外观",
+  "core_err_look_get_input": "需要给出对象（target）或外观（look）",
+  "core_cap_look_preview": "预览外观"
 }

@@ -17,6 +17,24 @@ function next(body) {
   // Count only tool results after the last user message
   const lastUser = msgs.map(m => m.role).lastIndexOf('user');
   const toolsSoFar = msgs.slice(lastUser).filter(m => m.role === 'tool').length;
+  // Looks: read the current one, preview a new recipe, add it
+  const ROUND = { let: { r: 'min(w, d) / 2' }, parts: [
+    { kind: 'cylinder', mat: 'wood', r: 'r', h: 40, at: [0, 'h - 20', 0], seg: 40 },
+    { kind: 'cylinder', mat: 'woodDark', r: 'r * 0.45', h: 30, at: [0, 'h + 15', 0] },
+    { kind: 'cylinder', mat: 'woodDark', r: 50, h: 'h - 40', at: [0, '(h - 40) / 2', 0] },
+    { kind: 'cylinder', mat: 'woodDark', r: 'r * 0.5', h: 20, at: [0, 10, 0] },
+  ] };
+  if (/圆餐桌/.test(text) && toolsSoFar === 0) return { tool: { name: 'look_get', args: { target: 'furniture:dining' } } };
+  if (/圆餐桌/.test(text) && toolsSoFar === 1) return { tool: { name: 'look_preview', args: { recipe: ROUND, target: 'furniture:dining' } } };
+  if (/圆餐桌/.test(text) && toolsSoFar === 2) {
+    const ok = /"floating":\[\]/.test(String(last.content));
+    return ok ? { tool: { name: 'look_add', args: { name: '圆餐桌', for: ['furniture:dining'], recipe: ROUND } } } : { text: '预览发现有悬空的零件。' };
+  }
+  if (/圆餐桌/.test(text) && toolsSoFar === 3) return { text: '做好了：一张带转盘的圆餐桌，桌面按原来的尺寸取圆。' };
+  if (/方凳/.test(text) && toolsSoFar === 0)
+    return { tool: { name: 'look_add', args: { name: '方凳', for: ['furniture:stool'], recipe: { parts: [{ kind: 'box', mat: 'wood', size: ['w', 'h', 'd'], at: [0, 'h / 2', 0], r: 20 }] } } } };
+  if (/方凳/.test(text) && toolsSoFar === 1) return { text: '做好了一个方凳。' };
+  if (Array.isArray(user?.content) && user.content.some(c => c.type === 'image_url')) return { text: '看到图片了：一个两门的柜子。' };
   if (/扩到|调到/.test(text) && toolsSoFar === 0) return { tool: { name: 'space_set_area', args: { space: '一层·老人房一', area: 12.5 } } };
   if (/扩到|调到/.test(text) && toolsSoFar === 1) return { tool: { name: 'view_focus', args: { ids: ['L1-s15'] } } };
   if (/删掉三层|删除三层/.test(text) && toolsSoFar === 0) return { tool: { name: 'level_remove', args: { level: '三层' } } };

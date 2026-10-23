@@ -626,5 +626,22 @@
   "panels_look_follow": "Same as its type ({name})",
   "panels_look_use_all": "Use “{name}” for all of its type",
   "panels_look_reset_all": "Back to the default look for its type",
-  "panels_look_gallery": "See them in the style gallery"
+  "panels_look_gallery": "See them in the style gallery",
+  "agent_err_look_not_found": "Cannot find look “{look}”",
+  "agent_err_look_preview_input": "Give a recipe or a look",
+  "chat_look_new": "New look: {name}",
+  "chat_look_changed": "Look changed: {name}",
+  "chat_look_preview_alt": "Preview of {name} (three-quarter, front, top)",
+  "chat_look_keep": "Keep it",
+  "chat_look_use_all": "Use it for all of its type",
+  "chat_look_use_all_label": "Use look “{name}” for all of its type",
+  "chat_look_discard": "Discard",
+  "chat_look_revert": "Undo the change",
+  "chat_look_hint": "To change it, just say what in the chat.",
+  "chat_attach": "Add images",
+  "chat_attachment_alt": "Image to send",
+  "chat_attachment_remove": "Remove image",
+  "core_cap_look_get": "Read a look",
+  "core_err_look_get_input": "Give a target or a look",
+  "core_cap_look_preview": "Preview a look"
 }

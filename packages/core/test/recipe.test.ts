@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildRecipe, checkRecipe, DEFAULT_LOOKS, evalExpr, FURNITURE_TYPES, parseExpr, planSymbol, type Recipe } from '../src/index.js';
+import { buildRecipe, checkRecipe, DEFAULT_LOOKS, evalExpr, FURNITURE_TYPES, inspectRecipe, parseExpr, planSymbol, type Recipe } from '../src/index.js';
 
 describe('expressions', () => {
   it('evaluates arithmetic, comparisons, ternaries and functions', () => {
@@ -62,5 +62,27 @@ describe('recipes', () => {
     expect(checkRecipe(negative, { w: 1000, d: 1, h: 1 })[0]).toMatch(/width must be positive/);
     const runaway: Recipe = { parts: [{ kind: 'repeat', count: 1000, parts: [{ kind: 'box', mat: 'wood', size: [1, 1, 1], at: [0, 0, 0] }] }] };
     expect(checkRecipe(runaway, { w: 1, d: 1, h: 1 })[0]).toMatch(/limit/);
+  });
+});
+
+describe('inspection', () => {
+  it('finds parts out of bounds and floating, and draws rough views', () => {
+    const r: Recipe = { parts: [
+      { kind: 'box', mat: 'wood', size: ['w', 40, 'd'], at: [0, 'h - 20', 0] },
+      { kind: 'box', mat: 'wood', size: [60, 'h - 40', 60], at: [0, '(h - 40) / 2', 0] },
+      { kind: 'sphere', mat: 'gold', r: 50, at: [0, 'h + 400', 0] },
+      { kind: 'box', mat: 'wood', size: [100, 10, 100], at: ['w', 5, 0] },
+    ] };
+    const i = inspectRecipe(r, { w: 1000, d: 600, h: 750 });
+    expect(i.parts).toBe(4);
+    expect(i.floating).toEqual(['#2 sphere (gold)']);
+    expect(i.outside).toEqual(['#2 sphere (gold)', '#3 box (wood)']);
+    expect(i.views.front.split('\n')[13]).toContain('#');
+  });
+  it('the default looks have no floating or stray parts', () => {
+    for (const type of ['sofa3', 'bed18', 'dining', 'chair', 'tree', 'car', 'toilet', 'wardrobe']) {
+      const i = inspectRecipe(DEFAULT_LOOKS[`furniture:${type}`], FURNITURE_TYPES[type].size);
+      expect(i.floating, type).toEqual([]);
+    }
   });
 });

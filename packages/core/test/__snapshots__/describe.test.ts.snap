@@ -1357,6 +1357,30 @@ exports[`capability descriptions are stable 1`] = `
     "title": "Operation log",
   },
   {
+    "description": "Read the recipe that draws a target in this design (its look, or the default one) or a look by ID or name, with the size it is usually built at. Start from it to change what something looks like.",
+    "examples": [],
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "look": {
+          "description": "Look ID or name",
+          "type": "string",
+        },
+        "target": {
+          "description": "What a look draws: 'furniture:<type>' (a furniture type), 'opening:<door|sliding-door|gate|window|opening|glass-block>' or 'element:<stair|pond|drain>'",
+          "pattern": "^(furniture|opening|element):[A-Za-z0-9_-]+$",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "kind": "query",
+    "name": "look_get",
+    "permission": "read",
+    "runtime": "any",
+    "title": "Read a look",
+  },
+  {
     "description": "Add a look to the design: a recipe that draws furniture, doors and windows, or elements, like a font draws characters. Everyone who opens the design sees it. With use, every object of those targets switches to it; otherwise set it per object with look_set. Recipe format (JSON, millimetres, angles in degrees): { seed?, let?: {name: expr}, parts: Part[], plan?: [...] }. Numbers may be expressions of w, d, h (the object's width, depth, height) and names from let/repeat: + - * / %, comparisons, && || !, a ? b : c, min max abs sqrt floor ceil round sin cos tan atan2 hypot clamp lerp rnd(k) (pseudo-random 0..1, fixed per seed). Local frame: origin at the centre of the footprint on the floor (an opening: the centre of its sill; x along the wall, z across it), x across w, z across d with +z the front, y up. Every part has mat (fabric cushion linen bedding canvas canvas2 wood woodDark lacquer gold red cabinet countertop ceramic ceramicShade appliance plaster stone stoneDark terracotta soil iron dark glass book1-4 flower tube bark leaf leaf2 carBody carGlass tyre metal headlight taillight frame glassBlock wall water grate) and optional plan:false (left out of the plan symbol). Kinds: box {size:[w,h,d], at:[x,y,z] centre, r? edge radius, rot?:[rx,ry,rz]}; cylinder {r, r2? top radius, h, at centre, axis? x|y|z, scale?}; sphere {r, at, scale?}; lathe {profile:[[r,y]...] from the axis out and back, at base, scale?}; rod {from, to, r}; ring {R, r, at, axis? y|z}; tube {points:[[x,y,z]...], r}; panel {from:[x,z], to:[x,z], y, h, t}; extrude {plane: side (profile in x,y extruded across z) | plan (profile in x,z extruded up), profile: [[x,y] | {arc:[cx,cy,r,a0,a1,clockwise]} | {curve:[cx,cy,x,y]}], depth, bevel?, at?}; repeat {count, as? (default i), let?, parts}; if {when, parts, else?}; base {mats:{structure,water,grate}} (an element's own geometry). The plan symbol is the parts seen from above unless plan gives rings/lines/circles. Keep parts inside the w × d footprint and under h.",
     "examples": [],
     "input": {

@@ -21,6 +21,15 @@ function forModel(r: CallResult) {
   return r;
 }
 
+/** Keep only the last few images of a thread when saving it (the server caps a thread's size); older ones become a note */
+function lighten(messages: UIMessage[], keep = 3) {
+  let seen = 0;
+  return [...messages].reverse().map(msg => ({
+    ...msg,
+    parts: msg.parts.map(p => (p.type === 'image' && ++seen > keep ? { type: 'text' as const, content: '(image)' } : p)),
+  })).reverse();
+}
+
 export function useAgentChat({ autonomy, editable, modelId }: { autonomy: Autonomy; editable: boolean; modelId?: string }) {
   const store = useEditorStore();
   const projectId = useEditor(s => s.projectId);
@@ -58,15 +67,22 @@ export function useAgentChat({ autonomy, editable, modelId }: { autonomy: Autono
   const prevStatus = useRef(status);
   useEffect(() => {
     if (loaded && editable && prevStatus.current !== 'ready' && status === 'ready' && messages.length) {
-      api(`/projects/${projectId}/chat-thread`, { method: 'PUT', json: messages.slice(-80) }).catch(() => {});
+      api(`/projects/${projectId}/chat-thread`, { method: 'PUT', json: lighten(messages.slice(-80)) }).catch(() => {});
     }
     prevStatus.current = status;
   }, [status]);
 
-  const send = (text: string) => {
+  const send = (text: string, images: string[] = []) => {
     const t = text.trim();
-    if (!t || isLoading) return;
-    void sendMessage(t, { body: { autonomy, modelId, context: agentContext(store.getState()) } });
+    if ((!t && !images.length) || isLoading) return;
+    const body = { body: { autonomy, modelId, context: agentContext(store.getState()) } };
+    if (!images.length) return void sendMessage(t, body);
+    // Photos and sketches go to the model as image parts (data URLs: "data:<mime>;base64,<data>")
+    const parts = images.map(url => {
+      const [, mimeType, value] = url.match(/^data:([^;]+);base64,(.*)$/)!;
+      return { type: 'image' as const, source: { type: 'data' as const, value, mimeType } };
+    });
+    void sendMessage({ content: [...(t ? [{ type: 'text' as const, content: t }] : []), ...parts] }, body);
   };
 
   // Messages handed over from elsewhere in the editor (e.g. "ask the agent" on a comment)

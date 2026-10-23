@@ -14,6 +14,12 @@ export const useCanvasDocument = () => useContext(CanvasDoc) ?? document;
 
 const KEYS = ['key', 'code', 'shiftKey', 'ctrlKey', 'metaKey', 'altKey', 'repeat'] as const;
 
+/** The canvas document when a canvas is on the page (its light theme), else the page's own */
+export function canvasDocument(): Document {
+  const d = document.querySelector<HTMLIFrameElement>('iframe[data-canvas]')?.contentDocument;
+  return d?.getElementById('canvas-style') ? d : document;
+}
+
 export function CanvasFrame({ children, className }: { children: ReactNode; className?: string }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [doc, setDoc] = useState<Document | null>(null);
@@ -48,7 +54,7 @@ export function CanvasFrame({ children, className }: { children: ReactNode; clas
   }, [doc, css]);
 
   return (
-    <iframe ref={ref} title={m.editor_canvas()} srcDoc="<!doctype html><html><head><meta charset='utf-8'></head><body></body></html>"
+    <iframe ref={ref} title={m.editor_canvas()} data-canvas="" srcDoc="<!doctype html><html><head><meta charset='utf-8'></head><body></body></html>"
       onLoad={mount} className={className}>
       {doc && createPortal(<CanvasDoc.Provider value={doc}>{children}</CanvasDoc.Provider>, doc.body)}
     </iframe>
