@@ -8,6 +8,7 @@ import {
   wallLength, wallNormal,
 } from './topology.js';
 import { text } from './i18n.js';
+import { findObject } from './project-index.js';
 import type { Constraint, Id, Point, Project, Space, Wall } from './schema.js';
 
 export interface ConstraintStatus {
@@ -25,14 +26,11 @@ export interface ConstraintReport {
 
 const plain = (p: Project): Project => JSON.parse(JSON.stringify(isDraft(p) ? current(p) : p));
 
-const findWall = (p: Project, id: Id) => p.walls.find(w => w.id === id);
-const findSpace = (p: Project, id: Id) => p.spaces.find(s => s.id === id);
+const findWall = (p: Project, id: Id) => findObject(p, id, 'wall')?.obj;
+const findSpace = (p: Project, id: Id) => findObject(p, id, 'space')?.obj;
 function findOpening(p: Project, id: Id) {
-  for (const w of p.walls) {
-    const o = w.openings.find(x => x.id === id);
-    if (o) return { w, o };
-  }
-  return null;
+  const e = findObject(p, id, 'opening');
+  return e ? { w: e.wall!, o: e.obj } : null;
 }
 
 const parallel = (a: Wall, b: Wall) => Math.abs(cross(wallDir(a), wallDir(b))) < 1e-6;

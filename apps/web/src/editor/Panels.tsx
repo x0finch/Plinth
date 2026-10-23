@@ -1,5 +1,5 @@
 /** Side panels: selected object properties, areas, comments, versions. */
-import { areaReport, checkConstraints, checkRules } from '@plinth/core';
+import { areaReport, checkConstraints, checkRules, findObject } from '@plinth/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckIcon, EyeIcon, HistoryIcon, MessageSquareIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -57,10 +57,7 @@ export function PropsPanel() {
 
   const issues = useMemo(() => checkRules(project), [project]);
   const level = useEditor(s => s.view.level);
-  const levelIssues = issues.filter(i => i.targets.some(t => {
-    const o = project.spaces.find(s => s.id === t) ?? project.walls.find(w => w.id === t || w.openings.some(x => x.id === t)) ?? project.furniture.find(f => f.id === t);
-    return o?.level === level;
-  }));
+  const levelIssues = issues.filter(i => i.targets.some(t => findObject(project, t)?.level === level));
 
   const run = async (n: string, input: unknown) => {
     const r = await call(n, input);
@@ -271,8 +268,7 @@ export function CommentsPanel({ onAskAgent }: { onAskAgent?: (text: string) => v
   const [text, setText] = useState('');
   const { data = [] } = useQuery({ queryKey: ['comments', projectId], queryFn: () => api<CommentRow[]>(`/projects/${projectId}/comments`), refetchInterval: 30_000 });
   const target = sel[0];
-  const targetName = target && (project.spaces.find(s => s.id === target)?.name ?? project.walls.find(w => w.id === target)?.name ?? project.furniture.find(f => f.id === target)?.name
-    ?? project.walls.flatMap(w => w.openings).find(o => o.id === target)?.name);
+  const targetName = target && findObject(project, target)?.name;
   const add = useMutation({
     mutationFn: (b: { body: string; parentId?: string }) => api(`/projects/${projectId}/comments`, { method: 'POST', json: { ...b, targetId: b.parentId ? null : target ?? null, targetName: b.parentId ? null : targetName ?? null } }),
     onSuccess: () => {

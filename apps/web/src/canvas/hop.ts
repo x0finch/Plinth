@@ -6,7 +6,7 @@
  * Hops are transient; at rest objects are always at their true position. Screenshots capture still frames only.
  * The plan is viewed from above, so a "hop" lifts toward you: slight scale-up plus shadow.
  */
-import type { Point, Project } from '@plinth/core';
+import { centroid, findObject, openingCenter, type Point, type Project } from '@plinth/core';
 
 export type Weight = 'heavy' | 'light' | 'furniture' | 'floor';
 
@@ -42,25 +42,14 @@ type Listener = (h: Hop) => void;
 
 /** Object weight and position; doors/windows count as their wall (in 3D they are part of the wall) */
 export function describe(project: Project, id: string): { weight: Weight; at: Point; wall?: string } | null {
-  for (const w of project.walls) {
-    const mid: Point = [(w.start[0] + w.end[0]) / 2, (w.start[1] + w.end[1]) / 2];
-    if (w.id === id) return { weight: w.kind === 'bearing' ? 'heavy' : 'light', at: mid };
-    const o = w.openings.find(o => o.id === id);
-    if (o) {
-      const len = Math.hypot(w.end[0] - w.start[0], w.end[1] - w.start[1]) || 1;
-      const f = o.at / len;
-      return { weight: 'light', at: [w.start[0] + (w.end[0] - w.start[0]) * f, w.start[1] + (w.end[1] - w.start[1]) * f], wall: w.id };
-    }
+  const e = findObject(project, id);
+  switch (e?.kind) {
+    case 'wall': return { weight: e.obj.kind === 'bearing' ? 'heavy' : 'light', at: [(e.obj.start[0] + e.obj.end[0]) / 2, (e.obj.start[1] + e.obj.end[1]) / 2] };
+    case 'opening': return { weight: 'light', at: openingCenter(e.wall!, e.obj), wall: e.wall!.id };
+    case 'furniture': return { weight: 'furniture', at: e.obj.position };
+    case 'space': return { weight: 'floor', at: centroid(e.obj) };
+    default: return null;
   }
-  const f = project.furniture.find(f => f.id === id);
-  if (f) return { weight: 'furniture', at: f.position };
-  const s = project.spaces.find(s => s.id === id);
-  if (s) {
-    const pts = s.shape.flatMap(p => p.outer);
-    const at: Point = [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length];
-    return { weight: 'floor', at };
-  }
-  return null;
 }
 
 class Hops {

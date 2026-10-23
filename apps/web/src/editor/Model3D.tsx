@@ -4,7 +4,7 @@
  */
 import { Bounds, Edges, OrbitControls, useBounds } from '@react-three/drei';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { projectBoxes, type Box, type Project, type Space } from '@plinth/core';
+import { findObject, projectBoxes, type Box, type Project, type Space } from '@plinth/core';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useCanvasDocument } from '@/canvas/CanvasFrame';
@@ -209,7 +209,7 @@ export function Model3D() {
   const elev = new Map(project.levels.map(l => [l.id, l.elevation]));
   const boxes = useMemo(() => projectBoxes(project), [project]);
   const reduced = useReducedMotion();
-  const ownerOf = (id: string) => project.walls.find(w => w.openings.some(o => o.id === id))?.id;
+  const ownerOf = (id: string) => findObject(project, id, 'opening')?.wall?.id;
   const sel = new Set(reduced ? view.selection.map(id => ownerOf(id) ?? id) : []);
 
   const pick = (id: string) => (e: ThreeEvent<MouseEvent>) => {
