@@ -20,7 +20,9 @@ function create() {
     basePath: '/api/auth',
     secret: env.BETTER_AUTH_SECRET,
     database: env.DB,
-    trustedOrigins: env.APP_URL ? [env.APP_URL] : [],
+    // The configured URL plus the address the request came in on (e.g. both a custom domain and workers.dev);
+    // a request from the site's own origin is same-origin, not cross-site
+    trustedOrigins: request => [env.APP_URL, request ? new URL(request.url).origin : undefined],
     // Email + password: the received "password" is a 64-char hex string derived on the device.
     // With a mail service, the email must be verified with an OTP after sign-up; without one, sign-up signs in directly.
     emailAndPassword: {
