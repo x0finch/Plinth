@@ -20,8 +20,8 @@ const unitBox = new THREE.BoxGeometry(1, 1, 1);
 /** All 3D model colors come from the theme */
 const useColors = () =>
   useThemeColors({
-    bg: '--muted', wall: '--card', slab: '--secondary', ground: '--accent', furn: '--chart-3',
-    glass: '--muted-foreground', edge: '--muted-foreground', sel: '--chart-2', changed: '--chart-1', sky: '--background',
+    sky: '--canvas-sky', horizon: '--canvas-horizon', ground: '--canvas-ground', wall: '--card', slab: '--secondary', furn: '--chart-4',
+    glass: '--canvas-glass', edge: '--foreground', shade: '--chart-3', sel: '--chart-2', changed: '--chart-1',
   }, useCanvasDocument());
 
 /** Selected objects are tinted with the selection color and outlined; just-changed objects get a tint that fades out */
@@ -129,7 +129,10 @@ function Reveal({ ownerOf }: { ownerOf: (id: string) => string | undefined }) {
   return null;
 }
 
-/** The selected object's edges are drawn in the selection color */
+/**
+ * Lines like SketchUp: every hard edge is a thin black line, and the object's silhouette (its outline against what is behind
+ * it) a thicker one. The selected object's edges are drawn in the selection color.
+ */
 type Outline = { edge: string; sel?: string };
 const edgeProps = ({ edge, sel }: Outline) => ({ color: sel ?? edge, lineWidth: sel ? 2 : 1 });
 
@@ -147,7 +150,7 @@ function BoxMesh({ b, base, color, opacity = 1, ...o }: Outline & { b: Box; base
       receiveShadow
       userData={{ id: b.id, restY: y }}
     >
-      <meshStandardMaterial color={color} roughness={0.9} transparent={opacity < 1} opacity={opacity} />
+      <meshStandardMaterial color={color} roughness={0.9} transparent={opacity < 1} opacity={opacity} depthWrite={opacity === 1} />
       {opacity === 1 && <Edges threshold={20} {...edgeProps(o)} />}
     </mesh>
   );
@@ -173,20 +176,144 @@ function Slab({ s, y, thickness, color, ...o }: Outline & { s: Space; y: number;
   );
 }
 
-function Furniture({ f, base, color, sel }: { f: Project['furniture'][number]; base: number; color: string; sel?: string }) {
+function Furniture({ f, base, color, ...o }: Outline & { f: Project['furniture'][number]; base: number; color: string }) {
   const y = (base + (f.elevation ?? 0) + f.size.h / 2) * M;
-  const ref = useFeedback<THREE.Mesh>(f.id, color, !!sel);
+  const ref = useFeedback<THREE.Mesh>(f.id, color, !!o.sel);
   return (
     <mesh ref={ref} geometry={unitBox} castShadow userData={{ id: f.id, restY: y }}
       position={[f.position[0] * M, y, f.position[1] * M]}
       rotation={[0, (-f.rotation * Math.PI) / 180, 0]} scale={[f.size.w * M, f.size.h * M, f.size.d * M]}>
       <meshStandardMaterial color={color} roughness={0.95} />
-      {sel && <Edges color={sel} threshold={20} lineWidth={2} />}
+      <Edges threshold={20} {...edgeProps(o)} />
     </mesh>
   );
 }
 
-function Capture() {
+/** Layer the model's surfaces are also on, so the silhouette pass can render their depth alone (no ground, lines or sky) */
+const SOLID_LAYER = 1;
+/** Silhouette line width in CSS pixels; inner edges are 1px */
+const PROFILE_PX = 1.5;
+
+const profileShader = {
+  uniforms: {
+    tDepth: { value: null as THREE.Texture | null }, texel: { value: new THREE.Vector2() }, near: { value: 0.1 }, far: { value: 2000 },
+    color: { value: new THREE.Color() },
+  },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  // Linear depth around each pixel; where it jumps (an object's edge against something farther away, or against nothing) the
+  // second difference is large compared with the depth itself. A crease between two faces bends the depth without a jump, so
+  // inner edges stay with the thin edge lines.
+  fragmentShader: `
+    uniform sampler2D tDepth; uniform vec2 texel; uniform float near, far; uniform vec3 color; varying vec2 vUv;
+    float lin(vec2 uv) {
+      float z = texture2D(tDepth, uv).x;
+      return z >= 1.0 ? far : (2.0 * near * far) / (far + near - (z * 2.0 - 1.0) * (far - near));
+    }
+    void main() {
+      float d = lin(vUv);
+      float l = lin(vUv - vec2(texel.x, 0.0)), r = lin(vUv + vec2(texel.x, 0.0));
+      float u = lin(vUv + vec2(0.0, texel.y)), b = lin(vUv - vec2(0.0, texel.y));
+      float jump = max(abs(l + r - 2.0 * d), abs(u + b - 2.0 * d));
+      float nearest = min(d, min(min(l, r), min(u, b)));
+      if (nearest >= far || jump < 0.02 * nearest) discard;
+      gl_FragColor = vec4(color, 1.0);
+    }`,
+};
+
+/**
+ * Draws each frame: the scene, then the silhouette lines over it, from a depth pass of the model's surfaces alone.
+ * Exposes the same drawing for screenshots through `draw`.
+ */
+function Profiles({ model, color, draw }: { model: React.RefObject<THREE.Group | null>; color: string; draw: React.RefObject<(() => void) | null> }) {
+  const { gl, scene, camera, size } = useThree();
+  const target = useMemo(() => {
+    const t = new THREE.WebGLRenderTarget(1, 1);
+    t.depthTexture = new THREE.DepthTexture(1, 1);
+    return t;
+  }, []);
+  const depthMaterial = useMemo(() => new THREE.MeshBasicMaterial({ colorWrite: false }), []);
+  const overlay = useMemo(() => {
+    const material = new THREE.ShaderMaterial({ ...profileShader, uniforms: THREE.UniformsUtils.clone(profileShader.uniforms), depthTest: false, depthWrite: false });
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+    quad.frustumCulled = false;
+    const s = new THREE.Scene();
+    s.add(quad);
+    return { scene: s, material, camera: new THREE.OrthographicCamera() };
+  }, []);
+  useEffect(() => () => {
+    target.dispose();
+    depthMaterial.dispose();
+    overlay.material.dispose();
+  }, []);
+  useEffect(() => {
+    const dpr = gl.getPixelRatio();
+    target.setSize(Math.round(size.width * dpr), Math.round(size.height * dpr));
+    // Sample at the line's half width on each side, in drawing-buffer pixels
+    overlay.material.uniforms.texel.value.set((PROFILE_PX * dpr) / 2 / target.width, (PROFILE_PX * dpr) / 2 / target.height);
+  }, [size, gl]);
+  useEffect(() => void overlay.material.uniforms.color.value.set(color), [color]);
+
+  const render = () => {
+    model.current?.traverse(o => {
+      if ((o as THREE.Mesh).isMesh && o.userData.id) o.layers.enable(SOLID_LAYER);
+    });
+    const cam = camera as THREE.PerspectiveCamera;
+    const { background, fog } = scene;
+    scene.background = null;
+    scene.fog = null;
+    scene.overrideMaterial = depthMaterial;
+    cam.layers.set(SOLID_LAYER);
+    gl.setRenderTarget(target);
+    gl.clear();
+    gl.render(scene, cam);
+    cam.layers.set(0);
+    scene.overrideMaterial = null;
+    scene.background = background;
+    scene.fog = fog;
+    gl.setRenderTarget(null);
+    gl.render(scene, cam);
+    const u = overlay.material.uniforms;
+    u.tDepth.value = target.depthTexture;
+    u.near.value = cam.near;
+    u.far.value = cam.far;
+    const autoClear = gl.autoClear;
+    gl.autoClear = false;
+    gl.render(overlay.scene, overlay.camera);
+    gl.autoClear = autoClear;
+  };
+  draw.current = render;
+  // A positive priority takes over rendering from react-three-fiber
+  useFrame(render, 1);
+  return null;
+}
+
+/** The sky: a pale blue fading to the horizon, as the scene background so screenshots include it */
+function Sky({ top, horizon }: { top: string; horizon: string }) {
+  const scene = useThree(s => s.scene);
+  const doc = useCanvasDocument();
+  useEffect(() => {
+    const c = doc.createElement('canvas');
+    c.width = 2;
+    c.height = 256;
+    const ctx = c.getContext('2d')!;
+    const g = ctx.createLinearGradient(0, 0, 0, c.height);
+    g.addColorStop(0, top);
+    g.addColorStop(0.7, horizon);
+    g.addColorStop(1, horizon);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, c.width, c.height);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    scene.background = tex;
+    return () => {
+      scene.background = null;
+      tex.dispose();
+    };
+  }, [scene, doc, top, horizon]);
+  return null;
+}
+
+function Capture({ draw }: { draw: React.RefObject<(() => void) | null> }) {
   const gl = useThree(s => s.gl);
   const scene = useThree(s => s.scene);
   const camera = useThree(s => s.camera);
@@ -198,7 +325,8 @@ function Capture() {
         if (typeof o.userData.restY === 'number') o.position.y = o.userData.restY;
         if (o.userData.baseColor) ((o as THREE.Mesh).material as THREE.MeshStandardMaterial).color.copy(o.userData.baseColor);
       });
-      gl.render(scene, camera);
+      if (draw.current) draw.current();
+      else gl.render(scene, camera);
       const c = gl.domElement;
       return { dataUrl: c.toDataURL('image/png'), width: c.width, height: c.height };
     });
@@ -397,6 +525,7 @@ export function Model3D() {
   const projectId = useEditor(s => s.projectId);
   const c = useColors();
   const model = useRef<THREE.Group>(null);
+  const draw = useRef<(() => void) | null>(null);
 
   const current = project.levels.find(l => l.id === view.level);
   // The whole house by default; the cutaway shows the current level and below, to look into it
@@ -440,18 +569,21 @@ export function Model3D() {
       <TintColors.Provider value={tints}>
         <Canvas
           shadows
+          // No tone mapping: white walls stay white, like SketchUp, instead of the filmic gray
+          flat
           gl={{ preserveDrawingBuffer: true, antialias: true }}
           camera={{ position: [cx + span * 0.9, span * 0.8, cz + span * 1.1], fov: FOV, near: 0.1, far: 2000 }}
-          style={{ background: c.bg }}
+          style={{ background: c.horizon }}
           // react-three-fiber sizes the canvas with CSS only when it is an HTMLCanvasElement of the parent window, which a
           // canvas in our iframe is not. Without it the canvas shows at its drawing-buffer size, twice too large on 2x screens,
           // so the model sits off-center and clicks miss. Fill the wrapper instead.
           onCreated={({ gl }) => Object.assign(gl.domElement.style, { width: '100%', height: '100%' })}
         >
           {/* The ground fades into the background in the distance, so it has no visible edge */}
-          <fog attach="fog" args={[c.bg, radius * 5, radius * 14]} />
-          <hemisphereLight args={[c.sky, c.edge, 1.1]} />
-          <directionalLight position={[cx - 20, 40, cz + 25]} intensity={1.6} castShadow shadow-mapSize={[2048, 2048]}
+          <fog attach="fog" args={[c.horizon, radius * 5, radius * 14]} />
+          {/* Bright, even light so faces read as white and light gray by direction; shadows stay soft */}
+          <hemisphereLight args={[c.wall, c.shade, 2.2]} />
+          <directionalLight position={[cx - 20, 40, cz + 25]} intensity={1.1} castShadow shadow-mapSize={[2048, 2048]}
             shadow-camera-left={-40} shadow-camera-right={40} shadow-camera-top={40} shadow-camera-bottom={-40} />
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, project.site.groundLevel * M - 0.01, cz]} receiveShadow>
             <planeGeometry args={[Math.max(span, radius) * 40, Math.max(span, radius) * 40]} />
@@ -467,10 +599,10 @@ export function Model3D() {
                 ))}
                 {boxes.filter(b => b.level === l.id).map((b, i) => (
                   <BoxMesh key={`${b.id}-${i}`} b={b} base={elev.get(l.id) ?? 0} edge={c.edge}
-                    color={b.kind === 'glass' ? c.glass : c.wall} sel={sel.has(b.id) ? c.sel : undefined} opacity={b.kind === 'glass' ? 0.2 : 1} />
+                    color={b.kind === 'glass' ? c.glass : c.wall} sel={sel.has(b.id) ? c.sel : undefined} opacity={b.kind === 'glass' ? 0.45 : 1} />
                 ))}
                 {view.layers.furniture && project.furniture.filter(f => f.level === l.id).map(f => (
-                  <Furniture key={f.id} f={f} base={elev.get(l.id) ?? 0} color={c.furn} sel={sel.has(f.id) ? c.sel : undefined} />
+                  <Furniture key={f.id} f={f} base={elev.get(l.id) ?? 0} color={c.furn} edge={c.edge} sel={sel.has(f.id) ? c.sel : undefined} />
                 ))}
               </group>
             ))}
@@ -481,7 +613,9 @@ export function Model3D() {
           <SafariPinch />
           <Picker />
           <Reveal ownerOf={ownerOf} />
-          <Capture />
+          <Sky top={c.sky} horizon={c.horizon} />
+          <Profiles model={model} color={c.edge} draw={draw} />
+          <Capture draw={draw} />
         </Canvas>
       </TintColors.Provider>
       <p className="pointer-events-none absolute bottom-2 left-3 text-xs text-muted-foreground max-md:hidden">{m.model3d_hint()}</p>

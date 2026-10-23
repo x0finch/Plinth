@@ -28,8 +28,9 @@ export async function svgToPng(svg: SVGSVGElement, width = 2000) {
   return { dataUrl: canvas.toDataURL('image/png'), width, height };
 }
 
+/** Indoor rooms are white; outside areas share the 3D view's ground color, covered ones lighter */
 const SPACE_FILL: Record<string, string> = {
-  indoor: 'var(--card)', 'semi-outdoor': 'var(--muted)', outdoor: 'var(--secondary)', 'roof-terrace': 'var(--accent)', void: 'url(#hatch)',
+  indoor: 'var(--card)', 'semi-outdoor': 'var(--secondary)', outdoor: 'var(--canvas-ground)', 'roof-terrace': 'var(--canvas-ground)', void: 'url(#hatch)',
 };
 
 export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | null> }) {
