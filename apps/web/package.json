@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "npm run i18n -- --output-structure locale-modules",
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
