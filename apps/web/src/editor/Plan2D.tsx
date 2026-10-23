@@ -77,10 +77,14 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
     [select, view.selection],
   );
 
-  // Reset zoom when switching floors
+  // Reset zoom when switching floors, and on "fit all"
+  const fitRequest = useEditor(s => s.fitRequest);
   useEffect(() => {
     zoomRef.current?.resetTransform(0);
   }, [view.level]);
+  useEffect(() => {
+    if (fitRequest) zoomRef.current?.resetTransform(300);
+  }, [fitRequest]);
 
   const selWall = shapes.walls.find(x => sel.has(x.w.id));
 
