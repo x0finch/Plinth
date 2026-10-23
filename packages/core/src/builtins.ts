@@ -1,6 +1,6 @@
 /** Built-in capabilities: query, edit, relation, verify. Browser-only view capabilities are registered at runtime. */
 import { z } from 'zod';
-import { defineEdit, defineRead, Registry, type Capability, type CapabilityContext } from './capability.js';
+import { defineEdit, defineRead, defineSession, Registry, type Capability, type CapabilityContext } from './capability.js';
 import { areaReport, grossArea, netArea } from './area.js';
 import { area, pointInPolygon, rect, union } from './geometry.js';
 import { checkRules } from './rules.js';
@@ -448,7 +448,6 @@ export const wallRemove = edit({
     const w = getWall(p, i.wall);
     if (w.kind === 'bearing') throw new TxError('structural', text('err_remove_bearing_wall', '{wall} is a bearing wall: removing it affects structural safety and needs professional review. Confirm with the owner and change it to a partition before removing it', { wall: w.name }));
     p.walls = p.walls.filter(x => x.id !== w.id);
-    p.constraints = p.constraints.filter(c => !c.targets.includes(w.id) && !w.openings.some(o => c.targets.includes(o.id)));
     return { removed: w.id };
   },
 });
@@ -510,7 +509,6 @@ export const openingRemove = edit({
   apply: (p, i) => {
     const { w, o } = getOpening(p, i.opening);
     w.openings = w.openings.filter(x => x.id !== o.id);
-    p.constraints = p.constraints.filter(c => !c.targets.includes(o.id));
     return { removed: o.id };
   },
 });
@@ -598,7 +596,6 @@ export const spaceRemove = edit({
       p.walls = p.walls.filter(w => !removed.includes(w.id));
     }
     p.spaces = p.spaces.filter(x => x.id !== s.id);
-    p.constraints = p.constraints.filter(c => !c.targets.includes(s.id));
     return { removed: [s.id, ...removed] };
   },
 });
@@ -819,7 +816,7 @@ export const decisionAdd = edit({
   },
 });
 
-export const historyUndo = defineRead({
+export const historyUndo = defineSession({
   name: 'history_undo', title: 'Undo', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Undo the last change.',
   input: z.object({}),
@@ -829,7 +826,7 @@ export const historyUndo = defineRead({
   },
 });
 
-export const historyRedo = defineRead({
+export const historyRedo = defineSession({
   name: 'history_redo', title: 'Redo', kind: 'edit', permission: 'reversible', runtime: 'any',
   description: 'Redo the change just undone.',
   input: z.object({}),
