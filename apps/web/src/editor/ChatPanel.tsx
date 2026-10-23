@@ -16,14 +16,14 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } fro
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { registry } from '@/agent/registry';
 import { m } from '@/lib/i18n';
-import { AUTONOMIES, autonomyHint, autonomyLabel, getAutonomy, setAutonomy } from '@/lib/prefs';
+import { AUTONOMIES, autonomyHint, autonomyLabel, getAutonomy, getChatModel, setAutonomy, setChatModel } from '@/lib/prefs';
 import type { Autonomy } from '@/agent/policy';
 import { can } from '@/shared/roles';
 import { ChangeCard } from './chat/ChangeCard';
 import { titleOf, type ToolResultPart } from './chat/common';
 import { MessageView } from './chat/MessageView';
 import { useAgentChat } from './chat/useAgentChat';
-import { useEditor } from './store';
+import { projectModel, useEditor } from './store';
 
 const SUGGESTIONS = [m.chat_suggestion_size, m.chat_suggestion_enlarge, m.chat_suggestion_window, m.chat_suggestion_check];
 const SUGGESTIONS_BLANK = [m.chat_suggestion_blank_family, m.chat_suggestion_blank_yard];
@@ -41,16 +41,27 @@ function describeCall(name: string, args: unknown, project: Project) {
 
 export function ChatPanel() {
   const role = useEditor(s => s.role);
-  const model = useEditor(s => s.model);
+  const projectId = useEditor(s => s.projectId);
+  const models = useEditor(s => s.models);
+  const fallback = useEditor(s => projectModel(s));
   const project = useEditor(s => s.project);
   const view = useEditor(s => s.view);
   const readOnly = useEditor(s => s.readOnlyVersion != null);
   const [autonomy, setAuto] = useState<Autonomy>('balanced');
   const [input, setInput] = useState('');
   const editable = can(role, 'editor') && !readOnly;
+  // The model picked in this chat; falls back to the project's model when unset or no longer available
+  const [picked, setPicked] = useState<string | null>(null);
   useEffect(() => setAuto(getAutonomy()), []);
+  useEffect(() => setPicked(getChatModel(projectId)), [projectId]);
+  const model = models.find(x => x.id === picked) ?? fallback;
+  const pickModel = (id: string) => {
+    const next = id === fallback?.id ? null : id;
+    setPicked(next);
+    setChatModel(projectId, next);
+  };
 
-  const { messages, send: sendText, isLoading, stop, error, interrupts, shots } = useAgentChat({ autonomy, editable });
+  const { messages, send: sendText, isLoading, stop, error, interrupts, shots } = useAgentChat({ autonomy, editable, modelId: model?.id });
   const send = (text: string) => {
     if (!text.trim() || isLoading) return;
     setInput('');
@@ -68,7 +79,21 @@ export function ChatPanel() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
         <div className="min-w-0 text-xs text-muted-foreground">
-          {model ? <span className="truncate">{m.chat_model({ label: model.label })}</span> : <span>{m.chat_no_model()}</span>}
+          {editable && model ? (
+            <Select value={model.id} onValueChange={v => pickModel(v as string)}>
+              <SelectTrigger size="sm" className="h-7 max-w-full gap-1 text-xs" aria-label={m.chat_model_aria()}>
+                <SelectValue>{m.chat_model({ label: model.label })}</SelectValue>
+              </SelectTrigger>
+              <SelectContent align="start" className="w-auto max-w-80">
+                {models.map(x => (
+                  <SelectItem key={x.id} value={x.id}>
+                    <span>{x.label}</span>
+                    {x.id === fallback?.id && <span className="text-xs text-muted-foreground">{m.chat_model_project_default()}</span>}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : model ? <span className="truncate">{m.chat_model({ label: model.label })}</span> : <span>{m.chat_no_model()}</span>}
         </div>
         <Select value={autonomy} onValueChange={v => { setAuto(v as Autonomy); setAutonomy(v as Autonomy); }}>
           <SelectTrigger size="sm" className="h-7 w-auto gap-1 text-xs" aria-label={m.chat_autonomy_aria()}>

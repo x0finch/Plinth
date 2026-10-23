@@ -22,12 +22,27 @@ export interface LastChange {
   at: number;
 }
 
+export interface ModelOption {
+  id: string;
+  label: string;
+  provider: string;
+  model: string;
+}
+
+/** The model the project uses: the pinned one, else the owner's default */
+export const projectModel = (s: Pick<EditorState, 'models' | 'projectModelId' | 'defaultModelId'>) =>
+  s.models.find(x => x.id === (s.projectModelId ?? s.defaultModelId)) ?? null;
+
 export interface EditorState {
   projectId: string;
   name: string;
   role: Role;
   version: number;
-  model: { id: string; label: string; provider: string; model: string } | null;
+  /** The owner's models (editors chat with them) */
+  models: ModelOption[];
+  /** The model the owner pinned for the project; null uses the owner's default */
+  projectModelId: string | null;
+  defaultModelId: string | null;
   session: Session;
   project: Project;
   view: ViewState;
@@ -75,7 +90,9 @@ export interface InitialProject {
   role: Role;
   version: number;
   content: Project;
-  model: EditorState['model'];
+  models?: ModelOption[];
+  projectModelId?: string | null;
+  defaultModelId?: string | null;
 }
 
 const firstLevel = (p: Project) => p.levels.find(l => !l.roof)?.id ?? p.levels[0]?.id ?? 'L1';
@@ -108,7 +125,9 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
       name: init.name,
       role: init.role,
       version: init.version,
-      model: init.model,
+      models: init.models ?? [],
+      projectModelId: init.projectModelId ?? null,
+      defaultModelId: init.defaultModelId ?? null,
       session,
       project: init.content,
       view,

@@ -66,7 +66,10 @@ const ROUTES = [
   ['GET', '/models', 'user'],
   ['GET', '/account/export', 'user'],
   ['POST', '/projects', 'user', { name: 'Scratch', template: 'blank' }],
-  ['POST', '/models', 'user', { label: 'x' }],
+  ['POST', '/keys', 'user', { provider: 'x' }],
+  ['DELETE', '/keys/nope', 'user'],
+  ['POST', '/models', 'user', { keyId: 'nope', model: 'x' }],
+  ['PUT', '/models/default', 'user', { modelId: 'nope' }],
   ['DELETE', '/models/nope', 'user'],
   ['GET', `/projects/${id}`, 'viewer'],
   ['PUT', `/projects/${id}`, 'editor', { base: 0, content: {} }],
@@ -112,7 +115,7 @@ for (const [method, path, min, body, type] of ROUTES) {
 const registered = [...readFileSync(new URL('../src/server/api.ts', import.meta.url), 'utf8').matchAll(/(api|project)\.(get|post|put|patch|delete)\('([^']+)'/g)]
   .map(([, app, m, p]) => `${m.toUpperCase()} ${(app === 'project' ? `/projects/:id${p === '/' ? '' : p}` : p).replace(/:\w+/g, ':_')}`)
   .filter(r => !r.includes('/share/'));
-const covered = new Set([...ROUTES, ['DELETE', `/projects/${id}`]].map(([m, p]) => `${m} ${p.replace(id, ':_').replace(comment, ':_').replace(otherUser, ':_').replace(/\/(links|invites|models)\/nope/, '/$1/:_').replace(/\/versions\/1$/, '/versions/:_')}`));
+const covered = new Set([...ROUTES, ['DELETE', `/projects/${id}`]].map(([m, p]) => `${m} ${p.replace(id, ':_').replace(comment, ':_').replace(otherUser, ':_').replace(/\/(links|invites|models|keys)\/nope/, '/$1/:_').replace(/\/versions\/1$/, '/versions/:_')}`));
 const missing = registered.filter(r => !covered.has(r));
 check(!missing.length, `every API route is in the matrix${missing.length ? `; missing: ${missing.join(', ')}` : ''}`);
 check((await actors.anon.call('POST', '/share/nope/accept')).status === 401, 'accepting a share link needs sign-in');

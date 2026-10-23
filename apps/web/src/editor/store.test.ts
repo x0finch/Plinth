@@ -11,7 +11,7 @@ const project = (name = 'test') => createProject({ id: 'p1', name, language: 'en
 const room = { level: 'L1', name: 'A', rect: [0, 0, 4000, 4000] };
 
 function open(role: Role = 'owner', content: Project = project()) {
-  const store = createEditorStore({ id: 'p1', name: 'test', role, version: 1, content, model: null });
+  const store = createEditorStore({ id: 'p1', name: 'test', role, version: 1, content });
   const disconnect = store.getState().connect();
   return { store, disconnect, s: () => store.getState() };
 }

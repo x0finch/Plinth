@@ -144,10 +144,13 @@ project.get('/', minRole('viewer'), async c => {
   const role = c.var.role;
   const [p, v] = await Promise.all([repo.getProject(id), repo.getVersion(id)]);
   if (!p || !v) throw new HTTPException(404, { message: m.server_err_project_not_found() });
-  const model = p.model_config_id ? await repo.getModelConfig(p.model_config_id) : null;
+  // Editors chat with the owner's models; everyone else doesn't need the list
+  const models = can(role, 'editor') ? await repo.listModels(p.owner_id) : [];
   return c.json({
     id: p.id, name: p.name, role, version: v.version, ownerId: p.owner_id,
-    model: model && { id: model.id, label: model.label, provider: model.provider, model: model.model },
+    models: models.map(x => ({ id: x.id, label: x.label, provider: x.provider, model: x.model })),
+    projectModelId: models.some(x => x.id === p.model_config_id) ? p.model_config_id : null,
+    defaultModelId: models.length ? await repo.defaultModelId(p.owner_id, models) : null,
     content: JSON.parse(v.content),
   });
 });
@@ -314,38 +317,72 @@ project.delete('/comments/:cid', minRole('commenter'), async c => {
   return c.json({ ok: true });
 });
 
-// ---------- Model configs ----------
+// ---------- API keys and models ----------
 
-api.get('/models', async c => c.json({ configs: await repo.listModelConfigs(requireUser(c).id), providers: localizedProviders() }));
+api.get('/models', async c => {
+  const u = requireUser(c);
+  const [keys, models] = await Promise.all([repo.listApiKeys(u.id), repo.listModels(u.id)]);
+  return c.json({ keys, models, defaultModelId: await repo.defaultModelId(u.id, models), providers: localizedProviders() });
+});
 
-api.post('/models', async c => {
+const modelName = z.string().trim().min(1).max(100);
+
+api.post('/keys', async c => {
   const u = requireUser(c);
   const b = await body(c, z.object({
-    label: z.string().trim().min(1).max(40), provider: z.enum(Object.keys(PROVIDERS) as [string, ...string[]]),
-    model: z.string().trim().min(1).max(100), apiKey: z.string().trim().min(8).max(400), baseUrl: z.url().max(300).nullish(),
+    provider: z.enum(Object.keys(PROVIDERS) as [string, ...string[]]), apiKey: z.string().trim().min(8).max(400), baseUrl: z.url().max(300).nullish(),
+    // The first model to use with the key, so a new key is usable in one step
+    model: modelName.optional(),
   }));
   if (PROVIDERS[b.provider].needsBaseUrl && !b.baseUrl) throw new HTTPException(400, { message: m.server_err_base_url_required() });
   const id = repo.newId('k');
   const { ciphertext, iv } = await encryptSecret(b.apiKey, id);
-  await repo.insertModelConfig({
-    id, user_id: u.id, label: b.label, provider: b.provider, model: b.model, base_url: b.baseUrl ?? null,
+  await repo.insertApiKey({
+    id, user_id: u.id, provider: b.provider, base_url: b.baseUrl ?? null,
     key_ciphertext: ciphertext, key_iv: iv, key_hint: keyHint(b.apiKey), created_at: Date.now(),
   });
-  return c.json({ id });
+  const modelId = b.model ? repo.newId('l') : null;
+  if (modelId) await repo.insertModel({ id: modelId, user_id: u.id, key_id: id, label: b.model!, model: b.model! });
+  return c.json({ id, modelId });
 });
 
-api.delete('/models/:id', async c => {
-  await repo.deleteModelConfig(requireUser(c).id, c.req.param('id'));
+api.delete('/keys/:id', async c => {
+  await repo.deleteApiKey(requireUser(c).id, c.req.param('id'));
   return c.json({ ok: true });
 });
 
+api.post('/models', async c => {
+  const u = requireUser(c);
+  const b = await body(c, z.object({ keyId: z.string(), model: modelName, label: z.string().trim().min(1).max(40).optional() }));
+  const key = await repo.getApiKey(b.keyId);
+  if (!key || key.user_id !== u.id) throw new HTTPException(400, { message: m.server_err_key_not_owned() });
+  const id = repo.newId('l');
+  await repo.insertModel({ id, user_id: u.id, key_id: key.id, label: b.label ?? b.model, model: b.model });
+  return c.json({ id });
+});
+
+api.put('/models/default', async c => {
+  const u = requireUser(c);
+  const b = await body(c, z.object({ modelId: z.string() }));
+  const model = await repo.getModel(b.modelId);
+  if (!model || model.user_id !== u.id) throw new HTTPException(400, { message: m.server_err_model_config_not_owned() });
+  await repo.setDefaultModel(u.id, model.id);
+  return c.json({ ok: true });
+});
+
+api.delete('/models/:id', async c => {
+  await repo.deleteModel(requireUser(c).id, c.req.param('id'));
+  return c.json({ ok: true });
+});
+
+/** Pin a model for the project (shared members use it too); null goes back to the owner's default */
 project.put('/model', minRole('owner'), async c => {
   const id = c.var.projectId;
   const user = c.var.user!;
   const b = await body(c, z.object({ modelConfigId: z.string().nullable() }));
   if (b.modelConfigId) {
-    const cfg = await repo.getModelConfig(b.modelConfigId);
-    if (!cfg || cfg.user_id !== user.id) throw new HTTPException(400, { message: m.server_err_model_config_not_owned() });
+    const model = await repo.getModel(b.modelConfigId);
+    if (!model || model.user_id !== user.id) throw new HTTPException(400, { message: m.server_err_model_config_not_owned() });
   }
   await repo.setProjectModel(id, b.modelConfigId);
   return c.json({ ok: true });
@@ -363,13 +400,19 @@ project.post('/chat', minRole('editor'), async c => {
   const user = c.var.user!;
   await limit(env.RL_CHAT, user.id);
   const p = await repo.getProject(id);
-  if (!p?.model_config_id) throw new HTTPException(400, { message: m.server_err_no_model() });
-  const cfg = await repo.getModelConfig(p.model_config_id);
-  if (!cfg) throw new HTTPException(400, { message: m.server_err_model_config_deleted() });
-  const apiKey = await decryptSecret(cfg.key_ciphertext, cfg.key_iv, cfg.id);
-  return handleChat(c.req.raw, {
-    config: cfg, apiKey,
-    onUsage: (input, output) => repo.recordUsage({ userId: user.id, projectId: id, modelConfigId: cfg.id, input, output }),
+  if (!p) throw new HTTPException(404, { message: m.server_err_project_not_found() });
+  return handleChat(c.req.raw, async requested => {
+    // The model picked in the chat, else the project's pinned model, else the owner's default; always one of the owner's
+    const models = await repo.listModels(p.owner_id);
+    const has = (x: string | null | undefined) => (x && models.some(o => o.id === x) ? x : null);
+    const modelId = has(requested) ?? has(p.model_config_id) ?? await repo.defaultModelId(p.owner_id, models);
+    const config = modelId ? await repo.getModel(modelId) : null;
+    if (!config) throw new HTTPException(400, { message: m.server_err_no_model() });
+    return {
+      config,
+      apiKey: await decryptSecret(config.key_ciphertext, config.key_iv, config.key_id),
+      onUsage: (input, output) => repo.recordUsage({ userId: user.id, projectId: id, modelConfigId: config.id, input, output }),
+    };
   });
 });
 

@@ -24,15 +24,24 @@ const api = (path, init) => page.evaluate(async ([p, i]) => {
   return { status: r.status, body: await r.json() };
 }, [path, init]);
 
-const added = await api('/models', { method: 'POST', body: JSON.stringify({ provider: 'compatible', model: 'fake-model', apiKey: 'sk-test-12345678', label: 'Test model', baseUrl: process.env.FAKE_LLM ?? 'http://127.0.0.1:8787/v1' }) });
-check(added.status === 200, `add model config ${added.status}`);
+// A key is saved once with its first model; the project uses the owner's default without being set up (#44)
+const added = await api('/keys', { method: 'POST', body: JSON.stringify({ provider: 'compatible', model: 'fake-model', apiKey: 'sk-test-12345678', baseUrl: process.env.FAKE_LLM ?? 'http://127.0.0.1:8787/v1' }) });
+check(added.status === 200 && added.body.modelId, `save key with its first model ${added.status}`);
+const second = await api('/models', { method: 'POST', body: JSON.stringify({ keyId: added.body.id, model: 'fake-model-2' }) });
+check(second.status === 200, 'a second model reuses the saved key');
 const models = await api('/models');
 check(!JSON.stringify(models.body).includes('sk-test-12345678'), 'model list does not return the plaintext key');
-check(models.body.configs[0].key_hint === '…5678', 'only the last 4 key characters are shown');
-const pick = await api(`/projects/${projectId}/model`, { method: 'PUT', body: JSON.stringify({ modelConfigId: added.body.id }) });
-check(pick.status === 200, 'project selects the model');
+check(models.body.keys.length === 1 && models.body.keys[0].key_hint === '…5678', 'only the last 4 key characters are shown');
+check(models.body.models.length === 2 && models.body.defaultModelId === added.body.modelId, 'the first model becomes the default');
 await page.reload();
 await page.waitForFunction(() => window.artifact?.ready);
+check(await page.getByText('先配置大模型').count() === 0, 'no setup prompt when a model is configured');
+// Switch the chat to the second model; the next message uses it
+await page.getByRole('combobox', { name: '对话使用的模型' }).click();
+await page.getByRole('option', { name: /fake-model-2/ }).click();
+check(await page.getByText('模型：fake-model-2').isVisible(), 'chat switched to the second model');
+const chatModels = [];
+page.on('request', r => r.url().endsWith(`/projects/${projectId}/chat`) && chatModels.push(JSON.parse(r.postData() ?? '{}').forwardedProps?.modelId ?? JSON.parse(r.postData() ?? '{}').modelId));
 
 const before = await page.evaluate(() => window.artifact.call('get_object', { ref: '一层·老人房一' }));
 const box = page.getByPlaceholder('说说想怎么改…');
@@ -40,6 +49,7 @@ await box.fill('老人房一扩到 12.5 平');
 await box.press('Enter');
 await page.getByText(/^好了。/).first().waitFor({ timeout: 30000 });
 const after = await page.evaluate(() => window.artifact.call('get_object', { ref: '一层·老人房一' }));
+check(chatModels[0] === second.body.id, `chat request uses the picked model: ${chatModels[0]}`);
 check(Math.abs(after.result.netArea - 12.5) < 0.15, `agent resized room: ${before.result.netArea} → ${after.result.netArea} m²`);
 check(await page.getByText('对比改前').isVisible(), 'change card shown (before/after compare, undo)');
 await page.screenshot({ path: `${OUT}/agent-1.png` });
@@ -69,7 +79,6 @@ check(versions.body.length >= 2, `new version auto-saved: ${versions.body[0]?.su
 
 // Starting from scratch: blank project, one-sentence brief
 const blank = await api('/projects', { method: 'POST', body: JSON.stringify({ name: '新房子', template: 'blank' }) });
-await api(`/projects/${blank.body.id}/model`, { method: 'PUT', body: JSON.stringify({ modelConfigId: added.body.id }) });
 await page.goto(`${BASE}/p/${blank.body.id}`);
 await page.waitForFunction(() => window.artifact?.ready);
 await page.getByPlaceholder('说说想怎么改…').fill('一家四口，一层，要两间卧室');
