@@ -1,5 +1,5 @@
 # Check + deploy to Cloudflare Workers
-# - Pull requests and pushes, in parallel: core (typecheck + tests), lint (theme + i18n checks), web (build + typecheck + unit tests),
+# - Pull requests and pushes, in parallel: core (typecheck + tests), lint (oxlint, oxfmt, theme + i18n checks), web (build + typecheck + unit tests),
 #   api (permission matrix against a local Worker)
 # - Pushes to main: after checks pass, migrate the production D1, deploy, sync Worker secrets
 # Configure under the repo's Settings → Secrets and variables → Actions; see "Deployment" in the README
@@ -38,7 +38,10 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      # Both checks are plain node:fs scripts, so no dependency install is needed
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
       - run: npm run check:theme -w @plinth/web
       - run: npm run check:i18n -w @plinth/web
 
