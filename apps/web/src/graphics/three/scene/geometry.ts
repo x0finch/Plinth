@@ -1,11 +1,10 @@
 /**
  * Geometry of a house's parts in metres, shared by the editor's 3D view and the house stills: walls, floor slabs, elements'
- * solids, the plinth, and the box that frames what is shown.
+ * solids, and the box that frames what is shown.
  */
-import { plinthRect } from '@/graphics/plan/plan-geometry';
 import { rect, union, wallBoxes, wallDir, type Polygon, type Project, type Solid, type Wall, type Box } from '@plinth/core';
 import * as THREE from 'three';
-import { M, PLINTH } from './units';
+import { M } from './units';
 
 /** Plan polygons (x, z in millimetres) as three.js shapes in a plane whose second axis is -z, ready to extrude upwards */
 const planShapes = (polygons: Polygon[]) =>
@@ -28,9 +27,10 @@ export const solidGeometry = (s: Solid) => extrudeUp([{ outer: s.outline }], s.h
 /**
  * A wall as one solid, placed at the wall's start: the elevation of its pieces (piers, sills, lintels; see wallBoxes) merged into
  * one outline with the openings as holes, extruded through the wall's thickness. Drawn as separate boxes, the faces where pieces
- * meet would flicker through the wall face as dotted edges. Glass and railings are drawn by their looks.
+ * meet would flicker through the wall face as dotted edges. Glass and railings are drawn by their looks. `below`: how far the
+ * wall continues down from its level to the ground (see footing), in millimetres.
  */
-export function wallGeometry(project: Project, w: Wall) {
+export function wallGeometry(project: Project, w: Wall, below = 0) {
   const d = wallDir(w);
   // Each piece as a rectangle in elevation: along the wall from its start, and height
   const rects = wallBoxes(project, w)
@@ -39,6 +39,10 @@ export function wallGeometry(project: Project, w: Wall) {
       const u = (b.center[0] - w.start[0]) * d[0] + (b.center[1] - w.start[1]) * d[1];
       return { outer: rect(u - b.length / 2, b.z, u + b.length / 2, b.z + b.height).outer };
     });
+  if (below > 0 && rects.length) {
+    const us = rects.flatMap(r => r.outer.map(([u]) => u));
+    rects.push({ outer: rect(Math.min(...us), -below, Math.max(...us), 0).outer });
+  }
   const shapes = union(rects).map(p => {
     const sh = new THREE.Shape(p.outer.map(([u, v]) => new THREE.Vector2(u * M, v * M)));
     for (const h of p.holes ?? []) sh.holes.push(new THREE.Path(h.map(([u, v]) => new THREE.Vector2(u * M, v * M))));
@@ -64,16 +68,6 @@ export function elementExtent(solids: Solid[]) {
     z0 = Math.min(...pts.map(p => p[1])),
     z1 = Math.max(...pts.map(p => p[1]));
   return { w: x1 - x0, d: z1 - z0, h: Math.max(...solids.map(s => s.z + s.height)), center: [(x0 + x1) / 2, (z0 + z1) / 2] as const };
-}
-
-/** The plinth: a white board a little larger than the site, like a model's base (the same board as on the plan), in metres */
-export function plinthBox(project: Project) {
-  const [x0, y0, x1, y1] = plinthRect(project),
-    ground = project.site.groundLevel * M;
-  return {
-    size: [(x1 - x0) * M, PLINTH, (y1 - y0) * M] as [number, number, number],
-    position: [((x0 + x1) / 2) * M, ground - PLINTH / 2 - 0.002, ((y0 + y1) / 2) * M] as [number, number, number],
-  };
 }
 
 /** The site's extent in millimetres: [x0, y0, x1, y1] */

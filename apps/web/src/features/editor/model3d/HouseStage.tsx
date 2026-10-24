@@ -1,8 +1,8 @@
-/** What the house stands in, in the 3D view: sky light, the sun, the plinth and a ground that only catches shadows (see scene/lighting.ts) */
+/** What the house stands in, in the 3D view: sky light, the sun, and a ground that only catches shadows (see scene/lighting.ts) */
 import type { Project } from '@plinth/core';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import { M, plinthBox, shadowGround, siteBounds, SKYLIGHT_INTENSITY, sunLight, type ShadowQuality } from '@/graphics/three/scene';
+import { M, shadowGround, siteBounds, SKYLIGHT_INTENSITY, sunLight, type ShadowQuality } from '@/graphics/three/scene';
 
 export function HouseStage({
   project,
@@ -27,7 +27,6 @@ export function HouseStage({
     const [x0, y0, x1, y1] = siteBounds(project);
     return [((x0 + x1) / 2) * M, ((y0 + y1) / 2) * M];
   }, [project.site.boundary]);
-  const plinth = useMemo(() => plinthBox(project), [project.site]);
   const ground = useMemo(() => shadowGround(colors.shadow, Math.max(span, radius) * 40), [colors.shadow, span, radius]);
   useEffect(
     () => () => {
@@ -36,7 +35,8 @@ export function HouseStage({
     },
     [ground],
   );
-  const groundY = plinth.position[1] - plinth.size[1] / 2 + 0.001;
+  // The house stands on the site's ground, which catches its shadow just below the ground-floor walls and paving
+  const groundY = project.site.groundLevel * M - 0.001;
   return (
     <>
       {/* A warm white sun and sky: lit faces are white, shadows a soft warm gray */}
@@ -44,10 +44,6 @@ export function HouseStage({
       <primitive object={sun} />
       <primitive object={sun.target} />
       <primitive object={ground} position={[cx, groundY, cz]} />
-      <mesh position={plinth.position} receiveShadow castShadow>
-        <boxGeometry args={plinth.size} />
-        <meshStandardMaterial color={colors.wall} roughness={1} />
-      </mesh>
     </>
   );
 }

@@ -77,6 +77,8 @@
   "editor_back_to_projects": "Back to my designs",
   "editor_view_2d": "Plan",
   "editor_view_3d": "3D",
+  "editor_switch_to_3d": "Switch to 3D",
+  "editor_switch_to_2d": "Switch to the plan",
   "editor_levels_aria": "Levels",
   "editor_undo": "Undo",
   "editor_undo_shortcut": "Undo (⌘Z)",

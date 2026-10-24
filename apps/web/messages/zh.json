@@ -30,6 +30,8 @@
   "editor_back_to_projects": "返回我的方案",
   "editor_view_2d": "平面",
   "editor_view_3d": "三维",
+  "editor_switch_to_3d": "切换到三维",
+  "editor_switch_to_2d": "切换到平面",
   "editor_levels_aria": "楼层",
   "editor_undo": "撤销",
   "editor_undo_shortcut": "撤销（⌘Z）",

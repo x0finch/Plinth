@@ -25,10 +25,13 @@ test('en', async ({ browser: b }) => {
   await page.waitForURL(/\/p\//);
   await page.waitForFunction(() => window.artifact?.ready);
   check((await page.evaluate(() => document.documentElement.lang)) === 'en', '<html lang> is "en"');
-  const planBtn = page.getByRole('button', { name: 'Plan', exact: true });
-  const threeBtn = page.getByRole('button', { name: '3D', exact: true });
-  // The canvas shows the switch to the other view: "3D" in the plan, "Plan" in 3D
-  check((await threeBtn.isVisible()) && !(await planBtn.isVisible()), 'the plan shows a "3D" switch');
+  // The view switch shows the view you are in ("Plan" in the plan, "3D" in 3D) and is named for where it goes
+  const planBtn = page.getByRole('button', { name: 'Switch to the plan', exact: true });
+  const threeBtn = page.getByRole('button', { name: 'Switch to 3D', exact: true });
+  check(
+    (await threeBtn.isVisible()) && !(await planBtn.isVisible()) && (await threeBtn.innerText()).trim() === 'Plan',
+    'the plan shows "Plan" on the view switch',
+  );
 
   // 3D view, then back to the plan
   const canvas = page.frameLocator('iframe[title="Canvas"]');
@@ -42,7 +45,10 @@ test('en', async ({ browser: b }) => {
       () => false,
     );
   check(gl, 'switching to 3D renders a WebGL canvas');
-  check((await planBtn.isVisible()) && (await page.getByRole('button', { name: 'Fit all' }).isVisible()), '3D shows "Plan" and "Fit all"');
+  check(
+    (await planBtn.isVisible()) && (await planBtn.innerText()).trim() === '3D' && (await page.getByRole('button', { name: 'Fit all' }).isVisible()),
+    '3D shows "3D" on the view switch, and "Fit all"',
+  );
   await page.screenshot({ path: `${OUT}/en-3d.png` });
   const fits = await page
     .frames()

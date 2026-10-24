@@ -1,4 +1,4 @@
-import { BoxIcon, LayersIcon, ScanIcon, SquareIcon } from 'lucide-react';
+import { BoxIcon, CrosshairIcon, LayersIcon, SquareIcon } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from 'cn';
 import { Button } from '@/components/ui/button';
@@ -8,8 +8,8 @@ import { m } from '@/lib/i18n';
 import { useEditor } from '../store';
 
 /**
- * View tools, floating over the canvas top-right: fit all, the switch to the other view (labelled with where it goes), and in 3D
- * the cutaway toggle.
+ * View tools, floating over the canvas top-right: fit all, the view switch (showing the view you are in; pressing it goes to
+ * the other one), and in 3D the cutaway toggle.
  */
 export function CanvasTools({ className }: { className?: string }) {
   const view = useEditor(s => s.view);
@@ -54,14 +54,28 @@ export function CanvasTools({ className }: { className?: string }) {
       )}
       <Tooltip>
         <TooltipTrigger render={<Button size="icon-sm" variant="outline" className="bg-background" onClick={fitView} aria-label={m.canvas_fit()} />}>
-          <ScanIcon />
+          <CrosshairIcon />
         </TooltipTrigger>
         <TooltipContent>{m.canvas_fit()}</TooltipContent>
       </Tooltip>
-      <Button size="sm" variant="outline" className="bg-background" onClick={switchView} disabled={switching}>
-        {to === '3d' ? <BoxIcon /> : <SquareIcon />}
-        {to === '3d' ? m.editor_view_3d() : m.editor_view_2d()}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              size="sm"
+              variant="outline"
+              className="bg-background"
+              onClick={switchView}
+              disabled={switching}
+              aria-label={to === '3d' ? m.editor_switch_to_3d() : m.editor_switch_to_2d()}
+            />
+          }
+        >
+          {view.mode === '3d' ? <BoxIcon /> : <SquareIcon />}
+          {view.mode === '3d' ? m.editor_view_3d() : m.editor_view_2d()}
+        </TooltipTrigger>
+        <TooltipContent>{to === '3d' ? m.editor_switch_to_3d() : m.editor_switch_to_2d()}</TooltipContent>
+      </Tooltip>
     </div>
   );
 }

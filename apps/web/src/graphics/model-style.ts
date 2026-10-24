@@ -14,8 +14,8 @@ export interface ModelStyle {
   walls: 'finish' | 'white';
 }
 
-/** The default ("general") style: walls in their finish (white paint by default), floors in their material, clear glass, soft shadows, a light gray backdrop */
-export const DEFAULT_STYLE: ModelStyle = { edges: false, sky: false, floors: 'material', walls: 'finish' };
+/** The default ("general") style: walls in their finish (white paint by default), floors in their material, clear glass, soft shadows, a blue sky */
+export const DEFAULT_STYLE: ModelStyle = { edges: false, sky: true, floors: 'material', walls: 'finish' };
 
 /** The style a project is shown in (projects can't choose another one yet) */
 export const modelStyle = (): ModelStyle => DEFAULT_STYLE;

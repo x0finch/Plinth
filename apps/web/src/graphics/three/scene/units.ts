@@ -3,8 +3,6 @@ import type { Space } from '@plinth/core';
 
 /** Millimetres to metres */
 export const M = 0.001;
-/** Height of the white plinth the site stands on, in metres */
-export const PLINTH = 0.3;
 /** Size an element's look is built at to read its materials and whether it adds parts (both independent of size) */
 export const ELEMENT_SIZE = { w: 2000, d: 2000, h: 3000 };
 
@@ -12,10 +10,17 @@ export const ELEMENT_SIZE = { w: 2000, d: 2000, h: 3000 };
 export const hasSlab = (s: Space) => s.kind !== 'void' && !s.slabOpening;
 
 /**
+ * How far below a level its walls and floors reach down to the site's ground, in millimetres: the ground floor (elevation 0)
+ * stands on the ground, so when the ground is lower its walls and floors continue down to it instead of floating above it
+ */
+export const footing = (elevation: number, groundLevel: number) => (elevation === 0 && groundLevel < 0 ? -groundLevel : 0);
+
+/**
  * A space's floor slab in millimetres: its top and thickness. Outdoor paving is thin, and on the ground floor it sits just above
- * the site's ground.
+ * the site's ground; an indoor ground floor reaches down to the ground.
  */
 export function slabLevel(s: Space, elevation: number, groundLevel: number) {
   const outdoor = s.kind === 'outdoor';
-  return { y: outdoor && elevation === 0 ? groundLevel + 20 : elevation, thickness: outdoor ? 20 : 120 };
+  if (outdoor) return { y: elevation === 0 ? groundLevel + 20 : elevation, thickness: 20 };
+  return { y: elevation, thickness: Math.max(120, footing(elevation, groundLevel)) };
 }

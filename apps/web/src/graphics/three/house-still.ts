@@ -1,8 +1,8 @@
 /**
  * A still of a whole house in 3D, for the design list: the same model as the editor's 3D view, built from the same scene layer
  * (./scene): walls in their finish, floors in their material, doors, windows, railings and furniture drawn by their looks,
- * elements, the plinth, seen from the 3D view's default direction, with its sun and shadows, in the canvas's light theme. Drawn
- * offscreen on the one renderer the look stills share (look-preview.ts), as a JPEG data URL.
+ * elements, standing on the ground under the same sky, seen from the 3D view's default direction, with its sun and shadows, in
+ * the canvas's light theme. Drawn offscreen on the one renderer the look stills share (look-preview.ts), as a JPEG data URL.
  */
 import {
   furnitureTarget,
@@ -21,6 +21,7 @@ import * as THREE from 'three';
 import { lightDocument } from '@/canvas/CanvasFrame';
 import { materialStyle } from '@/lib/materials';
 import { themeColor } from '@/lib/theme';
+import { modelStyle } from '../model-style';
 import { materialPattern } from '../plan/floor-materials';
 import { floorTexture } from './floor-textures';
 import { BIRD, FOV, framed } from './framing';
@@ -33,10 +34,11 @@ import {
   hasSlab,
   houseBox,
   M,
-  plinthBox,
+  footing,
   railingPieces,
   shadowGround,
   SKYLIGHT_INTENSITY,
+  skyTexture,
   slabGeometry,
   slabLevel,
   solidFallbackColor,
@@ -114,7 +116,7 @@ async function draw(renderer: THREE.WebGLRenderer, p: Project, W: number, H: num
         );
       continue;
     }
-    const mesh = add(house, wallGeometry(p, w), standardMaterial(wallFinish(p, w)));
+    const mesh = add(house, wallGeometry(p, w, footing(base, p.site.groundLevel)), standardMaterial(wallFinish(p, w)));
     mesh.position.set(w.start[0] * M, base * M, w.start[1] * M);
     mesh.castShadow = mesh.receiveShadow = true;
   }
@@ -152,22 +154,19 @@ async function draw(renderer: THREE.WebGLRenderer, p: Project, W: number, H: num
   await Promise.all(jobs);
 
   const scene = new THREE.Scene();
-  scene.background = color('--canvas-backdrop');
+  // The 3D view's backdrop: the sky (with the default style) or the plain backdrop
+  scene.background = modelStyle().sky ? keep(skyTexture(themeColor('--canvas-sky', doc), themeColor('--canvas-backdrop', doc))) : color('--canvas-backdrop');
   scene.add(house);
   // Framed like the editor's default view, on the walls and floors of every level
   const box = houseBox(p, projectBoxes(p), new Set(p.levels.map(l => l.id)));
   const center = box.getCenter(new THREE.Vector3()),
     radius = Math.max(2, box.getSize(new THREE.Vector3()).length() / 2);
 
-  // The plinth, and a ground that only catches shadows
-  const pb = plinthBox(p);
-  const plinth = add(scene, new THREE.BoxGeometry(...pb.size), new THREE.MeshStandardMaterial({ color: white, roughness: 1 }));
-  plinth.position.set(...pb.position);
-  plinth.receiveShadow = plinth.castShadow = true;
+  // The house stands on the site's ground, which only catches shadows
   const ground = shadowGround(color('--canvas-shadow'), radius * 40);
   keep(ground.geometry);
   keep(ground.material);
-  ground.position.set(center.x, pb.position[1] - pb.size[1] / 2 + 0.001, center.z);
+  ground.position.set(center.x, p.site.groundLevel * M - 0.001, center.z);
   scene.add(ground);
 
   // The 3D view's light

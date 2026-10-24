@@ -15,7 +15,17 @@ import { useEditor } from '../store';
 import { useFeedback } from './feedback';
 import { useFloorTexture } from '@/graphics/three/floor-textures';
 import { lookMaterial, partsGeometry, useBuild } from '@/graphics/three/looks';
-import { castsShadow, elementExtent, M, railingPieces, slabGeometry, solidGeometry, standardMaterialProps, wallGeometry } from '@/graphics/three/scene';
+import {
+  castsShadow,
+  elementExtent,
+  footing,
+  M,
+  railingPieces,
+  slabGeometry,
+  solidGeometry,
+  standardMaterialProps,
+  wallGeometry,
+} from '@/graphics/three/scene';
 
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
 
@@ -28,10 +38,11 @@ function useDisposed(geo: THREE.BufferGeometry) {
   return geo;
 }
 
-/** A wall as one solid in its finish (see wallGeometry); glass is drawn by the openings' looks */
+/** A wall as one solid in its finish (see wallGeometry), down to the ground on the ground floor; glass is drawn by the openings' looks */
 export function WallMesh({ w, project, base, finish, ...o }: Outline & { w: Wall; project: Project; base: number; finish: MaterialStyle }) {
   const ref = useFeedback<THREE.Mesh>(w.id, finish.color, !!o.sel);
-  const geo = useDisposed(useMemo(() => wallGeometry(project, w), [w, project]));
+  const below = footing(base, project.site.groundLevel);
+  const geo = useDisposed(useMemo(() => wallGeometry(project, w, below), [w, project, below]));
   const y = base * M;
   return (
     <mesh ref={ref} geometry={geo} position={[w.start[0] * M, y, w.start[1] * M]} castShadow receiveShadow userData={{ id: w.id, restY: y }}>
