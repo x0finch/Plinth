@@ -7,7 +7,7 @@ import * as THREE from 'three';
 
 export const SKYLIGHT_INTENSITY = 2.4;
 export const SUN_INTENSITY = 1.4;
-/** How dark the shadows are on the ground around the plinth */
+/** How dark the shadows are on the ground around the house */
 export const GROUND_SHADOW_OPACITY = 0.35;
 
 /** Shadow quality: the editor drops to 'low' on devices that can't keep up */
@@ -46,7 +46,7 @@ export function sunLight(color: THREE.ColorRepresentation, center: THREE.Vector3
   return sun;
 }
 
-/** The ground only catches shadows: lit, it would read as a lighter board under the plinth; this way the backdrop shows */
+/** The ground only catches shadows: the house stands on the backdrop (or the sky's horizon) with its shadow, on no board */
 export function shadowGround(color: THREE.ColorRepresentation, size: number) {
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2),
