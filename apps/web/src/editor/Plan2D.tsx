@@ -108,7 +108,7 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
           role="img"
           aria-label={m.editor_plan_aria({ level: project.levels.find(l => l.id === view.level)?.name ?? '' })}
         >
-          <PlanDefs />
+          <PlanDefs project={project} />
           <PlanPaper project={project} level={view.level} shapes={shapes} line={screenLine} pick={pick} />
           <PlanInk shapes={shapes} furniture={view.layers.furniture} line={screenLine} pick={pick} />
 

@@ -1,12 +1,17 @@
 /**
  * Built recipes, kept for synchronous use. Scripts evaluate asynchronously (script.ts), but the plan and the 3D view draw
  * synchronously: they read what is built, ask for what isn't, and redraw when the cache says something new is ready. Builds
- * are deterministic, so they are kept per recipe (by identity), size and parameters; a recipe that fails to build stays failed.
+ * are deterministic, so they are kept per recipe (by identity), size and parameters; a recipe that fails to build stays failed (one that ran out of time
+ * on a busy page is tried again a few times).
  */
 import { buildRecipe, type Built, type Recipe } from '../script.js';
 import type { RecipeSize } from '../recipe.js';
 
-interface Entry { built?: Built; error?: string; pending?: Promise<Built | undefined> }
+interface Entry { built?: Built; error?: string; pending?: Promise<Built | undefined>; tries?: number }
+
+/** A build that ran out of time (a busy page, not a broken recipe) is tried again, up to this many times */
+const RETRIES = 3;
+const TIMEOUT = /D1012|timeout/i;
 
 const store = new WeakMap<Recipe, Map<string, Entry>>();
 const listeners = new Set<() => void>();
@@ -53,7 +58,15 @@ export function requestBuild(recipe: Recipe, size: RecipeSize, params: Record<st
   if (e.built || e.error) return Promise.resolve(e.built);
   e.pending ??= buildRecipe(recipe, size, params).then(
     b => ((e.built = b), (e.pending = undefined), changed(), b),
-    err => ((e.error = err instanceof Error ? err.message : String(err)), (e.pending = undefined), changed(), undefined),
+    err => {
+      const message = err instanceof Error ? err.message : String(err);
+      e.tries = (e.tries ?? 0) + 1;
+      // Out of time: leave it unbuilt, so the next request (after the redraw below) tries again
+      if (!(TIMEOUT.test(message) && e.tries < RETRIES)) e.error = message;
+      e.pending = undefined;
+      changed();
+      return undefined;
+    },
   );
   return e.pending;
 }

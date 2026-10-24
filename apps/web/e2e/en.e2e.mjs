@@ -1,5 +1,5 @@
 // E2E: English UI smoke test → landing page in English → sample design → Plan/3D switch on the canvas → pick in 3D → select a room in the canvas
-// → properties tab shows its area → Settings shows English selected → the style gallery → a blank design gets English level names
+// → properties tab shows its area → Settings shows English selected → the libraries → a blank design gets English level names
 import { chromium } from 'playwright';
 
 const BASE = process.env.BASE ?? 'http://localhost:3000';
@@ -74,27 +74,19 @@ check(await langSection.isVisible(), 'Settings has a "Language" section');
 check((await langSection.innerText()).includes('English'), 'language selector shows "English"');
 check(await page.getByRole('heading', { name: 'Settings', exact: true }).first().isVisible(), 'Settings page title is English');
 
-// Libraries, from the top navigation; the default library's page: 3D only, the specimens named in English, and picking one
-// shows its properties
+// Libraries, from the top navigation; the default library's page: its looks by group, named in English; a look's page with its
+// controls and variants
 await page.locator('header a[href="/looks"]').click();
 await page.waitForURL(/\/looks$/);
 const visible = loc => loc.waitFor({ timeout: 15000 }).then(() => true, () => false);
 check(await visible(page.getByRole('heading', { name: 'Libraries', exact: true })), 'the top navigation opens Libraries');
-await page.getByRole('link', { name: 'Open “Default pieces”' }).click();
+await page.getByRole('link', { name: 'Open “Default looks”' }).click();
 await page.waitForURL(/\/looks\/builtin-default/);
-check(await visible(page.getByRole('heading', { name: 'Default pieces', exact: true })), 'the default library opens on its page');
-check(!(await page.getByRole('button', { name: 'Plan', exact: true }).isVisible()) && !(await page.getByText('Level 2', { exact: true }).isVisible()),
-  'the gallery is 3D only: no switch to the plan, no level buttons');
-// The names are written on the ground in WebGL, so pick a specimen in the model itself: tap across the middle of this
-// 1400×900 window, where the furniture rows are, until one is picked (once the model has grown)
-await page.waitForTimeout(6000);
-let picked3 = '';
-for (const [x, y] of [[600, 510], [545, 330], [700, 420], [820, 380], [650, 600], [900, 330]]) {
-  await page.mouse.click(x, y);
-  picked3 = await page.locator('main h3').innerText({ timeout: 1500 }).catch(() => '');
-  if (picked3) break;
-}
-check(/^[\x20-\x7e]+$/.test(picked3), `clicking a specimen shows its English name in the details (${picked3})`);
+check(await visible(page.getByRole('heading', { name: 'Default looks', exact: true })), 'the default library opens on its page');
+check(await visible(page.getByRole('heading', { name: /^Living room/ })) && await page.getByRole('heading', { name: /^Materials/ }).isVisible(), 'its looks are grouped, in English, and its materials listed');
+await page.getByRole('link', { name: 'Open “Sofa”' }).click();
+await page.waitForURL(/\/looks\/builtin-default\/sofa$/);
+check(await visible(page.getByRole('heading', { name: 'Variants' })) && await page.getByRole('combobox', { name: 'Fabric' }).isVisible(), 'a look’s page has its controls and variants, in English');
 await page.screenshot({ path: `${OUT}/en-gallery.png` });
 
 // Blank design: project data follows the UI language

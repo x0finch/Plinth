@@ -44,7 +44,7 @@ describe('building a house from scratch', () => {
     expect((bed.result as any).door).toBeTruthy();
     await h.ok('opening_add', { wall: '主卧北墙', kind: 'window', center_on: '主卧' });
     await h.ok('opening_add', { wall: '客厅南墙', kind: 'door', width: 1000 });
-    await h.ok('furniture_add', { space: '主卧', type: 'bed18' });
+    await h.ok('furniture_add', { space: '主卧', type: 'bed' });
 
     const p = h.session.project;
     expect(p.walls).toHaveLength(7);

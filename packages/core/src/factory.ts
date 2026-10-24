@@ -1,5 +1,5 @@
 /** New project: a blank design with the default catalog. */
-import { furnitureCatalog, materialCatalog } from './catalog.js';
+import { furnitureCatalog } from './catalog.js';
 import { names } from './names.js';
 import { SCHEMA, SCHEMA_VERSION, type Project, type ProjectLanguage } from './schema.js';
 
@@ -45,7 +45,7 @@ export function createProject(o: NewProjectOptions): Project {
     decisions: [],
     library: {
       furniture: furnitureCatalog(language),
-      materials: materialCatalog(language),
+      materials: {},
       elements: {},
     },
     variants: [],

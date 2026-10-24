@@ -12,14 +12,8 @@ import { z } from 'zod';
 import { evalExpr, type Scope } from './expr.js';
 import type { Point } from './schema.js';
 
-/** Materials a recipe can use; the renderer gives each a theme color and a finish */
-export const RECIPE_MATERIALS = [
-  'fabric', 'cushion', 'linen', 'bedding', 'canvas', 'canvas2', 'wood', 'woodDark', 'birch', 'white', 'lacquer', 'gold', 'red', 'cabinet', 'countertop',
-  'ceramic', 'ceramicShade', 'appliance', 'plaster', 'stone', 'stoneDark', 'terracotta', 'soil', 'iron', 'dark', 'glass', 'book1',
-  'book2', 'book3', 'book4', 'flower', 'tube', 'bark', 'leaf', 'leaf2', 'carBody', 'carGlass', 'tyre', 'metal', 'headlight',
-  'taillight', 'frame', 'glassBlock', 'wall', 'water', 'grate',
-] as const;
-export type RecipeMaterial = (typeof RECIPE_MATERIALS)[number];
+/** A material id: one of the default library's, or one the recipe's library or the recipe itself defines (see material.ts) */
+export type RecipeMaterial = string;
 
 /** A number, or an expression of w, d, h and the recipe's names */
 export type Expr = number | string;
@@ -66,7 +60,7 @@ export interface PartRecipe {
 const expr = z.union([z.number(), z.string().min(1).max(500)]);
 const v2 = z.tuple([expr, expr]);
 const v3 = z.tuple([expr, expr, expr]);
-const mat = z.enum(RECIPE_MATERIALS);
+const mat = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]*$/, 'a material id').max(64);
 const common = { mat, plan: z.boolean().optional() };
 const name = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/);
 const profileItem = z.union([v2, z.object({ arc: z.tuple([expr, expr, expr, expr, expr]).or(z.tuple([expr, expr, expr, expr, expr, z.boolean()])) }), z.object({ curve: z.tuple([expr, expr, expr, expr]) })]);

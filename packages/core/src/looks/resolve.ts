@@ -1,13 +1,15 @@
 /** Which recipe draws an object, and its plan symbol in plan coordinates */
 import type { PlanSymbol } from '../recipe.js';
 import { builtPlan, type Recipe } from '../script.js';
+import { typicalSize } from './builtin.js';
 import { getBuild } from './cache.js';
-import type { Element, Furniture, Opening, Point, Project } from '../schema.js';
+import type { Element, Furniture, Opening, Point, Project, Wall } from '../schema.js';
 import { DEFAULT_LOOKS, type LookTarget } from './index.js';
 
 export const furnitureTarget = (f: Pick<Furniture, 'type'>): LookTarget => `furniture:${f.type}`;
 export const openingTarget = (o: Pick<Opening, 'kind' | 'glazing'>): LookTarget => (o.glazing === 'glass-block' ? 'opening:glass-block' : `opening:${o.kind}`);
 export const elementTarget = (e: Pick<Element, 'type'>): LookTarget => `element:${e.type}`;
+export const wallTarget = (w: Pick<Wall, 'kind'>): LookTarget => `wall:${w.kind}`;
 
 /**
  * The recipe that draws an object, like a font resolving a character: the object's own look, else the look the design uses for
@@ -33,12 +35,10 @@ export function lookOf(p: Project, target: LookTarget, own?: string): string | n
 /** The looks of this design that fit a target */
 export const looksFor = (p: Project, target: LookTarget) => Object.entries(p.library.looks ?? {}).filter(([, l]) => l.for.includes(target));
 
-/** A size to check a recipe at for a target: the furniture type's size, or a typical opening or element */
+/** A size to check a recipe at for a target: the design's furniture type's size, or a typical opening, railing or element */
 export function targetSize(p: Project, target: string): { w: number; d: number; h: number } {
   const [kind, type] = target.split(':');
-  if (kind === 'furniture') return p.library.furniture[type]?.size ?? { w: 1000, d: 600, h: 800 };
-  if (kind === 'opening') return type === 'door' || type === 'gate' || type === 'opening' ? { w: 900, d: 240, h: 2100 } : { w: 1200, d: 240, h: 1500 };
-  return { w: 2000, d: 2000, h: 3000 };
+  return (kind === 'furniture' && p.library.furniture[type]?.size) || typicalSize(target);
 }
 
 /** The last plan symbol drawn for each piece, shown while a changed one builds */

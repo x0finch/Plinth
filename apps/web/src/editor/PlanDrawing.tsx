@@ -12,8 +12,8 @@ import { isGroundLevel, plinthRect, type LevelShapes } from './plan-geometry';
 const pts = (p: [number, number][]) => p.map(([x, y]) => `${x},${y}`).join(' ');
 
 /** A room's floor: its material (or white, as the model style says); a void is hatched */
-const spaceFill = (kind: string, material: string) =>
-  kind === 'void' ? 'url(#hatch)' : modelStyle().floors === 'material' ? floorFill(material) : 'var(--card)';
+const spaceFill = (p: Project, kind: string, material: string) =>
+  kind === 'void' ? 'url(#hatch)' : modelStyle().floors === 'material' ? floorFill(p, material) : 'var(--card)';
 
 /**
  * Stroke props for a line `width` screen pixels wide (dashes too). The plan keeps them that wide at any zoom (non-scaling strokes);
@@ -30,10 +30,10 @@ export const labelSize = ([x0, , x1]: LevelShapes['bounds']) => Math.max(220, Ma
 type Pick = (id: string) => (e: React.MouseEvent) => void;
 const hit = (pick: Pick | undefined, id: string) => (pick ? { onClick: pick(id), className: 'plan-hit cursor-pointer', 'data-id': id } : {});
 
-export function PlanDefs() {
+export function PlanDefs({ project }: { project: Project }) {
   return (
     <defs>
-      <FloorPatternDefs />
+      <FloorPatternDefs project={project} />
       <pattern id="hatch" width="200" height="200" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
         <line x1="0" y1="0" x2="0" y2="200" stroke="var(--muted-foreground)" strokeWidth="20" />
       </pattern>
@@ -58,7 +58,7 @@ export function PlanPaper({ project, level, shapes, line, pick }: { project: Pro
           <polygon points={pts(project.site.boundary)} fill="none" stroke="var(--chart-3)" {...line(0.8, [6, 4])} />
         </>
       )}
-      {shapes.spaces.map(({ s, d }) => <path key={s.id} d={d} fill={spaceFill(s.kind, s.floor)} {...hit(pick, s.id)} />)}
+      {shapes.spaces.map(({ s, d }) => <path key={s.id} d={d} fill={spaceFill(project, s.kind, s.floor)} {...hit(pick, s.id)} />)}
     </>
   );
 }

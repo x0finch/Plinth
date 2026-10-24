@@ -2,7 +2,7 @@
  * The design's own looks (beyond the default set): where each came from, saving one to a look library, copying looks from a
  * library, and bringing a copied look up to its library's newer version (shown before and after; never automatic).
  */
-import { FURNITURE_TYPES, names, type Look, type Project } from '@plinth/core';
+import { compareVersions, designLookOf, libraryLookOf, lookSizeOf, names, targetSize, type LookLibrary, type Look, type Project } from '@plinth/core';
 import { useQuery } from '@tanstack/react-query';
 import { LibraryIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react';
 import { useState } from 'react';
@@ -14,9 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/components/ui/item';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { m } from '@/lib/i18n';
-import { getLibrary, listLibraries, lookSize, lookVersions, saveToLibrary } from '@/lib/libraries';
-import type { LibraryLook, LookTypeDef } from '@/shared/looks';
+import { m, uiName } from '@/lib/i18n';
+import { getLibrary, listLibraries, lookVersions, saveToLibrary } from '@/lib/libraries';
 import { useEditor } from '../store';
 import { useRun } from './common';
 
@@ -25,17 +24,8 @@ function targetLabel(p: Project, target: string) {
   const [kind, type] = target.split(':');
   if (kind === 'furniture') return p.library.furniture[type]?.name ?? type;
   if (kind === 'opening') return type === 'glass-block' ? names(p).glassBlock(names(p).opening.window) : names(p).opening[type as keyof ReturnType<typeof names>['opening']] ?? type;
+  if (kind === 'wall') return names(p).wall[type as keyof ReturnType<typeof names>['wall']] ?? type;
   return p.library.elements[type]?.name ?? type;
-}
-
-/** Furniture types a look draws that the catalog doesn't have, so a library copy carries them along */
-function customTypes(p: Project, look: Look): Record<string, LookTypeDef> | undefined {
-  const out: Record<string, LookTypeDef> = {};
-  for (const t of look.for) {
-    const [kind, type] = t.split(':');
-    if (kind === 'furniture' && !FURNITURE_TYPES[type] && p.library.furniture[type]) out[type] = p.library.furniture[type];
-  }
-  return Object.keys(out).length ? out : undefined;
 }
 
 export function LooksPanel() {
@@ -46,12 +36,12 @@ export function LooksPanel() {
   const libs = useQuery({ queryKey: ['libraries'], queryFn: listLibraries, enabled: canEdit });
   const refs = looks.flatMap(([, l]) => (l.source ? [{ library: l.source.library, look: l.source.look }] : []));
   const versions = useQuery({ queryKey: ['look-versions', refs], queryFn: () => lookVersions(refs), enabled: refs.length > 0 });
-  const [update, setUpdate] = useState<{ id: string; look: Look; next: LibraryLook; library: string } | null>(null);
+  const [update, setUpdate] = useState<{ id: string; look: Look; next: ReturnType<typeof designLookOf> } | null>(null);
 
   const save = async (id: string, look: Look, library: string) => {
     try {
       const same = look.source?.library === library ? look.source.look : undefined;
-      const r = await saveToLibrary(library, { name: look.name, for: look.for, recipe: look.recipe, types: customTypes(project, look) }, same);
+      const r = await saveToLibrary(library, libraryLookOf(project, look), same);
       await run('look_import', { name: look.name, for: look.for, recipe: look.recipe, source: { library, look: r.look, version: r.version }, replace: id });
       toast.success(m.looks_saved({ name: look.name }));
       void libs.refetch();
@@ -61,8 +51,7 @@ export function LooksPanel() {
   };
   const openUpdate = async (id: string, look: Look) => {
     const lib = await getLibrary(look.source!.library).catch(() => null);
-    const next = lib?.looks.find(k => k.look_id === look.source!.look);
-    if (next) setUpdate({ id, look, next, library: look.source!.library });
+    if (lib?.library.looks[look.source!.look]) setUpdate({ id, look, next: designLookOf(lib.library, look.source!.look, project.language) });
   };
 
   return (
@@ -75,7 +64,7 @@ export function LooksPanel() {
         <ItemGroup className="gap-1">
           {looks.map(([id, look]) => {
             const latest = look.source && versions.data?.find(v => v.library === look.source!.library && v.look === look.source!.look);
-            const newer = latest && latest.version > look.source!.version;
+            const newer = latest && compareVersions(latest.version, look.source!.version) > 0;
             return (
               <Item key={id} size="xs" variant="outline">
                 <ItemContent>
@@ -107,21 +96,18 @@ export function LooksPanel() {
         {update && (
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>{m.looks_update_title({ name: update.look.name, version: update.next.version })}</AlertDialogTitle>
+              <AlertDialogTitle>{m.looks_update_title({ name: update.look.name, version: update.next.source.version })}</AlertDialogTitle>
               <AlertDialogDescription>{m.looks_update_description()}</AlertDialogDescription>
             </AlertDialogHeader>
             <div className="space-y-2 text-sm">
               <p className="text-muted-foreground">{m.looks_before()}</p>
-              <LookStill recipe={update.look.recipe} size={lookSize(update.look, project.library.furniture)} alt={m.looks_before()} />
+              <LookStill recipe={update.look.recipe} size={targetSize(project, update.look.for[0])} alt={m.looks_before()} />
               <p className="text-muted-foreground">{m.looks_after()}</p>
-              <LookStill recipe={update.next.recipe} size={lookSize(update.next, project.library.furniture)} alt={m.looks_after()} />
+              <LookStill recipe={update.next.recipe} size={update.next.types ? Object.values(update.next.types)[0].size : targetSize(project, update.next.for[0])} alt={m.looks_after()} />
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel>{m.settings_cancel()}</AlertDialogCancel>
-              <AlertDialogAction onClick={() => void run('look_import', {
-                name: update.next.name, for: update.next.for, recipe: update.next.recipe, types: update.next.types,
-                source: { library: update.library, look: update.next.look_id, version: update.next.version }, replace: update.id,
-              })}>{m.looks_update_confirm()}</AlertDialogAction>
+              <AlertDialogAction onClick={() => void run('look_import', { ...update.next, replace: update.id })}>{m.looks_update_confirm()}</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         )}
@@ -157,23 +143,33 @@ function ImportDialog() {
             <SelectContent>{libs.data.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
           </Select>
         )}
-        {detail.data && (detail.data.looks.length ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {detail.data.looks.map(k => (
-              <div key={k.look_id} className="space-y-1">
-                <LookStill recipe={k.recipe} size={lookSize(k, project.library.furniture)} alt={m.libraries_look_alt({ name: k.name })} />
-                <div className="flex items-center justify-between gap-2 text-sm">
-                  <span className="truncate">{k.name} <span className="text-muted-foreground">v{k.version}</span></span>
-                  <Button size="xs" onClick={async () => {
-                    const r = await run('look_import', { name: k.name, for: k.for, recipe: k.recipe, types: k.types, source: { library: detail.data.id, look: k.look_id, version: k.version }, use: true });
-                    if (r.ok) { toast.success(m.looks_imported({ name: k.name })); setOpen(false); }
-                  }}>{m.looks_import_use()}</Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : <p className="text-sm text-muted-foreground">{m.libraries_empty()}</p>)}
+        {detail.data && (Object.keys(detail.data.library.looks).length ? <LibraryLooks lib={detail.data.library} onImported={() => setOpen(false)} /> : <p className="text-sm text-muted-foreground">{m.libraries_empty()}</p>)}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** A library's looks to copy into the design, each used for every object it fits */
+function LibraryLooks({ lib, onImported }: { lib: LookLibrary; onImported: () => void }) {
+  const project = useEditor(s => s.project);
+  const run = useRun();
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {Object.entries(lib.looks).map(([id, look]) => {
+        const k = designLookOf(lib, id, project.language);
+        return (
+          <div key={id} className="space-y-1">
+            <LookStill recipe={k.recipe} size={lookSizeOf(look)} alt={m.libraries_look_alt({ name: uiName(look.name) })} />
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="truncate">{uiName(look.name)} <span className="text-muted-foreground">v{look.version}</span></span>
+              <Button size="xs" onClick={async () => {
+                const r = await run('look_import', { ...k, use: true });
+                if (r.ok) { toast.success(m.looks_imported({ name: k.name })); onImported(); }
+              }}>{m.looks_import_use()}</Button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }

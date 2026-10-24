@@ -15,7 +15,7 @@ function harness(p: Project) {
 
 /** A round table: a top on one stem */
 const roundTable: Recipe = {
-  params: { top: 'wood' },
+  params: { top: { type: 'string', format: 'material', default: 'wood' } },
   script: `(
     $r := $min([$w, $d]) / 2;
     [$cylinder($r, 40, [0, $h - 20, 0], $top), $cylinder(40, $h - 40, [0, ($h - 40) / 2, 0], 'woodDark')]
@@ -23,7 +23,7 @@ const roundTable: Recipe = {
 };
 
 describe('looks', () => {
-  it('an old project migrates to v5 unchanged and valid', () => {
+  it('an old project migrates to the current version and stays valid', () => {
     const p = sample();
     expect(p.version).toBe(SCHEMA_VERSION);
     expect(p.library.looks).toBeUndefined();
@@ -61,7 +61,7 @@ describe('looks', () => {
     expect(bad.ok).toBe(false);
     expect(bad.error?.message).toMatch(/unknown variable \$q/);
     await h.call('look_add', { name: 'Round', for: ['furniture:dining'], recipe: roundTable });
-    const sofa = h.session.project.furniture.find(f => f.type === 'sofa3')!;
+    const sofa = h.session.project.furniture.find(f => f.type === 'sofa')!;
     const misfit = await h.call('look_set', { object: sofa.id, look: 'Round' });
     expect(misfit.ok).toBe(false);
     expect((await h.call('look_use', { target: 'furniture:no-such', look: null })).ok).toBe(false);
@@ -90,28 +90,30 @@ describe('looks', () => {
 
   it('params_set customises one object without changing its look; unknown names and values that do not build are refused', async () => {
     const h = harness(sample());
-    const sofa = h.session.project.furniture.find(f => f.type === 'sofa3')!;
-    const r = await h.call('params_set', { object: sofa.id, params: { fabric: 'stoneDark', decor: false } });
+    const sofa = h.session.project.furniture.find(f => f.type === 'sofa')!;
+    const r = await h.call('params_set', { object: sofa.id, params: { fabric: 'linen', decor: false } });
     expect(r.ok).toBe(false);
     expect(r.error?.message).toMatch(/decor/);
-    const ok = await h.call('params_set', { object: sofa.id, params: { fabric: 'stoneDark' } });
+    const ok = await h.call('params_set', { object: sofa.id, params: { fabric: 'linen' } });
     expect(ok.ok, ok.error?.message).toBe(true);
     const f = () => h.session.project.furniture.find(x => x.id === sofa.id)!;
-    expect(f().lookParams).toEqual({ fabric: 'stoneDark' });
+    expect(f().lookParams).toEqual({ fabric: 'linen' });
     expect(h.session.project.library.looks).toBeUndefined();
     const built = await buildRecipe(lookRecipe(h.session.project, furnitureTarget(f()))!, f().size, f().lookParams);
-    expect(built.parts.some(p => p.kind === 'box' && p.mat === 'stoneDark')).toBe(true);
-    expect((await h.call('params_set', { object: sofa.id, params: { fabric: 'velvet' } })).ok).toBe(false);
+    expect(built.parts.some(p => p.kind === 'box' && p.mat === 'linen')).toBe(true);
+    const velvet = await h.call('params_set', { object: sofa.id, params: { fabric: 'velvet' } });
+    expect(velvet.error?.message).toMatch(/fabric must be one of fabric, cushion/);
+    expect((await h.call('params_set', { object: sofa.id, params: { fabric: 3 } })).error?.message).toMatch(/fabric must be string/);
     await h.call('params_set', { object: sofa.id, params: { fabric: null } });
     expect(f().lookParams).toBeUndefined();
-    const other = h.session.project.furniture.find(x => x.type === 'sofa3' && x.id !== sofa.id);
+    const other = h.session.project.furniture.find(x => x.type === 'sofa' && x.id !== sofa.id);
     if (other) expect(other.lookParams).toBeUndefined();
   });
 
   it('look_get lists a look\'s parameters with their defaults', async () => {
     const h = harness(sample());
     const r = await h.call('look_get', { target: 'furniture:coffee' });
-    expect((r.result as { params: Record<string, { default: unknown }> }).params).toMatchObject({ top: { default: 'birch' }, decor: { default: true } });
+    expect((r.result as { params: Record<string, { default: unknown }> }).params).toMatchObject({ top: { type: 'string', format: 'material', default: 'birch' }, decor: { type: 'boolean', default: true } });
   });
 
   it('a window can get its own look', async () => {
@@ -133,12 +135,12 @@ describe('looks from libraries', () => {
     const id = (r1.result as { id: string }).id;
     let p = h.session.project;
     expect(p.library.furniture.mahjong.name).toBe('麻将桌');
-    expect(p.library.looks![id].source).toEqual({ library: 'lib1', look: 'lk1', version: 1 });
-    const r2 = await h.call('look_import', { name: '麻将桌', for: ['furniture:mahjong'], recipe: { ...roundTable, seed: 2 }, source: { library: 'lib1', look: 'lk1', version: 2 } });
+    expect(p.library.looks![id].source).toEqual({ library: 'lib1', look: 'lk1', version: '1.0.0' });
+    const r2 = await h.call('look_import', { name: '麻将桌', for: ['furniture:mahjong'], recipe: { ...roundTable, seed: 2 }, source: { library: 'lib1', look: 'lk1', version: '2.0.0' } });
     p = h.session.project;
     expect((r2.result as { id: string }).id).toBe(id);
     expect(Object.keys(p.library.looks!)).toHaveLength(1);
-    expect(p.library.looks![id].source?.version).toBe(2);
+    expect(p.library.looks![id].source?.version).toBe('2.0.0');
   });
   it('look_import with replace links a design look to the library it was saved to', async () => {
     const h = harness(sample());

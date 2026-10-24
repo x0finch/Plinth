@@ -1,117 +1,146 @@
 /**
- * A look library's page, the same for every library: what it has laid out in rows, each named on the ground in front of it, in
- * 3D, through the same canvas as the editor. The default library shows one of every kind of thing (walls, doors and windows,
- * floor materials, furniture, elements, space kinds) in the default set, other libraries only their own looks. The specimen
- * project is generated in the page (see gallery/specimens.ts) and opened read-only; nothing is saved. With ?p=<design>, the
- * default library's page also shows that design's own looks (linked from the design's properties panel).
+ * A look library's page, the same for every library, like a font's specimen page: what the file says about it, its looks by
+ * group (an index to jump to each group, then a section per group with a card per look), and its materials. Everything comes
+ * from the library file (packages/core/src/library.ts); nothing here knows one library from another. A look opens its own page
+ * (looks.$libraryId_.$lookId.tsx).
  */
-import { DEFAULT_LIBRARY_ID, migrate, type Project } from '@plinth/core';
+import { groupedLooks, type LookLibrary } from '@plinth/core';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ArrowLeftIcon, SettingsIcon, ShapesIcon } from 'lucide-react';
-import { useMemo } from 'react';
-import { z } from 'zod';
+import { ArrowLeftIcon, DownloadIcon, SettingsIcon, ShapesIcon } from 'lucide-react';
 import { LibraryBadge, LibraryManage } from '@/components/looks/library';
+import { LookCard, MaterialSwatch } from '@/components/looks/LookCard';
+import { SiteFooter, SiteHeader } from '@/components/site/SiteHeader';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { Item, ItemContent, ItemGroup, ItemTitle } from '@/components/ui/item';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { EditorCanvas } from '@/editor/Editor';
-import { GroundLabels } from '@/editor/ground-labels';
-import { PropsPanel } from '@/editor/panels';
-import { createEditorStore, EditorContext, useEditor, type InitialProject } from '@/editor/store';
-import { specimenProject, type SpecimenLooks } from '@/gallery/specimens';
-import { api } from '@/lib/api';
-import { getLocale, m } from '@/lib/i18n';
-import { getLibrary } from '@/lib/libraries';
+import { Skeleton } from '@/components/ui/skeleton';
+import { m, uiName } from '@/lib/i18n';
+import { downloadLibrary, getLibrary } from '@/lib/libraries';
 import type { LibraryDetail } from '@/shared/looks';
 
-export const Route = createFileRoute('/looks/$libraryId')({
-  validateSearch: z.object({ p: z.string().optional() }),
-  component: LibraryPage,
-});
+export const Route = createFileRoute('/looks/$libraryId')({ component: LibraryPage });
+
+/** Anchor of a group's section */
+const anchor = (group: string | null) => `group-${group ?? 'other'}`;
 
 function LibraryPage() {
   const { libraryId } = Route.useParams();
-  const { p } = Route.useSearch();
-  const isDefault = libraryId === DEFAULT_LIBRARY_ID;
-  const design = useQuery({ queryKey: ['project', p], queryFn: () => api<InitialProject>(`/projects/${p}`), enabled: isDefault && !!p, staleTime: Infinity, gcTime: 0 });
-  const detail = useQuery({ queryKey: ['library', libraryId], queryFn: () => getLibrary(libraryId), enabled: !isDefault });
-  if ((isDefault && p && design.isLoading) || (!isDefault && detail.isLoading)) return <div className="h-dvh" />;
-  if (!isDefault && !detail.data) {
-    return (
-      <Empty className="h-dvh">
-        <EmptyHeader><EmptyTitle>{detail.error?.message ?? m.server_err_library_not_found()}</EmptyTitle></EmptyHeader>
-        <Button variant="link" nativeButton={false} render={<Link to="/looks" />}>{m.libraries_back()}</Button>
-      </Empty>
-    );
-  }
-  const lib = detail.data;
-  // A new specimen project whenever what the library holds changes
-  const key = isDefault ? `default:${design.data?.id ?? ''}` : JSON.stringify(lib!.looks.map(k => [k.look_id, k.version]));
-  return <LibraryView key={key} lib={lib} from={design.data?.content} back={isDefault ? p : undefined} />;
-}
-
-function LibraryView({ lib, from, back }: { lib?: LibraryDetail; from?: Project; back?: string }) {
-  const title = lib?.name ?? (from ? m.gallery_title() : m.libraries_default_name());
-  const { store, labels } = useMemo(() => {
-    const lang = getLocale() === 'en' ? 'en' : 'zh';
-    const only: SpecimenLooks | undefined = lib && {
-      looks: lib.looks.map(k => ({ id: k.look_id, name: k.name, for: k.for, recipe: k.recipe, version: k.version })),
-      types: Object.assign({}, ...lib.looks.map(k => k.types ?? {})),
-    };
-    const { project: content, labels } = specimenProject(lang, { from: from && migrate(from), only, title });
-    return { store: createEditorStore({ id: content.id, name: content.name, role: 'viewer', version: 1, content }, { mode: '3d' }), labels };
-  }, [lib, from, title]);
-  const empty = !!lib && !lib.looks.length;
+  const detail = useQuery({ queryKey: ['library', libraryId], queryFn: () => getLibrary(libraryId) });
   return (
-    <EditorContext.Provider value={store}>
-      <GroundLabels.Provider value={labels}>
-      <div className="flex h-dvh flex-col">
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2">
-          <Button size="icon-sm" variant="ghost" nativeButton={false} render={back ? <Link to="/p/$projectId" params={{ projectId: back }} /> : <Link to="/looks" />} aria-label={back ? m.gallery_back() : m.libraries_back()}><ArrowLeftIcon /></Button>
-          <h1 className="min-w-0 truncate font-medium">{title}</h1>
-          {!from && <LibraryBadge lib={lib ?? { role: 'viewer', builtin: true, default: true }} />}
-          <div className="flex-1" />
-          {lib && !lib.builtin && (
-            <Sheet>
-              <SheetTrigger render={<Button size="sm" variant="outline" />}><SettingsIcon /> {m.libraries_manage()}</SheetTrigger>
-              <SheetContent className="overflow-y-auto">
-                <SheetHeader><SheetTitle>{lib.name}</SheetTitle></SheetHeader>
-                <div className="px-4 pb-4"><LibraryManage lib={lib} /></div>
-              </SheetContent>
-            </Sheet>
-          )}
-        </header>
-        <main className="relative min-h-0 flex-1" aria-label={m.editor_canvas()}>
-          {empty ? (
-            <Empty className="h-full">
-              <EmptyHeader>
-                <EmptyMedia variant="icon"><ShapesIcon /></EmptyMedia>
-                <EmptyTitle>{m.libraries_empty()}</EmptyTitle>
-                <EmptyDescription>{m.libraries_canvas_empty()}</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          ) : (
-            <>
-              <EditorCanvas only3D />
-              <Details />
-            </>
-          )}
-        </main>
-      </div>
-      </GroundLabels.Provider>
-    </EditorContext.Provider>
+    <div className="flex min-h-dvh flex-col">
+      <SiteHeader />
+      <main className="mx-auto w-full max-w-5xl flex-1 space-y-6 px-4 py-6">
+        <Button variant="link" size="sm" className="h-auto px-0" nativeButton={false} render={<Link to="/looks" />}><ArrowLeftIcon /> {m.libraries_back()}</Button>
+        {detail.isLoading ? <Skeleton className="h-40" /> : !detail.data ? (
+          <Empty>
+            <EmptyHeader><EmptyTitle>{detail.error?.message ?? m.server_err_library_not_found()}</EmptyTitle></EmptyHeader>
+          </Empty>
+        ) : <Library detail={detail.data} />}
+      </main>
+      <SiteFooter />
+    </div>
   );
 }
 
-/** The selected specimen's name and parameters, floating over the canvas (at the bottom on phones) while one is selected */
-function Details() {
-  const selected = useEditor(s => s.view.selection.length > 0);
-  if (!selected) return null;
+function Library({ detail }: { detail: LibraryDetail }) {
+  const lib = detail.library;
+  const groups = groupedLooks(lib);
+  const materials = Object.entries(lib.materials ?? {});
   return (
-    <Card className="absolute inset-x-2 bottom-2 max-h-[40%] gap-0 overflow-y-auto py-0 md:inset-x-auto md:top-14 md:right-2 md:bottom-auto md:w-80">
-      <PropsPanel />
-    </Card>
+    <>
+      <LibraryHeader detail={detail} />
+      {!groups.length && !materials.length ? (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon"><ShapesIcon /></EmptyMedia>
+            <EmptyTitle>{m.libraries_empty()}</EmptyTitle>
+            <EmptyDescription>{m.libraries_canvas_empty()}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-[11rem_1fr]">
+          <nav aria-label={m.libraries_groups()} className="md:sticky md:top-4 md:self-start">
+            <ItemGroup className="flex-row flex-wrap gap-1 md:flex-col">
+              {groups.map(g => (
+                <Item key={anchor(g.group)} size="xs" render={<a href={`#${anchor(g.group)}`} />} className="hover:bg-muted">
+                  <ItemContent><ItemTitle>{g.names ? uiName(g.names) : m.libraries_group_other()} <span className="text-muted-foreground">{g.looks.length}</span></ItemTitle></ItemContent>
+                </Item>
+              ))}
+              {materials.length > 0 && (
+                <Item size="xs" render={<a href="#materials" />} className="hover:bg-muted">
+                  <ItemContent><ItemTitle>{m.libraries_materials()} <span className="text-muted-foreground">{materials.length}</span></ItemTitle></ItemContent>
+                </Item>
+              )}
+            </ItemGroup>
+          </nav>
+          <div className="min-w-0 space-y-8">
+            {groups.map(g => (
+              <section key={anchor(g.group)} id={anchor(g.group)} aria-labelledby={`${anchor(g.group)}-title`} className="scroll-mt-4 space-y-3">
+                <h2 id={`${anchor(g.group)}-title`} className="text-base font-medium">
+                  {g.names ? uiName(g.names) : m.libraries_group_other()} <span className="text-sm font-normal text-muted-foreground">{m.libraries_count({ count: g.looks.length })}</span>
+                </h2>
+                <ul className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
+                  {g.looks.map(([id, look]) => <li key={id}><LookCard lib={lib} id={id} look={look} /></li>)}
+                </ul>
+              </section>
+            ))}
+            {materials.length > 0 && <Materials lib={lib} />}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function LibraryHeader({ detail }: { detail: LibraryDetail }) {
+  const lib = detail.library;
+  const looks = Object.keys(lib.looks).length, materials = Object.keys(lib.materials ?? {}).length;
+  const facts = [
+    `v${lib.version}`,
+    lib.author && m.libraries_by({ author: lib.author }),
+    lib.license && m.libraries_license({ license: lib.license }),
+    m.libraries_count({ count: looks }),
+    materials > 0 && m.libraries_materials_count({ count: materials }),
+  ].filter(Boolean);
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0 space-y-1">
+        <div className="flex items-center gap-2">
+          <h1 className="truncate text-xl font-semibold">{uiName(lib.name)}</h1>
+          <LibraryBadge lib={detail} />
+        </div>
+        {lib.description && <p className="max-w-2xl text-sm text-muted-foreground">{uiName(lib.description)}</p>}
+        <p className="text-xs text-muted-foreground">{facts.join(' · ')}</p>
+      </div>
+      <div className="flex gap-2">
+        <Button size="sm" variant="outline" onClick={() => downloadLibrary(lib)}><DownloadIcon /> {m.libraries_export()}</Button>
+        {!detail.builtin && (
+          <Sheet>
+            <SheetTrigger render={<Button size="sm" variant="outline" />}><SettingsIcon /> {m.libraries_manage()}</SheetTrigger>
+            <SheetContent className="overflow-y-auto">
+              <SheetHeader><SheetTitle>{uiName(lib.name)}</SheetTitle></SheetHeader>
+              <div className="px-4 pb-4"><LibraryManage detail={detail} /></div>
+            </SheetContent>
+          </Sheet>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The library's materials, like a font's glyph table */
+function Materials({ lib }: { lib: LookLibrary }) {
+  const materials = Object.entries(lib.materials ?? {});
+  return (
+    <section id="materials" aria-labelledby="materials-title" className="scroll-mt-4 space-y-3">
+      <h2 id="materials-title" className="text-base font-medium">
+        {m.libraries_materials()} <span className="text-sm font-normal text-muted-foreground">{m.libraries_materials_count({ count: materials.length })}</span>
+      </h2>
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {materials.map(([id, mat]) => <li key={id}><MaterialSwatch id={id} material={mat} /></li>)}
+      </ul>
+    </section>
   );
 }

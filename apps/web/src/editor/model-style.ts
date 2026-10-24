@@ -10,10 +10,12 @@ export interface ModelStyle {
   sky: boolean;
   /** Floors drawn with their material (wood, tiles…) or plain white */
   floors: 'material' | 'white';
+  /** Walls drawn in their finish (white paint unless chosen otherwise) or plain white */
+  walls: 'finish' | 'white';
 }
 
-/** The default ("general") style: white walls, floors in their material, clear glass, soft shadows, a light gray backdrop */
-export const DEFAULT_STYLE: ModelStyle = { edges: false, sky: false, floors: 'material' };
+/** The default ("general") style: walls in their finish (white paint by default), floors in their material, clear glass, soft shadows, a light gray backdrop */
+export const DEFAULT_STYLE: ModelStyle = { edges: false, sky: false, floors: 'material', walls: 'finish' };
 
 /** The style a project is shown in (projects can't choose another one yet) */
 export const modelStyle = (): ModelStyle => DEFAULT_STYLE;

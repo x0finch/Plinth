@@ -80,8 +80,8 @@ export function FloorDrawing({ project, level, current, furniture, labels, quali
     let live = true;
     let made: { paper: THREE.Texture; ink: THREE.Texture } | null = null;
     void Promise.all([
-      rasterize(svg(<><PlanDefs /><PlanPaper project={project} level={level} shapes={shapes} line={line} /></>, pw, ph), pw, ph, doc),
-      rasterize(svg(<><PlanDefs /><PlanInk shapes={shapes} furniture={furniture} line={line} />{labels && <PlanLabels shapes={shapes} />}</>, iw, ih), iw, ih, doc),
+      rasterize(svg(<><PlanDefs project={project} /><PlanPaper project={project} level={level} shapes={shapes} line={line} /></>, pw, ph), pw, ph, doc),
+      rasterize(svg(<><PlanDefs project={project} /><PlanInk shapes={shapes} furniture={furniture} line={line} />{labels && <PlanLabels shapes={shapes} />}</>, iw, ih), iw, ih, doc),
     ]).then(([paper, ink]) => {
       made = { paper, ink };
       if (live) setTextures(made);

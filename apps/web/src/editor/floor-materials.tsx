@@ -1,9 +1,12 @@
 /**
- * Floor materials drawn as patterns: wood planks, tiles, terrazzo, gravel… One definition per material key of the catalog
- * (library.materials), used by the plan (an SVG pattern fill) and by the 3D floors (the same tile rasterized as a texture), so
- * the house growing out of the plan keeps its floors. Sizes in millimetres; colors from the theme (--floor-*).
+ * Materials drawn as patterns: wood planks, tiles, bricks, terrazzo, gravel… made from a material's procedural texture (its
+ * glTF `extras`: pattern, size, colours; see packages/core/src/material.ts), used by the plan (an SVG pattern fill) and by the
+ * 3D floors (the same tile rasterized as a texture), so the house growing out of the plan keeps its floors. Sizes in
+ * millimetres; colours from the material (library data, not the theme).
  */
+import { materialOf, type Material, type Project } from '@plinth/core';
 import type { ReactElement } from 'react';
+import { cssColor } from '@/lib/materials';
 
 export interface FloorPattern {
   /** Size of one repeat */
@@ -30,9 +33,9 @@ function planks(base: string, seam: string, width: number, length: number): Floo
     w: length, h: width * 2,
     tile: (
       <>
-        <rect width={length} height={width * 2} fill={`var(${base})`} />
-        <rect y={width} width={length} height={width} fill={`var(${seam})`} fillOpacity={0.18} />
-        <path d={`M0 0H${length}M0 ${width}H${length}M0 0V${width}M${length / 2} ${width}V${width * 2}`} stroke={`var(${seam})`} strokeWidth={SEAM} />
+        <rect width={length} height={width * 2} fill={base} />
+        <rect y={width} width={length} height={width} fill={seam} fillOpacity={0.18} />
+        <path d={`M0 0H${length}M0 ${width}H${length}M0 0V${width}M${length / 2} ${width}V${width * 2}`} stroke={seam} strokeWidth={SEAM} />
       </>
     ),
   };
@@ -44,8 +47,8 @@ function tiles(base: string, grout: string, size: number): FloorPattern {
     w: size, h: size,
     tile: (
       <>
-        <rect width={size} height={size} fill={`var(${base})`} />
-        <path d={`M0 0H${size}M0 0V${size}`} stroke={`var(${grout})`} strokeWidth={SEAM * 1.5} />
+        <rect width={size} height={size} fill={base} />
+        <path d={`M0 0H${size}M0 0V${size}`} stroke={grout} strokeWidth={SEAM * 1.5} />
       </>
     ),
   };
@@ -57,8 +60,8 @@ function bricks(base: string, joint: string, w: number, h: number): FloorPattern
     w: w, h: h * 2,
     tile: (
       <>
-        <rect width={w} height={h * 2} fill={`var(${base})`} />
-        <path d={`M0 0H${w}M0 ${h}H${w}M0 0V${h}M${w / 2} ${h}V${h * 2}`} stroke={`var(${joint})`} strokeWidth={SEAM} />
+        <rect width={w} height={h * 2} fill={base} />
+        <path d={`M0 0H${w}M0 ${h}H${w}M0 0V${h}M${w / 2} ${h}V${h * 2}`} stroke={joint} strokeWidth={SEAM} />
       </>
     ),
   };
@@ -72,9 +75,9 @@ function speckled(base: string, dots: string[], size: number, count: number, rad
     w: size, h: size,
     tile: (
       <>
-        <rect width={size} height={size} fill={`var(${base})`} />
+        <rect width={size} height={size} fill={base} />
         {Array.from({ length: count }, (_, i) => (
-          <circle key={i} cx={next() * size} cy={next() * size} r={radius[0] + next() * (radius[1] - radius[0])} fill={`var(${dots[i % dots.length]})`} />
+          <circle key={i} cx={next() * size} cy={next() * size} r={radius[0] + next() * (radius[1] - radius[0])} fill={dots[i % dots.length]} />
         ))}
       </>
     ),
@@ -82,8 +85,8 @@ function speckled(base: string, dots: string[], size: number, count: number, rad
 }
 
 /** Large stone tiles with a few soft veins */
-function marble(base: string, vein: string, grout: string, size: number): FloorPattern {
-  const r = scatter(5);
+function marble(base: string, vein: string, grout: string, size: number, seed: number): FloorPattern {
+  const r = scatter(seed);
   const next = () => r.next().value as number;
   const veins = Array.from({ length: 3 }, () => {
     const y0 = next() * size, y1 = next() * size;
@@ -93,39 +96,44 @@ function marble(base: string, vein: string, grout: string, size: number): FloorP
     w: size, h: size,
     tile: (
       <>
-        <rect width={size} height={size} fill={`var(${base})`} />
-        {veins.map((d, i) => <path key={i} d={d} fill="none" stroke={`var(${vein})`} strokeWidth={6 + i * 4} />)}
-        <path d={`M0 0H${size}M0 0V${size}`} stroke={`var(${grout})`} strokeWidth={SEAM / 2} />
+        <rect width={size} height={size} fill={base} />
+        {veins.map((d, i) => <path key={i} d={d} fill="none" stroke={vein} strokeWidth={6 + i * 4} />)}
+        <path d={`M0 0H${size}M0 0V${size}`} stroke={grout} strokeWidth={SEAM / 2} />
       </>
     ),
   };
 }
 
-export const FLOOR_PATTERNS: Record<string, FloorPattern> = {
-  oak: planks('--floor-oak', '--floor-oak-seam', 150, 1200),
-  wood: planks('--floor-teak', '--floor-teak-seam', 150, 1200),
-  tile: tiles('--floor-tile', '--floor-tile-grout', 800),
-  antislip: tiles('--floor-antislip', '--floor-antislip-grout', 300),
-  redtile: tiles('--floor-redtile', '--floor-redtile-grout', 300),
-  paver: bricks('--floor-paver', '--floor-paver-joint', 200, 100),
-  terrazzo: speckled('--floor-terrazzo', ['--floor-terrazzo-chip', '--floor-terrazzo-chip-2'], 800, 140, [6, 16], 7),
-  gravel: speckled('--floor-gravel', ['--floor-gravel-stone', '--floor-gravel-stone-2'], 600, 260, [10, 24], 11),
-  cement: speckled('--floor-cement', ['--floor-cement-mottle'], 2000, 18, [120, 320], 3),
-  marble: marble('--floor-marble', '--floor-marble-vein', '--floor-marble-grout', 800),
-  slate: bricks('--floor-slate', '--floor-slate-joint', 600, 400),
-  grass: speckled('--floor-grass', ['--floor-grass-blade', '--floor-grass-blade-2'], 600, 320, [8, 18], 13),
-};
+/** A material's pattern, from its procedural texture; null for a plain material */
+export function materialPattern(m: Material | undefined): FloorPattern | null {
+  const x = m?.extras;
+  if (!m || !x?.pattern) return null;
+  const base = cssColor(m.pbrMetallicRoughness.baseColorFactor), c2 = x.color2 ? cssColor(x.color2) : base, c3 = x.color3 ? cssColor(x.color3) : c2;
+  const [a, b] = Array.isArray(x.size) ? x.size : [x.size ?? 600, x.size ?? 600];
+  switch (x.pattern) {
+    case 'planks': return planks(base, c2, a, b);
+    case 'tiles': return tiles(base, c2, a);
+    case 'bricks': return bricks(base, c2, a, b);
+    case 'speckled': return speckled(base, x.color3 ? [c2, c3] : [c2], a, x.count ?? 100, x.radius ?? [a / 100, a / 40], x.seed ?? 1);
+    case 'marble': return marble(base, c2, c3, a, x.seed ?? 1);
+  }
+}
 
-/** The plan's fill for a floor material: its pattern, or plain white for one without */
-export const floorFill = (material: string) => (FLOOR_PATTERNS[material] ? `url(#floor-${material})` : 'var(--card)');
+/** The plan's fill for a floor material: its pattern, its colour, or plain white for a material that doesn't exist */
+export function floorFill(p: Project, material: string) {
+  const m = materialOf(material, null, p.library.materials);
+  return !m ? 'var(--card)' : materialPattern(m) ? `url(#floor-${material})` : cssColor(m.pbrMetallicRoughness.baseColorFactor);
+}
 
-/** Pattern definitions for every floor material, inside the plan's <defs> */
-export function FloorPatternDefs() {
+/** Pattern definitions for the floor materials a design uses, inside the plan's <defs> */
+export function FloorPatternDefs({ project }: { project: Project }) {
+  const used = [...new Set(project.spaces.map(s => s.floor))];
   return (
     <>
-      {Object.entries(FLOOR_PATTERNS).map(([k, p]) => (
-        <pattern key={k} id={`floor-${k}`} width={p.w} height={p.h} patternUnits="userSpaceOnUse">{p.tile}</pattern>
-      ))}
+      {used.map(k => {
+        const p = materialPattern(materialOf(k, null, project.library.materials));
+        return p && <pattern key={k} id={`floor-${k}`} width={p.w} height={p.h} patternUnits="userSpaceOnUse">{p.tile}</pattern>;
+      })}
     </>
   );
 }

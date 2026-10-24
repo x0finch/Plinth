@@ -11,6 +11,7 @@ The UI is available in Chinese (default) and English, chosen in Settings → Lan
 | --- | --- |
 | `packages/core` | Pure TypeScript core, no browser dependencies: data schema, operation layer (transactions, undo), capability registry, rule checks, constraint solver, areas, 3D wall segmentation |
 | `apps/web` | Website: TanStack Router SPA + Cloudflare Worker (Hono), D1 storage, Better Auth sign-in, TanStack AI chat |
+| `libraries` | Look libraries as files (`*.looklib.json`, format in `looklib.schema.json`): the default library (furniture, doors and windows, railings, elements, and every material) and the Chinese pieces |
 | `samples/wushi-10` | Test sample: Wushi courtyard, scheme 10 |
 
 Key conventions:
