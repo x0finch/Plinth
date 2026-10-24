@@ -7,8 +7,8 @@ import { createElement, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { materialPattern } from '../floor-materials';
 import { markup } from './FloorDrawing';
+import { M } from './scene';
 
-const M = 0.001;
 /** Pixels per millimetre of a tile: about 4 mm per pixel, enough for seams and grout at viewing distance */
 const PX_PER_MM = 0.25;
 const cache = new WeakMap<Document, WeakMap<Material, Promise<THREE.Texture>>>();

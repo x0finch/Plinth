@@ -1,41 +1,52 @@
 /**
- * A still of a whole house in 3D, for the design list: the same model as the editor's 3D view (walls in their finish, floors in
- * their material, doors, windows, railings and furniture drawn by their looks, elements, the plinth), seen from the 3D view's
- * default direction, with its sun and shadows, in the canvas's light theme. Drawn offscreen on the one renderer the look stills
- * share (look-preview.ts), as a JPEG data URL.
+ * A still of a whole house in 3D, for the design list: the same model as the editor's 3D view, built from the same scene layer
+ * (./scene): walls in their finish, floors in their material, doors, windows, railings and furniture drawn by their looks,
+ * elements, the plinth, seen from the 3D view's default direction, with its sun and shadows, in the canvas's light theme. Drawn
+ * offscreen on the one renderer the look stills share (look-preview.ts), as a JPEG data URL.
  */
 import {
-  DEFAULT_FINISH,
-  elementTarget,
   furnitureTarget,
   lookRecipe,
-  materialOf,
   openingFrames,
   openingTarget,
+  projectBoxes,
   projectElements,
   requestBuild,
-  wallBoxes,
   wallTarget,
-  type Material,
   type Project,
   type Recipe,
   type RecipeSize,
 } from '@plinth/core';
 import * as THREE from 'three';
 import { lightDocument } from '@/canvas/CanvasFrame';
-import { themeColor } from '@/lib/theme';
 import { materialStyle } from '@/lib/materials';
-import { plinthRect } from '../plan-geometry';
+import { themeColor } from '@/lib/theme';
+import { materialPattern } from '../floor-materials';
 import { floorTexture } from './floor-textures';
 import { BIRD, FOV, framed } from './framing';
 import { withStillRenderer } from './look-preview';
 import { lookMaterial, partsGeometry } from './looks';
-import { materialPattern } from '../floor-materials';
-
-const M = 0.001;
-const PLINTH = 0.3;
-/** The size an element's look is built at to read the materials of its own geometry (as the 3D view does) */
-const ELEMENT_SIZE = { w: 2000, d: 2000, h: 3000 };
+import {
+  castsShadow,
+  elementLook,
+  floorMaterial,
+  hasSlab,
+  houseBox,
+  M,
+  plinthBox,
+  railingPieces,
+  shadowGround,
+  SKYLIGHT_INTENSITY,
+  slabGeometry,
+  slabLevel,
+  solidFallbackColor,
+  solidGeometry,
+  solidMaterial,
+  standardMaterial,
+  sunLight,
+  wallFinish,
+  wallGeometry,
+} from './scene';
 
 export function renderHouseStill(project: Project, opts: { width?: number; height?: number } = {}): Promise<string> {
   return withStillRenderer(r => draw(r, project, opts.width ?? 640, opts.height ?? 480));
@@ -46,22 +57,15 @@ async function draw(renderer: THREE.WebGLRenderer, p: Project, W: number, H: num
   const color = (t: string) => new THREE.Color(themeColor(t, doc));
   const disposables: { dispose(): void }[] = [];
   const keep = <T extends { dispose(): void }>(x: T) => (disposables.push(x), x);
-  const standard = (m: Material | undefined, fallback?: THREE.Color) => {
-    const s = materialStyle(m);
-    return keep(
-      new THREE.MeshStandardMaterial({
-        color: m ? new THREE.Color(s.color) : fallback,
-        roughness: s.roughness,
-        metalness: s.metalness,
-        transparent: s.opacity < 1,
-        opacity: s.opacity,
-        depthWrite: s.opacity === 1,
-      }),
-    );
+  const add = (parent: THREE.Object3D, geo: THREE.BufferGeometry, material: THREE.Material) => {
+    const mesh = new THREE.Mesh(keep(geo), keep(material));
+    parent.add(mesh);
+    return mesh;
   };
   const house = new THREE.Group();
   const elev = new Map(p.levels.map(l => [l.id, l.elevation]));
-  const wall = color('--card');
+  const white = themeColor('--card', doc);
+  const plain = (c: string, roughness: number) => ({ ...materialStyle(undefined), color: c, roughness });
 
   // A look built at a size, as meshes in its materials
   const look = async (recipe: Recipe | null, size: RecipeSize, params?: Record<string, unknown>) => {
@@ -69,118 +73,80 @@ async function draw(renderer: THREE.WebGLRenderer, p: Project, W: number, H: num
     const built = recipe && (await requestBuild(recipe, size, params));
     if (!built) return g;
     for (const [mat, geo] of partsGeometry(built.parts)) {
-      keep(geo);
-      const s = lookMaterial(mat, recipe, p.library.materials);
-      const mesh = new THREE.Mesh(
-        geo,
-        keep(
-          new THREE.MeshStandardMaterial({
-            color: new THREE.Color(s.color),
-            roughness: s.roughness,
-            metalness: s.metalness,
-            transparent: s.opacity < 1,
-            opacity: s.opacity,
-            depthWrite: s.opacity === 1,
-          }),
-        ),
-      );
-      mesh.castShadow = s.opacity === 1;
+      const style = lookMaterial(mat, recipe, p.library.materials);
+      const mesh = add(g, geo, standardMaterial(style));
+      mesh.castShadow = castsShadow(style);
       mesh.receiveShadow = true;
-      g.add(mesh);
     }
     return g;
+  };
+  // Where a built look goes: a point in millimetres and a turn about the vertical
+  const place = (g: THREE.Group, [x, y, z]: [number, number, number], angle = 0) => {
+    g.position.set(x * M, y * M, z * M);
+    g.rotation.y = -angle;
+    house.add(g);
   };
   const jobs: Promise<void>[] = [];
 
   // Floors, in their material (its pattern, else its colour)
   for (const s of p.spaces) {
-    if (s.kind === 'void' || s.slabOpening) continue;
-    const base = elev.get(s.level) ?? 0,
-      y = s.kind === 'outdoor' && base === 0 ? p.site.groundLevel + 20 : base,
-      t = s.kind === 'outdoor' ? 20 : 120;
-    const shapes = s.shape.map(poly => {
-      const sh = new THREE.Shape(poly.outer.map(([x, z]) => new THREE.Vector2(x * M, -z * M)));
-      for (const h of poly.holes ?? []) sh.holes.push(new THREE.Path(h.map(([x, z]) => new THREE.Vector2(x * M, -z * M))));
-      return sh;
-    });
-    const geo = keep(new THREE.ExtrudeGeometry(shapes, { depth: t * M, bevelEnabled: false })).rotateX(-Math.PI / 2);
-    const m = materialOf(s.floor, null, p.library.materials);
-    const material = standard(m, wall);
+    if (!hasSlab(s)) continue;
+    const { y, thickness } = slabLevel(s, elev.get(s.level) ?? 0, p.site.groundLevel);
+    const m = floorMaterial(p, s.floor);
+    const material = standardMaterial(m ? materialStyle(m) : plain(white, 1));
     if (m && materialPattern(m)) {
-      material.color.copy(wall);
+      material.color.set(white);
       material.map = await floorTexture(doc, m);
     }
-    const mesh = new THREE.Mesh(geo, material);
-    mesh.position.y = (y + 2 - t) * M;
+    const mesh = add(house, slabGeometry(s.shape, thickness), material);
+    mesh.position.y = (y + 2 - thickness) * M;
     mesh.receiveShadow = true;
-    house.add(mesh);
   }
 
-  // Walls in their finish (glass is drawn by the openings' looks); railings by their look, piece by piece
+  // Walls in their finish, one solid each (glass is drawn by the openings' looks); railings by their look, piece by piece
   for (const w of p.walls) {
     const base = elev.get(w.level) ?? 0;
-    for (const b of wallBoxes(p, w)) {
-      if (b.kind === 'glass' || b.kind === 'glass-block') continue;
-      if (b.kind === 'railing') {
+    if (w.kind === 'railing') {
+      const recipe = lookRecipe(p, wallTarget(w), w.look);
+      for (const b of railingPieces(p, w))
         jobs.push(
-          look(lookRecipe(p, wallTarget(w), w.look), { w: b.length, d: b.thickness, h: b.height }, w.lookParams).then(g => {
-            g.position.set(b.center[0] * M, (base + b.z) * M, b.center[1] * M);
-            g.rotation.y = -b.angle;
-            house.add(g);
-          }),
+          look(recipe, { w: b.length, d: b.thickness, h: b.height }, w.lookParams).then(g => place(g, [b.center[0], base + b.z, b.center[1]], b.angle)),
         );
-        continue;
-      }
-      const mesh = new THREE.Mesh(
-        keep(new THREE.BoxGeometry(b.length * M, b.height * M, b.thickness * M)),
-        standard(materialOf(w.finish ?? DEFAULT_FINISH, null, p.library.materials), wall),
-      );
-      mesh.position.set(b.center[0] * M, (base + b.z + b.height / 2) * M, b.center[1] * M);
-      mesh.rotation.y = -b.angle;
-      mesh.castShadow = mesh.receiveShadow = true;
-      house.add(mesh);
+      continue;
     }
+    const mesh = add(house, wallGeometry(p, w), standardMaterial(wallFinish(p, w)));
+    mesh.position.set(w.start[0] * M, base * M, w.start[1] * M);
+    mesh.castShadow = mesh.receiveShadow = true;
   }
 
   // Doors and windows
   for (const fr of openingFrames(p)) {
+    const size = { w: fr.width, d: fr.thickness, h: fr.height };
     jobs.push(
-      look(lookRecipe(p, openingTarget(fr.opening), fr.opening.look), { w: fr.width, d: fr.thickness, h: fr.height }, fr.opening.lookParams).then(g => {
-        g.position.set(fr.center[0] * M, ((elev.get(fr.level) ?? 0) + fr.z) * M, fr.center[1] * M);
-        g.rotation.y = -fr.angle;
-        house.add(g);
-      }),
+      look(lookRecipe(p, openingTarget(fr.opening), fr.opening.look), size, fr.opening.lookParams).then(g =>
+        place(g, [fr.center[0], (elev.get(fr.level) ?? 0) + fr.z, fr.center[1]], fr.angle),
+      ),
     );
   }
 
   // Elements' own geometry, in the materials their look gives each kind of solid
   for (const s of projectElements(p).flatMap(g => g.solids)) {
-    const e = p.elements.find(x => x.id === s.id),
-      recipe = e && lookRecipe(p, elementTarget(e), e.look);
-    const own = recipe && (await requestBuild(recipe, ELEMENT_SIZE, e?.lookParams))?.parts.find(x => x.kind === 'base');
-    const mat = own?.kind === 'base' ? own.mats[s.kind] : undefined;
-    const geo = keep(
-      new THREE.ExtrudeGeometry(new THREE.Shape(s.outline.map(([x, z]) => new THREE.Vector2(x * M, -z * M))), { depth: s.height * M, bevelEnabled: false }),
-    ).rotateX(-Math.PI / 2);
-    const material = standard(
-      mat ? materialOf(mat, recipe, p.library.materials) : undefined,
-      s.kind === 'water' ? color('--muted') : s.kind === 'grate' ? color('--muted-foreground') : wall,
-    );
-    const mesh = new THREE.Mesh(geo, material);
+    const e = p.elements.find(x => x.id === s.id);
+    const lk = e && elementLook(p, e);
+    const built = lk?.recipe ? ((await requestBuild(lk.recipe, lk.size, lk.params)) ?? undefined) : undefined;
+    const style = (e && solidMaterial(p, built, s, e)) ?? plain(themeColor(solidFallbackColor(s), doc), 0.9);
+    const mesh = add(house, solidGeometry(s), standardMaterial(style));
     mesh.position.y = ((elev.get(s.level) ?? 0) + s.z) * M;
     mesh.castShadow = s.kind === 'structure';
     mesh.receiveShadow = true;
-    house.add(mesh);
   }
 
   // Furniture
   for (const f of p.furniture) {
     jobs.push(
-      look(lookRecipe(p, furnitureTarget(f), f.look), f.size, f.lookParams).then(g => {
-        g.position.set(f.position[0] * M, ((elev.get(f.level) ?? 0) + (f.elevation ?? 0)) * M, f.position[1] * M);
-        g.rotation.y = (-f.rotation * Math.PI) / 180;
-        house.add(g);
-      }),
+      look(lookRecipe(p, furnitureTarget(f), f.look), f.size, f.lookParams).then(g =>
+        place(g, [f.position[0], (elev.get(f.level) ?? 0) + (f.elevation ?? 0), f.position[1]], (f.rotation * Math.PI) / 180),
+      ),
     );
   }
   await Promise.all(jobs);
@@ -188,39 +154,25 @@ async function draw(renderer: THREE.WebGLRenderer, p: Project, W: number, H: num
   const scene = new THREE.Scene();
   scene.background = color('--canvas-backdrop');
   scene.add(house);
-  const box = new THREE.Box3().setFromObject(house);
-  if (box.isEmpty()) box.set(new THREE.Vector3(-5, 0, -5), new THREE.Vector3(5, 3, 5));
+  // Framed like the editor's default view, on the walls and floors of every level
+  const box = houseBox(p, projectBoxes(p), new Set(p.levels.map(l => l.id)));
   const center = box.getCenter(new THREE.Vector3()),
     radius = Math.max(2, box.getSize(new THREE.Vector3()).length() / 2);
 
-  // The plinth, a white board a little larger than the site, and a ground that only catches shadows
-  const [x0, y0, x1, y1] = plinthRect(p),
-    ground = p.site.groundLevel * M;
-  const plinth = new THREE.Mesh(
-    keep(new THREE.BoxGeometry((x1 - x0) * M, PLINTH, (y1 - y0) * M)),
-    keep(new THREE.MeshStandardMaterial({ color: wall, roughness: 1 })),
-  );
-  plinth.position.set(((x0 + x1) / 2) * M, ground - PLINTH / 2 - 0.002, ((y0 + y1) / 2) * M);
+  // The plinth, and a ground that only catches shadows
+  const pb = plinthBox(p);
+  const plinth = add(scene, new THREE.BoxGeometry(...pb.size), new THREE.MeshStandardMaterial({ color: white, roughness: 1 }));
+  plinth.position.set(...pb.position);
   plinth.receiveShadow = plinth.castShadow = true;
-  const shadowGround = new THREE.Mesh(
-    keep(new THREE.PlaneGeometry(radius * 40, radius * 40)).rotateX(-Math.PI / 2),
-    keep(new THREE.ShadowMaterial({ color: color('--canvas-shadow'), opacity: 0.35 })),
-  );
-  shadowGround.position.set(center.x, ground - PLINTH - 0.001, center.z);
-  shadowGround.receiveShadow = true;
-  scene.add(plinth, shadowGround);
+  const ground = shadowGround(color('--canvas-shadow'), radius * 40);
+  keep(ground.geometry);
+  keep(ground.material);
+  ground.position.set(center.x, pb.position[1] - pb.size[1] / 2 + 0.001, center.z);
+  scene.add(ground);
 
-  // The 3D view's light: sky light, and a sun from the south-west casting soft shadows
-  scene.add(new THREE.HemisphereLight(color('--canvas-skylight'), wall, 2.4));
-  const sun = new THREE.DirectionalLight(color('--canvas-sun'), 1.4);
-  sun.position.set(center.x - radius * 1.2, center.y + radius * 2, center.z + radius * 0.9);
-  sun.target.position.copy(center);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.radius = 4;
-  sun.shadow.bias = -0.0004;
-  sun.shadow.normalBias = ((radius * 2.8) / 2048) * 2;
-  Object.assign(sun.shadow.camera, { left: -radius * 1.4, right: radius * 1.4, top: radius * 1.4, bottom: -radius * 1.4, near: 0.5, far: radius * 6 });
+  // The 3D view's light
+  scene.add(new THREE.HemisphereLight(color('--canvas-skylight'), white, SKYLIGHT_INTENSITY));
+  const sun = sunLight(color('--canvas-sun'), center, radius);
   scene.add(sun, sun.target);
 
   const camera = new THREE.PerspectiveCamera(FOV, W / H, 0.05, radius * 40);

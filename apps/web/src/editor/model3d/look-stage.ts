@@ -4,8 +4,8 @@
  * ground that only shows the look's soft shadow.
  */
 import * as THREE from 'three';
+import { M } from './scene';
 
-export const M = 0.001;
 /** Where the camera looks from: front right, a little above */
 export const VIEW_DIR = new THREE.Vector3(1, 0.8, 1.4).normalize();
 export const FOV = 30;
