@@ -8,32 +8,33 @@ import type { Recipe } from '../script.js';
 
 /** A Chinese tea table: a heavy dark top with an apron, a stone tray, a teapot and cups */
 const teatable: Recipe = {
+  params: { wood: 'woodDark', decor: true },
   script: `(
     $tx := $w * 0.1;
     [
-      $box([$w, 60, $d], [0, $h - 60 + 60 / 2, 0], 'woodDark', 10),
-      $box([$w - 80, 80, $d - 80], [0, $h - 140 + 80 / 2, 0], 'woodDark', 5),
+      $box([$w, 60, $d], [0, $h - 60 + 60 / 2, 0], $wood, 10),
+      $box([$w - 80, 80, $d - 80], [0, $h - 140 + 80 / 2, 0], $wood, 5),
       [0..3].(
         $i := $;
         $sx := $i % 2 * 2 - 1;
         $sz := $floor($i / 2) * 2 - 1;
         [
-          $box([30 * 2, $h - 60, 30 * 2], [$sx * ($w / 2 - 50), ($h - 60) / 2, $sz * ($d / 2 - 50)], 'woodDark', 30 * 0.3)
+          $box([30 * 2, $h - 60, 30 * 2], [$sx * ($w / 2 - 50), ($h - 60) / 2, $sz * ($d / 2 - 50)], $wood, 30 * 0.3)
         ]
       ),
       [0..1].(
         $i := $;
         $s := $i * 2 - 1;
         [
-          $box([$w - 100, 30, 30], [0, 100 + 30 / 2, $s * ($d / 2 - 50)], 'woodDark', 5)
+          $box([$w - 100, 30, 30], [0, 100 + 30 / 2, $s * ($d / 2 - 50)], $wood, 5)
         ]
       ),
       $box([$min([600, $w * 0.45]), 30, $min([340, $d * 0.5])], [$tx, $h + 30 / 2, 0], 'stoneDark', 10),
-      $lathe([[0, 0], [40, 0], [65, 40], [50, 85], [15, 95], [15, 110], [0, 110]], [$tx - 120, $h + 30, 0], 'ceramic'),
+      ($decor ? [$lathe([[0, 0], [40, 0], [65, 40], [50, 85], [15, 95], [15, 110], [0, 110]], [$tx - 120, $h + 30, 0], 'ceramic')] : []),
       [0..2].(
         $i := $;
         [
-          $lathe([[0, 0], [18, 0], [26, 35], [0, 35]], [$tx + 40 + $i * 70, $h + 30, 60], 'ceramic')
+          ($decor ? [$lathe([[0, 0], [18, 0], [26, 35], [0, 35]], [$tx + 40 + $i * 70, $h + 30, 60], 'ceramic')] : [])
         ]
       )
     ]
@@ -42,6 +43,7 @@ const teatable: Recipe = {
 
 /** An ancestral shrine: a lacquered altar table with raised ends, a small shrine cabinet, an incense burner and candles */
 const shrine: Recipe = {
+  params: { wood: 'lacquer' },
   script: `(
     $ht := $min([850, $h * 0.68]);
     $cw := $min([700, $w * 0.35]);
@@ -50,12 +52,12 @@ const shrine: Recipe = {
     $top := $h - $ht;
     $fz := $d / 2 - 90;
     [
-      $box([$w, 50, $d], [0, $ht - 50 + 50 / 2, 0], 'lacquer', 10),
+      $box([$w, 50, $d], [0, $ht - 50 + 50 / 2, 0], $wood, 10),
       [0..1].(
         $i := $;
         $s := $i * 2 - 1;
         [
-          $box([140, 35, $d], [$s * ($w / 2 - 70), $ht + 35 / 2, 0], 'lacquer', 10)
+          $box([140, 35, $d], [$s * ($w / 2 - 70), $ht + 35 / 2, 0], $wood, 10)
         ]
       ),
       [0..3].(
@@ -63,13 +65,13 @@ const shrine: Recipe = {
         $sx := $i % 2 * 2 - 1;
         $sz := $floor($i / 2) * 2 - 1;
         [
-          $box([35 * 2, $ht - 50, 35 * 2], [$sx * (($w - 100) / 2 - 50), ($ht - 50) / 2, $sz * ($d / 2 - 50)], 'lacquer', 35 * 0.3)
+          $box([35 * 2, $ht - 50, 35 * 2], [$sx * (($w - 100) / 2 - 50), ($ht - 50) / 2, $sz * ($d / 2 - 50)], $wood, 35 * 0.3)
         ]
       ),
-      $box([$w - 300, 100, 25], [0, $ht - 150 + 100 / 2, $d / 2 - 60], 'lacquer', 5),
-      $box([$cw + 80, 40, $cd + 40], [0, $ht + 40 / 2, $cz], 'lacquer', 8),
-      $box([$cw, $top - 90, $cd], [0, $ht + 40 + ($top - 90) / 2, $cz], 'lacquer', 6),
-      $box([$cw + 160, 50, $cd + 120], [0, $h - 50 + 50 / 2, $cz], 'lacquer', 10),
+      $box([$w - 300, 100, 25], [0, $ht - 150 + 100 / 2, $d / 2 - 60], $wood, 5),
+      $box([$cw + 80, 40, $cd + 40], [0, $ht + 40 / 2, $cz], $wood, 8),
+      $box([$cw, $top - 90, $cd], [0, $ht + 40 + ($top - 90) / 2, $cz], $wood, 6),
+      $box([$cw + 160, 50, $cd + 120], [0, $h - 50 + 50 / 2, $cz], $wood, 10),
       $box([$cw * 0.7, ($top - 90) * 0.75, 10], [0, $ht + 60 + ($top - 90) * 0.75 / 2, $cz + $cd / 2], 'gold', 3),
       $lathe([[0, 0], [50, 0], [80, 30], [80, 70], [70, 80], [0, 80]], [0, $ht, $fz], 'gold'),
       [0..1].(
@@ -109,21 +111,23 @@ const woodstove: Recipe = {
 
 /** A round stone table on a carved drum */
 const stonetable: Recipe = {
+  params: { stone: 'stone' },
   script: `(
     $r := $min([$w, $d]) / 2;
     [
-      $cylinder($r, 80, [0, $h - 40, 0], 'stone', {"r2": $r * 0.98, "seg": 40}),
-      $lathe([[0, 0], [$r * 0.42, 0], [$r * 0.42, 60], [$r * 0.3, 140], [$r * 0.26, $h * 0.45], [$r * 0.34, $h - 140], [$r * 0.4, $h - 80], [0, $h - 80]], [0, 0, 0], 'stone')
+      $cylinder($r, 80, [0, $h - 40, 0], $stone, {"r2": $r * 0.98, "seg": 40}),
+      $lathe([[0, 0], [$r * 0.42, 0], [$r * 0.42, 60], [$r * 0.3, 140], [$r * 0.26, $h * 0.45], [$r * 0.34, $h - 140], [$r * 0.4, $h - 80], [0, $h - 80]], [0, 0, 0], $stone)
     ]
   )`,
 };
 
 /** A drum-shaped stone stool */
 const stool: Recipe = {
+  params: { stone: 'stone' },
   script: `(
     $r := $min([$w, $d]) / 2;
     [
-      $lathe([[0, 0], [$r * 0.78, 0], [$r * 0.95, $h * 0.3], [$r, $h * 0.5], [$r * 0.95, $h * 0.7], [$r * 0.8, $h], [0, $h]], [0, 0, 0], 'stone'),
+      $lathe([[0, 0], [$r * 0.78, 0], [$r * 0.95, $h * 0.3], [$r, $h * 0.5], [$r * 0.95, $h * 0.7], [$r * 0.8, $h], [0, $h]], [0, 0, 0], $stone),
       $ring($r * 0.99, 8, [0, $h * 0.5, 0], 'stoneDark')
     ]
   )`,
@@ -147,11 +151,11 @@ export const BUILTIN_LIBRARIES: BuiltinLibrary[] = [
     id: 'builtin-chinese',
     name: { zh: '中式物件', en: 'Chinese pieces' },
     looks: [
-      { id: 'teatable', name: { zh: '功夫茶台', en: 'Gongfu tea table' }, for: ['furniture:teatable'], recipe: teatable, version: 1 },
-      { id: 'shrine', name: { zh: '神位供桌', en: 'Ancestral altar' }, for: ['furniture:shrine'], recipe: shrine, version: 1 },
-      { id: 'woodstove', name: { zh: '土灶', en: 'Brick wood-fired stove' }, for: ['furniture:woodstove'], recipe: woodstove, version: 1 },
-      { id: 'stonetable', name: { zh: '石桌', en: 'Stone table' }, for: ['furniture:stonetable'], recipe: stonetable, version: 1 },
-      { id: 'stool', name: { zh: '石鼓凳', en: 'Stone drum stool' }, for: ['furniture:stool'], recipe: stool, version: 1 },
+      { id: 'teatable', name: { zh: '功夫茶台', en: 'Gongfu tea table' }, for: ['furniture:teatable'], recipe: teatable, version: 2 },
+      { id: 'shrine', name: { zh: '神位供桌', en: 'Ancestral altar' }, for: ['furniture:shrine'], recipe: shrine, version: 2 },
+      { id: 'woodstove', name: { zh: '土灶', en: 'Brick wood-fired stove' }, for: ['furniture:woodstove'], recipe: woodstove, version: 2 },
+      { id: 'stonetable', name: { zh: '石桌', en: 'Stone table' }, for: ['furniture:stonetable'], recipe: stonetable, version: 2 },
+      { id: 'stool', name: { zh: '石鼓凳', en: 'Stone drum stool' }, for: ['furniture:stool'], recipe: stool, version: 2 },
     ],
   },
 ];

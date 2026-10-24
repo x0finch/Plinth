@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createRegistry, furnitureTarget, lookRecipe, migrate, Session, validate, type Project, type Recipe } from '../src/index.js';
+import { buildRecipe, createRegistry, furnitureTarget, lookRecipe, migrate, SCHEMA_VERSION, Session, validate, type Project, type Recipe } from '../src/index.js';
 
 const registry = createRegistry();
 const sample = () => migrate(JSON.parse(readFileSync(join(import.meta.dirname, '../../../samples/wushi-10/project.json'), 'utf8')));
@@ -25,7 +25,7 @@ const roundTable: Recipe = {
 describe('looks', () => {
   it('an old project migrates to v5 unchanged and valid', () => {
     const p = sample();
-    expect(p.version).toBe(5);
+    expect(p.version).toBe(SCHEMA_VERSION);
     expect(p.library.looks).toBeUndefined();
     expect(validate(p)).toEqual([]);
   });
@@ -86,6 +86,32 @@ describe('looks', () => {
     expect(stored.script).toContain('$box');
     const v4 = { ...sample(), version: 4, library: { ...sample().library, looks: { 'look-1': { name: 'Block', for: ['furniture:dining'], recipe: old, version: 1 } } } };
     expect(migrate(v4).library.looks!['look-1'].recipe).toEqual(stored);
+  });
+
+  it('params_set customises one object without changing its look; unknown names and values that do not build are refused', async () => {
+    const h = harness(sample());
+    const sofa = h.session.project.furniture.find(f => f.type === 'sofa3')!;
+    const r = await h.call('params_set', { object: sofa.id, params: { fabric: 'stoneDark', decor: false } });
+    expect(r.ok).toBe(false);
+    expect(r.error?.message).toMatch(/decor/);
+    const ok = await h.call('params_set', { object: sofa.id, params: { fabric: 'stoneDark' } });
+    expect(ok.ok, ok.error?.message).toBe(true);
+    const f = () => h.session.project.furniture.find(x => x.id === sofa.id)!;
+    expect(f().lookParams).toEqual({ fabric: 'stoneDark' });
+    expect(h.session.project.library.looks).toBeUndefined();
+    const built = await buildRecipe(lookRecipe(h.session.project, furnitureTarget(f()))!, f().size, f().lookParams);
+    expect(built.parts.some(p => p.kind === 'box' && p.mat === 'stoneDark')).toBe(true);
+    expect((await h.call('params_set', { object: sofa.id, params: { fabric: 'velvet' } })).ok).toBe(false);
+    await h.call('params_set', { object: sofa.id, params: { fabric: null } });
+    expect(f().lookParams).toBeUndefined();
+    const other = h.session.project.furniture.find(x => x.type === 'sofa3' && x.id !== sofa.id);
+    if (other) expect(other.lookParams).toBeUndefined();
+  });
+
+  it('look_get lists a look\'s parameters with their defaults', async () => {
+    const h = harness(sample());
+    const r = await h.call('look_get', { target: 'furniture:coffee' });
+    expect((r.result as { params: Record<string, { default: unknown }> }).params).toMatchObject({ top: { default: 'birch' }, decor: { default: true } });
   });
 
   it('a window can get its own look', async () => {

@@ -19,6 +19,8 @@ const MIGRATIONS: Record<number, (doc: any) => any> = {
     ...doc,
     library: { ...doc.library, looks: Object.fromEntries(Object.entries(doc.library.looks).map(([id, l]: [string, any]) => [id, { ...l, recipe: normalizeRecipe(l.recipe) }])) },
   },
+  // v6 adds look parameter values on furniture, openings and elements (lookParams); optional, nothing to convert
+  5: doc => doc,
 };
 
 export class SchemaError extends Error {}

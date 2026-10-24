@@ -1357,7 +1357,7 @@ exports[`capability descriptions are stable 1`] = `
     "title": "Operation log",
   },
   {
-    "description": "Read the recipe that draws a target in this design (its look, or the default one) or a look by ID or name, with the size it is usually built at. Start from it to change what something looks like.",
+    "description": "Read the recipe that draws a target in this design (its look, or the default one) or a look by ID or name, with the size it is usually built at and its parameters (what params_set can change per object). Start from it to change what something looks like.",
     "examples": [],
     "input": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1653,6 +1653,58 @@ exports[`capability descriptions are stable 1`] = `
     "permission": "reversible",
     "runtime": "any",
     "title": "Add a look from a library",
+  },
+  {
+    "description": "Customise one piece of furniture, door or window, or element without changing its look: set values for the parameters its look declares (materials of its main surfaces, decoration on/off, shape choices…; look_get with its target lists them with their defaults). null puts a parameter back to the look's default; reset clears all. Values are checked by building the object with them. To change many objects, call it for each one that should change.",
+    "examples": [],
+    "input": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "object": {
+          "description": "ID or name of a piece of furniture, door or window, or element",
+          "type": "string",
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string",
+              },
+              {
+                "type": "number",
+              },
+              {
+                "type": "boolean",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "default": {},
+          "description": "Parameter → value (null: back to the default)",
+          "propertyNames": {
+            "type": "string",
+          },
+          "type": "object",
+        },
+        "reset": {
+          "default": false,
+          "description": "Clear all values first",
+          "type": "boolean",
+        },
+      },
+      "required": [
+        "object",
+      ],
+      "type": "object",
+    },
+    "kind": "edit",
+    "name": "params_set",
+    "permission": "reversible",
+    "runtime": "any",
+    "title": "Set look parameters",
   },
   {
     "description": "Add a new furniture type to the design (a fish tank, a mahjong table…), with its default size and, optionally, a recipe for its look (format in look_add). Then place it with furniture_add.",

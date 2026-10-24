@@ -12,7 +12,7 @@
 import type { Recipe } from './script.js';
 
 export const SCHEMA = 'plinth/project' as const;
-export const SCHEMA_VERSION = 5 as const;
+export const SCHEMA_VERSION = 6 as const;
 
 /** Language of the names written into project data (levels, walls, openings, catalog); independent of the UI language */
 export type ProjectLanguage = 'zh' | 'en';
@@ -110,6 +110,8 @@ export interface Opening {
   glazing?: 'glass-block';
   /** This opening's own look (library.looks), instead of the one for its kind */
   look?: Id;
+  /** Values for its look's parameters (the look's defaults for the rest) */
+  lookParams?: Record<string, string | number | boolean | null>;
   extras?: Extras;
 }
 
@@ -141,6 +143,8 @@ export interface Element {
   params: Record<string, unknown>;
   /** This element's own look (library.looks), instead of the one for its type */
   look?: Id;
+  /** Values for its look's parameters (the look's defaults for the rest) */
+  lookParams?: Record<string, string | number | boolean | null>;
   extras?: Extras;
 }
 
@@ -159,6 +163,8 @@ export interface Furniture {
   elevation?: Mm;
   /** This piece's own look (library.looks), instead of the one for its type */
   look?: Id;
+  /** Values for its look's parameters (the look's defaults for the rest) */
+  lookParams?: Record<string, string | number | boolean | null>;
   extras?: Extras;
 }
 

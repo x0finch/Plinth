@@ -238,11 +238,11 @@ function Slab({ s, y, thickness, color, ...o }: Outline & { s: Space; y: number;
  * thin dark frame and a glass-block infill is frosted white; doors stay open. Glass casts no shadow, so sunlight falls through
  * the opening. Part of its wall: picking it picks the wall.
  */
-function OpeningLook({ fr, recipe, base, ...o }: Outline & { fr: OpeningFrame; recipe: Recipe | null; base: number }) {
+function OpeningLook({ fr, recipe, params, base, ...o }: Outline & { fr: OpeningFrame; recipe: Recipe | null; params?: Record<string, unknown>; base: number }) {
   const colors = useLookColors();
   const y = (base + fr.z) * M;
   const ref = useFeedback<THREE.Group>(fr.wall, null, !!o.sel);
-  const parts = useLookGeometry(recipe, fr.width, fr.thickness, fr.height);
+  const parts = useLookGeometry(recipe, fr.width, fr.thickness, fr.height, params);
   if (!parts.length) return null;
   return (
     <group ref={ref} position={[fr.center[0] * M, y, fr.center[1] * M]} rotation={[0, -fr.angle, 0]} userData={{ restY: y }}>
@@ -325,8 +325,8 @@ function Furniture({ f, recipe, base, color, ...o }: Outline & { f: Project['fur
 const useLookColors = () => useThemeColors(LOOK_TOKENS, useCanvasDocument());
 
 /** A recipe's geometry at a size (one per material), disposed when it changes */
-function useLookGeometry(recipe: Recipe | null, w: number, d: number, h: number) {
-  const built = useBuild(recipe, { w, d, h });
+function useLookGeometry(recipe: Recipe | null, w: number, d: number, h: number, params?: Record<string, unknown>) {
+  const built = useBuild(recipe, { w, d, h }, params);
   const parts = useMemo(() => (built ? partsGeometry(built.parts) : []), [built]);
   useEffect(() => () => parts.forEach(([, g]) => g.dispose()), [parts]);
   return parts;
@@ -350,7 +350,7 @@ function FurnitureModel({ f, recipe, base, ...o }: Outline & { f: Project['furni
   const y = (base + (f.elevation ?? 0)) * M;
   const ref = useFeedback<THREE.Group>(f.id, null, !!o.sel);
   const { w, d, h } = f.size;
-  const parts = useLookGeometry(recipe, w, d, h);
+  const parts = useLookGeometry(recipe, w, d, h, f.lookParams);
   return (
     <group ref={ref} position={[f.position[0] * M, y, f.position[1] * M]} rotation={[0, (-f.rotation * Math.PI) / 180, 0]} userData={{ restY: y }}>
       <LookMeshes parts={parts} id={f.id} colors={colors} />
@@ -371,7 +371,7 @@ function ElementExtras({ e, solids, recipe, base, ...o }: Outline & { e: Element
   const x0 = Math.min(...pts.map(p => p[0])), x1 = Math.max(...pts.map(p => p[0])), z0 = Math.min(...pts.map(p => p[1])), z1 = Math.max(...pts.map(p => p[1]));
   const h = Math.max(...solids.map(s => s.z + s.height));
   const ref = useFeedback<THREE.Group>(e.id, null, !!o.sel);
-  const parts = useLookGeometry(recipe, x1 - x0, z1 - z0, h);
+  const parts = useLookGeometry(recipe, x1 - x0, z1 - z0, h, e.lookParams);
   if (!parts.length) return null;
   return (
     <group ref={ref} position={[((x0 + x1) / 2) * M, base * M, ((z0 + z1) / 2) * M]} userData={{ restY: base * M }}>
@@ -698,7 +698,7 @@ export function Model3D() {
   // An element's own geometry in the materials its look gives each kind of solid
   const solidColor = (s: Solid) => {
     const e = project.elements.find(x => x.id === s.id), recipe = e && lookRecipe(project, elementTarget(e), e.look);
-    const own = recipe && getBuild(recipe, ELEMENT_SIZE)?.parts.find(p => p.kind === 'base'), mat = own?.kind === 'base' ? own.mats[s.kind] : undefined;
+    const own = recipe && getBuild(recipe, ELEMENT_SIZE, e?.lookParams)?.parts.find(p => p.kind === 'base'), mat = own?.kind === 'base' ? own.mats[s.kind] : undefined;
     return mat ? lc[mat] : s.kind === 'water' ? c.furn : s.kind === 'grate' ? c.grate : c.wall;
   };
   const ownerOf = (id: string) => findObject(project, id, 'opening')?.wall?.id;
@@ -814,14 +814,14 @@ export function Model3D() {
                       <WallMesh key={w.id} w={w} project={project} base={elev.get(l.id) ?? 0} sel={sel.has(w.id) ? c.sel : undefined} color={c.wall} />
                     ))}
                     {openings.filter(fr => fr.level === l.id).map(fr => (
-                      <OpeningLook key={fr.id} fr={fr} recipe={lookRecipe(project, openingTarget(fr.opening), fr.opening.look)} base={elev.get(l.id) ?? 0} sel={sel.has(fr.wall) ? c.sel : undefined} />
+                      <OpeningLook key={fr.id} fr={fr} recipe={lookRecipe(project, openingTarget(fr.opening), fr.opening.look)} params={fr.opening.lookParams} base={elev.get(l.id) ?? 0} sel={sel.has(fr.wall) ? c.sel : undefined} />
                     ))}
                     {solids.filter(s => s.level === l.id).map((s, i) => (
                       <SolidMesh key={`${s.id}-${i}`} s={s} base={elev.get(l.id) ?? 0} sel={sel.has(s.id) ? c.sel : undefined} color={solidColor(s)} />
                     ))}
                     {project.elements.filter(e => e.level === l.id).map(e => {
                       const recipe = lookRecipe(project, elementTarget(e), e.look), own = solids.filter(s => s.id === e.id);
-                      return recipe && own.length && getBuild(recipe, ELEMENT_SIZE)?.parts.some(p => p.kind !== 'base')
+                      return recipe && own.length && getBuild(recipe, ELEMENT_SIZE, e.lookParams)?.parts.some(p => p.kind !== 'base')
                         ? <ElementExtras key={e.id} e={e} solids={own} recipe={recipe} base={elev.get(l.id) ?? 0} sel={sel.has(e.id) ? c.sel : undefined} />
                         : null;
                     })}

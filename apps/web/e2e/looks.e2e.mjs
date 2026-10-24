@@ -1,4 +1,5 @@
-// E2E: the agent makes looks (#80): words → recipe → preview (self-check) → add → preview card → use; discard; a photo reaches the model
+// E2E: the agent makes looks (#80): words → recipe → preview (self-check) → add → preview card → use; discard; a photo reaches the
+// model; look options (#89) change one object from the properties panel
 import { writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 
@@ -65,6 +66,24 @@ await box.press('Enter');
 await page.getByText('看到图片了').waitFor({ timeout: 30000 });
 check(true, 'a photo attached in the chat reaches the model');
 await page.screenshot({ path: `${OUT}/looks-2-photo.png` });
+
+// Look options: one sofa gets dark grey fabric from the properties panel; its look, and the other sofas, stay the same
+p = await project();
+const sofa = p.furniture.find(f => f.type === 'sofa3' && f.level === 'L1') ?? p.furniture.find(f => f.type === 'sofa3');
+await page.frameLocator('iframe[title="画布"]').locator(`[data-id="${sofa.id}"]`).first().dispatchEvent('click');
+await page.getByRole('tab', { name: '属性' }).click();
+await page.getByText('外观参数').waitFor({ timeout: 10000 });
+await page.getByRole('combobox', { name: '布面' }).click();
+await page.getByRole('option', { name: '深灰石' }).click();
+await page.waitForTimeout(800);
+p = await project();
+check(p.furniture.find(f => f.id === sofa.id).lookParams?.fabric === 'stoneDark' && p.furniture.filter(f => f.id !== sofa.id).every(f => !f.lookParams),
+  'a look option changes only that object');
+await page.screenshot({ path: `${OUT}/looks-3-params.png` });
+await page.getByRole('button', { name: '恢复默认' }).click();
+await page.waitForTimeout(500);
+p = await project();
+check(!p.furniture.find(f => f.id === sofa.id).lookParams, 'its default comes back');
 
 check(errors.length === 0, `no page errors${errors.length ? `: ${errors.slice(0, 3).join(' | ')}` : ''}`);
 await b.close();

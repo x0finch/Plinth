@@ -51,7 +51,7 @@ const lastPlan = new Map<string, PlanSymbol>();
 export function furniturePlan(p: Project, f: Furniture): PlanSymbol | null {
   const recipe = lookRecipe(p, furnitureTarget(f), f.look);
   if (!recipe) return null;
-  const built = getBuild(recipe, f.size);
+  const built = getBuild(recipe, f.size, f.lookParams);
   const sym = built ? builtPlan(built) : lastPlan.get(f.id);
   if (!sym) return null;
   if (built) lastPlan.set(f.id, sym);

@@ -109,10 +109,10 @@ export const SCRIPT_HELPERS = [...Object.keys(helpers(1)), 'pi'];
 const compiled = new Map<string, ReturnType<typeof jsonata>>();
 
 /**
- * Variables a script reads but never sets (JSONata treats them as empty, which makes confusing errors later): every variable
- * reference that isn't assigned (:=), a function argument, a focus/index binding, a function being called, or `known`
+ * The variables a script sets (:=, function arguments, focus/index bindings), and those it reads but never sets (JSONata treats
+ * them as empty, which makes confusing errors later): references that aren't set, a function being called, or `known`
  */
-export function unknownVariables(ast: unknown, known: Set<string>): string[] {
+export function scriptVariables(ast: unknown, known: Set<string>): { unknown: string[]; assigned: Set<string> } {
   const assigned = new Set<string>(), refs = new Set<string>();
   const walk = (n: unknown, callee = false) => {
     if (Array.isArray(n)) return n.forEach(x => walk(x));
@@ -125,7 +125,7 @@ export function unknownVariables(ast: unknown, known: Set<string>): string[] {
     for (const [k, v] of Object.entries(o)) if (k !== 'lhs' || o.type !== 'bind') walk(v, k === 'procedure');
   };
   walk(ast);
-  return [...refs].filter(r => !assigned.has(r) && !known.has(r));
+  return { unknown: [...refs].filter(r => !assigned.has(r) && !known.has(r)), assigned };
 }
 const flatten = (v: unknown): unknown[] => (v === undefined || v === null ? [] : Array.isArray(v) ? v.flatMap(flatten) : [v]);
 
@@ -144,7 +144,9 @@ export async function runScript(r: Recipe, size: RecipeSize, params: Record<stri
   }
   const fns = helpers(r.seed ?? 1);
   const values: Record<string, unknown> = { ...paramDefaults(r), ...params, ...size };
-  const unknown = unknownVariables(expr.ast(), new Set([...Object.keys(values), ...Object.keys(fns), 'pi']));
+  const { unknown, assigned } = scriptVariables(expr.ast(), new Set([...Object.keys(values), ...Object.keys(fns), 'pi']));
+  const hidden = [...assigned].filter(v => v in values || v in fns);
+  if (hidden.length) throw new RecipeError(`script: $${hidden[0]} is set with :=, which hides the ${hidden[0] in fns ? 'helper' : hidden[0] in size ? 'size' : 'parameter'} of that name; use another name`);
   if (unknown.length) throw new RecipeError(`script: unknown variable ${unknown.map(u => `$${u}`).join(', ')} (known: ${['w', 'd', 'h', ...Object.keys(paramDefaults(r))].map(k => `$${k}`).join(', ')}, and variables the script sets with :=)`);
   const clash = Object.keys(paramDefaults(r)).find(k => k in fns || k === 'pi' || k in size);
   if (clash) throw new RecipeError(`parameter "${clash}" has the name of a helper or a size`);

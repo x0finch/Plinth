@@ -3,6 +3,7 @@ import type { Recipe } from '../script.js';
 
 /** A wall-hung toilet: a white in-wall cistern panel (north) with a flush plate, a bowl that floats off the floor, seat and lid */
 const toilet: Recipe = {
+  params: { body: 'white' },
   script: `(
     $tank := $min([140, $d * 0.2]);
     $seat := $min([420, $h * 0.56]);
@@ -11,7 +12,7 @@ const toilet: Recipe = {
     $bz := $d / 2 - $r * $k;
     $lift := $min([160, $seat * 0.38]);
     [
-      $box([$w, $h, $tank], [0, 0 + $h / 2, -$d / 2 + $tank / 2], 'white', 6),
+      $box([$w, $h, $tank], [0, 0 + $h / 2, -$d / 2 + $tank / 2], $body, 6),
       $box([160, 110, 8], [0, $h - 120, -$d / 2 + $tank + 4], 'metal', 6),
       $lathe([[0, $lift], [$r * 0.6, $lift], [$r * 0.85, $lift + ($seat - $lift) * 0.55], [$r * 0.95, $seat - 30], [0, $seat - 30]], [0, 0, $bz], 'ceramic', {"scale": [1, 1, $k]}),
       $box([$r * 1.2, $seat - $lift - 30, $tank], [0, $lift + ($seat - $lift - 30) / 2, -$d / 2 + $tank * 1.5], 'ceramic', 20),
@@ -23,18 +24,19 @@ const toilet: Recipe = {
 
 /** A wall-hung vanity (IKEA style): a white case with two handleless drawers, a ceramic top with its basin, a faucet */
 const basin: Recipe = {
+  params: { body: 'white' },
   script: `(
     $top := $h - 40;
     $ch := $min([500, $top - 200]);
     $dh := ($ch - 12) / 2;
     $br := $min([$w * 0.32, 200]);
     [
-      $box([$w, $ch, $d - 20], [0, $top - $ch + $ch / 2, -10], 'white', 4),
+      $box([$w, $ch, $d - 20], [0, $top - $ch + $ch / 2, -10], $body, 4),
       [0..1].(
         $i := $;
         $y := $top - $ch + 4 + $i * ($dh + 4);
         [
-          $box([$w - 8, $dh, 16], [0, $y + $dh / 2, $d / 2 - 10], 'white', 2),
+          $box([$w - 8, $dh, 16], [0, $y + $dh / 2, $d / 2 - 10], $body, 2),
           $noplan($box([$min([260, $w * 0.5]), 8, 6], [0, $y + $dh - 20 + 8 / 2, $d / 2 + 1], 'metal', 3))
         ]
       ),
@@ -48,42 +50,44 @@ const basin: Recipe = {
 
 /** A square shower in a corner (walls to the north and west), glass to the south and east */
 const showerSquare: Recipe = {
+  params: { frame: 'dark' },
   script: `[
     $box([$w, 50, $d], [0, 0 + 50 / 2, 0], 'white', 10),
     $panel([-$w / 2, $d / 2], [$w / 2, $d / 2], 50, $h - 50, 8, 'glass'),
-    $rod([-$w / 2, $h, $d / 2], [$w / 2, $h, $d / 2], 10, 'dark', 8),
+    $rod([-$w / 2, $h, $d / 2], [$w / 2, $h, $d / 2], 10, $frame, 8),
     $panel([$w / 2, $d / 2], [$w / 2, -$d / 2], 50, $h - 50, 8, 'glass'),
-    $rod([$w / 2, $h, $d / 2], [$w / 2, $h, -$d / 2], 10, 'dark', 8),
-    $rod([-$w / 2, 50, $d / 2], [-$w / 2, $h, $d / 2], 10, 'dark', 8),
-    $rod([$w / 2, 50, $d / 2], [$w / 2, $h, $d / 2], 10, 'dark', 8),
-    $rod([$w / 2, 50, -$d / 2], [$w / 2, $h, -$d / 2], 10, 'dark', 8),
-    $rod([-$w * 0.15, $min([900, $h * 0.45]), -$d / 2 + 30], [-$w * 0.15, $h - 100, -$d / 2 + 30], 12, 'dark'),
-    $rod([-$w * 0.15, $h - 100, -$d / 2 + 30], [-$w * 0.15, $h - 120, -$d / 2 + 230], 10, 'dark'),
-    $cylinder(90, 15, [-$w * 0.15, $h - 127.5, -$d / 2 + 250], 'dark', {"seg": 28}),
-    $cylinder(30, 6, [0, 53, 50], 'dark')
+    $rod([$w / 2, $h, $d / 2], [$w / 2, $h, -$d / 2], 10, $frame, 8),
+    $rod([-$w / 2, 50, $d / 2], [-$w / 2, $h, $d / 2], 10, $frame, 8),
+    $rod([$w / 2, 50, $d / 2], [$w / 2, $h, $d / 2], 10, $frame, 8),
+    $rod([$w / 2, 50, -$d / 2], [$w / 2, $h, -$d / 2], 10, $frame, 8),
+    $rod([-$w * 0.15, $min([900, $h * 0.45]), -$d / 2 + 30], [-$w * 0.15, $h - 100, -$d / 2 + 30], 12, $frame),
+    $rod([-$w * 0.15, $h - 100, -$d / 2 + 30], [-$w * 0.15, $h - 120, -$d / 2 + 230], 10, $frame),
+    $cylinder(90, 15, [-$w * 0.15, $h - 127.5, -$d / 2 + 250], $frame, {"seg": 28}),
+    $cylinder(30, 6, [0, 53, 50], $frame)
   ]`,
 };
 
 /** A diamond shower: a corner shower with its outer corner cut by the door */
 const showerDiamond: Recipe = {
+  params: { frame: 'dark' },
   script: `(
     $c := $min([$w, $d]) * 0.45;
     [
       $extrude('plan', [[-$w / 2, -$d / 2], [$w / 2, -$d / 2], [$w / 2, $d / 2 - $c], [$w / 2 - $c, $d / 2], [-$w / 2, $d / 2]], 50, 'white'),
       $panel([-$w / 2, $d / 2], [$w / 2 - $c, $d / 2], 50, $h - 50, 8, 'glass'),
-      $rod([-$w / 2, $h, $d / 2], [$w / 2 - $c, $h, $d / 2], 10, 'dark', 8),
+      $rod([-$w / 2, $h, $d / 2], [$w / 2 - $c, $h, $d / 2], 10, $frame, 8),
       $panel([$w / 2 - $c, $d / 2], [$w / 2, $d / 2 - $c], 50, $h - 50, 8, 'glass'),
-      $rod([$w / 2 - $c, $h, $d / 2], [$w / 2, $h, $d / 2 - $c], 10, 'dark', 8),
+      $rod([$w / 2 - $c, $h, $d / 2], [$w / 2, $h, $d / 2 - $c], 10, $frame, 8),
       $panel([$w / 2, $d / 2 - $c], [$w / 2, -$d / 2], 50, $h - 50, 8, 'glass'),
-      $rod([$w / 2, $h, $d / 2 - $c], [$w / 2, $h, -$d / 2], 10, 'dark', 8),
-      $rod([-$w / 2, 50, $d / 2], [-$w / 2, $h, $d / 2], 10, 'dark', 8),
-      $rod([$w / 2 - $c, 50, $d / 2], [$w / 2 - $c, $h, $d / 2], 10, 'dark', 8),
-      $rod([$w / 2, 50, $d / 2 - $c], [$w / 2, $h, $d / 2 - $c], 10, 'dark', 8),
-      $rod([$w / 2, 50, -$d / 2], [$w / 2, $h, -$d / 2], 10, 'dark', 8),
-      $rod([-$w * 0.15, $min([900, $h * 0.45]), -$d / 2 + 30], [-$w * 0.15, $h - 100, -$d / 2 + 30], 12, 'dark'),
-      $rod([-$w * 0.15, $h - 100, -$d / 2 + 30], [-$w * 0.15, $h - 120, -$d / 2 + 230], 10, 'dark'),
-      $cylinder(90, 15, [-$w * 0.15, $h - 127.5, -$d / 2 + 250], 'dark', {"seg": 28}),
-      $cylinder(30, 6, [0, 53, 50], 'dark')
+      $rod([$w / 2, $h, $d / 2 - $c], [$w / 2, $h, -$d / 2], 10, $frame, 8),
+      $rod([-$w / 2, 50, $d / 2], [-$w / 2, $h, $d / 2], 10, $frame, 8),
+      $rod([$w / 2 - $c, 50, $d / 2], [$w / 2 - $c, $h, $d / 2], 10, $frame, 8),
+      $rod([$w / 2, 50, $d / 2 - $c], [$w / 2, $h, $d / 2 - $c], 10, $frame, 8),
+      $rod([$w / 2, 50, -$d / 2], [$w / 2, $h, -$d / 2], 10, $frame, 8),
+      $rod([-$w * 0.15, $min([900, $h * 0.45]), -$d / 2 + 30], [-$w * 0.15, $h - 100, -$d / 2 + 30], 12, $frame),
+      $rod([-$w * 0.15, $h - 100, -$d / 2 + 30], [-$w * 0.15, $h - 120, -$d / 2 + 230], 10, $frame),
+      $cylinder(90, 15, [-$w * 0.15, $h - 127.5, -$d / 2 + 250], $frame, {"seg": 28}),
+      $cylinder(30, 6, [0, 53, 50], $frame)
     ]
   )`,
 };
@@ -118,6 +122,7 @@ const sos: Recipe = {
 
 /** A folding shower seat: slatted seat on a wall plate (north), held by two diagonal braces */
 const foldseat: Recipe = {
+  params: { wood: 'birch' },
   script: `(
     $sd := ($d - 30) / 4;
     [
@@ -125,7 +130,7 @@ const foldseat: Recipe = {
       [0..3].(
         $i := $;
         [
-          $box([$w, 25, $sd - 12], [0, $h - 25 + 25 / 2, -$d / 2 + 25 + $sd * ($i + 0.5)], 'birch', 6)
+          $box([$w, 25, $sd - 12], [0, $h - 25 + 25 / 2, -$d / 2 + 25 + $sd * ($i + 0.5)], $wood, 6)
         ]
       ),
       [0..1].(
@@ -157,19 +162,20 @@ const washer: Recipe = {
 
 /** A laundry sink (IKEA style): a deep white ceramic sink on a white two-door cabinet, a wall tap (north) */
 const sink: Recipe = {
+  params: { body: 'white' },
   script: `(
     $tub := $min([260, $h * 0.33]);
     $t := 30;
     $y := $h - $tub;
     $leg := 100;
     [
-      $box([$w - 20, $leg, $d - 80], [0, 0 + $leg / 2, -30], 'white', 3),
-      $box([$w, $y - $leg, $d - 20], [0, $leg + ($y - $leg) / 2, -10], 'white', 4),
+      $box([$w - 20, $leg, $d - 80], [0, 0 + $leg / 2, -30], $body, 3),
+      $box([$w, $y - $leg, $d - 20], [0, $leg + ($y - $leg) / 2, -10], $body, 4),
       [0..1].(
         $i := $;
         $s := $i * 2 - 1;
         [
-          $box([$w / 2 - 4, $y - $leg - 6, 16], [$s * $w / 4, $leg + 3 + ($y - $leg - 6) / 2, $d / 2 - 10], 'white', 2)
+          $box([$w / 2 - 4, $y - $leg - 6, 16], [$s * $w / 4, $leg + 3 + ($y - $leg - 6) / 2, $d / 2 - 10], $body, 2)
         ]
       ),
       [0..1].(
