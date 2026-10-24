@@ -15,8 +15,8 @@ import { levelShapes, planFrame } from '../plan-geometry';
 import { PlanDefs, PlanInk, PlanLabels, PlanPaper, scaledLine } from '../PlanDrawing';
 import type { Quality } from './Renderer';
 import { useBuildsVersion } from '@/lib/builds';
+import { M } from './scene';
 
-const M = 0.001;
 /**
  * Texture size along the longer side of the drawing. A budget, since phone browsers kill pages that hold too much image memory
  * (4096-pixel textures for two layers on four floors took about 600 MB): the current floor's ink is sharpest; other floors' ink and

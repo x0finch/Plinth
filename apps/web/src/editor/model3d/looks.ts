@@ -10,11 +10,11 @@ import { useBuildsVersion } from '@/lib/builds';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { M } from './scene';
 
 /** How a material a recipe names is drawn: the recipe's own (its library's), the design's, or the default library's */
 export const lookMaterial = (id: RecipeMaterial, recipe?: Recipe | null, design?: Record<string, Material>) => materialStyle(materialOf(id, recipe, design));
 
-const M = 0.001;
 const DEG = Math.PI / 180;
 const v3 = ([x, y, z]: [number, number, number]) => new THREE.Vector3(x * M, y * M, z * M);
 

@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cameraPosition, fitDistance, FOV, lookBounds, stageGround, stageSun } from '@/editor/model3d/look-stage';
 import { lookMaterial, partsGeometry, useBuild } from '@/editor/model3d/looks';
+import { castsShadow, standardMaterialProps } from '@/editor/model3d/scene';
 import { m } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { useThemeColors } from '@/lib/theme';
@@ -140,17 +141,10 @@ function Stage({ doc, recipe, parts, size, view }: { doc: Document; recipe: Reci
       <primitive object={sun.target} />
       <primitive object={ground} />
       {geometry.map(([mat, g]) => {
-        const { color, roughness, metalness, opacity } = lookMaterial(mat, recipe);
+        const style = lookMaterial(mat, recipe);
         return (
-          <mesh key={mat} geometry={g} castShadow={opacity === 1}>
-            <meshStandardMaterial
-              color={color}
-              roughness={roughness}
-              metalness={metalness}
-              transparent={opacity < 1}
-              opacity={opacity}
-              depthWrite={opacity === 1}
-            />
+          <mesh key={mat} geometry={g} castShadow={castsShadow(style)}>
+            <meshStandardMaterial {...standardMaterialProps(style)} />
           </mesh>
         );
       })}

@@ -8,7 +8,8 @@ import { buildRecipe, type Material, type Recipe } from '@plinth/core';
 import * as THREE from 'three';
 import { lightDocument } from '@/canvas/CanvasFrame';
 import { themeColor } from '@/lib/theme';
-import { cameraPosition, FOV, lookBounds, M, stageGround, stageSun } from './look-stage';
+import { cameraPosition, FOV, lookBounds, stageGround, stageSun } from './look-stage';
+import { castsShadow, M, standardMaterial } from './scene';
 import { lookMaterial, partsGeometry } from './looks';
 
 type Opts = { width?: number; height?: number; single?: boolean; params?: Record<string, unknown>; materials?: Record<string, Material> };
@@ -61,18 +62,11 @@ async function draw(renderer: THREE.WebGLRenderer, recipe: Recipe, size: { w: nu
   const parts = partsGeometry((await buildRecipe(recipe, size, opts.params).catch(() => ({ parts: [] }))).parts);
   const materials: THREE.Material[] = [];
   for (const [mat, g] of parts) {
-    const { color: c, roughness, metalness, opacity } = lookMaterial(mat, recipe, opts.materials);
-    const material = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(c),
-      roughness,
-      metalness,
-      transparent: opacity < 1,
-      opacity,
-      depthWrite: opacity === 1,
-    });
+    const style = lookMaterial(mat, recipe, opts.materials);
+    const material = standardMaterial(style);
     materials.push(material);
     const mesh = new THREE.Mesh(g, material);
-    mesh.castShadow = opacity === 1;
+    mesh.castShadow = castsShadow(style);
     scene.add(mesh);
   }
   const { center, radius } = lookBounds(

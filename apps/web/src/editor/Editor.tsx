@@ -53,7 +53,7 @@ import { ShareDialog } from './ShareDialog';
 import { createEditorStore, EditorContext, useEditor, type InitialProject } from './store';
 
 /** 3D (three.js) is most of the plan page script; load it only when switching to 3D */
-const loadModel3D = () => import('./Model3D');
+const loadModel3D = () => import('./model3d/Model3D');
 const Model3D = lazy(() => loadModel3D().then(mod => ({ default: mod.Model3D })));
 
 declare global {
