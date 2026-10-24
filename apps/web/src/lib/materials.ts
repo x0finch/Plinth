@@ -1,5 +1,5 @@
 /**
- * Library materials (glTF 2.0, see packages/core/src/material.ts) for drawing: CSS colours for the plan, swatches and
+ * Library materials (glTF 2.0, see packages/core/src/looks/material.ts) for drawing: CSS colours for the plan, swatches and
  * three.js. Material colours are data from a library, not theme colours: the canvas draws what the library says.
  */
 import type { Material, RGBA } from '@plinth/core';

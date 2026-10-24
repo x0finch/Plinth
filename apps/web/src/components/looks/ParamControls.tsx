@@ -1,5 +1,5 @@
 /**
- * Controls for a look's parameters, picked from each declaration (JSON Schema keywords, see packages/core/src/script.ts): a
+ * Controls for a look's parameters, picked from each declaration (JSON Schema keywords, see packages/core/src/looks/script.ts): a
  * material picker with swatches, a select for a closed set of values, show/hide for a boolean, a number field with its range
  * (empty means automatic when the script may work it out). Used by the properties panel and by a look's page in its library.
  */

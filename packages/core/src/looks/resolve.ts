@@ -1,10 +1,10 @@
 /** Which recipe draws an object, and its plan symbol in plan coordinates */
-import type { PlanSymbol } from '../recipe.js';
-import { builtPlan, type Recipe } from '../script.js';
+import type { PlanSymbol } from './recipe.js';
+import { builtPlan, type Recipe } from './script.js';
 import { typicalSize } from './builtin.js';
 import { getBuild } from './cache.js';
-import type { Element, Furniture, Opening, Point, Project, Wall } from '../schema.js';
-import { DEFAULT_LOOKS, type LookTarget } from './index.js';
+import type { Element, Furniture, Opening, Point, Project, Wall } from '../model/schema.js';
+import { DEFAULT_LOOKS, type LookTarget } from './defaults.js';
 
 export const furnitureTarget = (f: Pick<Furniture, 'type'>): LookTarget => `furniture:${f.type}`;
 export const openingTarget = (o: Pick<Opening, 'kind' | 'glazing'>): LookTarget => (o.glazing === 'glass-block' ? 'opening:glass-block' : `opening:${o.kind}`);

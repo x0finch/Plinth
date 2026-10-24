@@ -1,12 +1,12 @@
 /** Query and verify capabilities: read-only views of the project. */
 import { z } from 'zod';
 import { DEFAULT_MATERIALS } from '../looks/builtin.js';
-import { nameIn } from '../material.js';
-import { defineRead } from '../capability.js';
-import { derived } from '../derived.js';
-import { projectIndex } from '../project-index.js';
-import { findAny, resolveLevel, type Kind } from '../refs.js';
-import { r2, objectInfo } from '../info.js';
+import { nameIn } from '../looks/material.js';
+import { defineRead } from './capability.js';
+import { derived } from '../model/derived.js';
+import { projectIndex } from '../model/project-index.js';
+import { findAny, resolveLevel, type Kind } from '../model/refs.js';
+import { r2, objectInfo } from '../model/info.js';
 
 export const projectSummary = defineRead({
   name: 'project_summary',

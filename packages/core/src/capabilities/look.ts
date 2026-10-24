@@ -4,16 +4,16 @@
  * recipe never reaches the canvas.
  */
 import { z } from 'zod';
-import { defineEdit, defineRead } from '../capability.js';
+import { defineEdit, defineRead } from './capability.js';
 import { text } from '../i18n.js';
 import { DEFAULT_MATERIALS, materialOf } from '../looks/builtin.js';
-import { DEFAULT_LOOKS, type LookTarget } from '../looks/index.js';
+import { DEFAULT_LOOKS, type LookTarget } from '../looks/defaults.js';
 import { elementTarget, furnitureTarget, lookOf, lookRecipe, openingTarget, targetSize, wallTarget } from '../looks/resolve.js';
-import { normalizeRecipe } from '../recipe-convert.js';
-import { buildRecipe, checkParamValue, checkRecipe, paramDefaults, type Recipe } from '../script.js';
-import { resolve, type Kind } from '../refs.js';
-import { OPENING_KINDS, type Look, type Project } from '../schema.js';
-import { TxError } from '../session.js';
+import { normalizeRecipe } from '../looks/recipe-convert.js';
+import { buildRecipe, checkParamValue, checkRecipe, paramDefaults, type Recipe } from '../looks/script.js';
+import { resolve, type Kind } from '../model/refs.js';
+import { OPENING_KINDS, type Look, type Project } from '../model/schema.js';
+import { TxError } from '../session/session.js';
 
 const RECIPE_HELP = 'A recipe: { params?, seed?, script, materials? } with a JSONata script (see the recipe format in look_add)';
 

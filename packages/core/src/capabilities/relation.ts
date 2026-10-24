@@ -1,10 +1,10 @@
 /** Relations: constraints, brief and decisions. */
 import { z } from 'zod';
-import { defineEdit } from '../capability.js';
-import { SUPPORTED_CONSTRAINTS } from '../constraints.js';
-import { nextId } from '../topology.js';
+import { defineEdit } from './capability.js';
+import { SUPPORTED_CONSTRAINTS } from '../rules/constraints.js';
+import { nextId } from '../geometry/topology.js';
 import { text } from '../i18n.js';
-import { findAny, resolve } from '../refs.js';
+import { findAny, resolve } from '../model/refs.js';
 
 export const constraintAdd = defineEdit({
   name: 'constraint_add',

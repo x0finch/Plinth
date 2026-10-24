@@ -1,11 +1,11 @@
 /** Level capabilities. */
 import { z } from 'zod';
-import { defineEdit } from '../capability.js';
-import { TxError } from '../session.js';
+import { defineEdit } from './capability.js';
+import { TxError } from '../session/session.js';
 import { text } from '../i18n.js';
-import type { Level } from '../schema.js';
-import { resolveLevel } from '../refs.js';
-import { addOpening, addSpace, addWall } from '../edit-helpers.js';
+import type { Level } from '../model/schema.js';
+import { resolveLevel } from '../model/refs.js';
+import { addOpening, addSpace, addWall } from './edit-helpers.js';
 import { zRef } from './inputs.js';
 
 export const levelAdd = defineEdit({

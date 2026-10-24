@@ -1,7 +1,7 @@
 /** Capabilities about capabilities: batch and search. */
 import { z } from 'zod';
-import { defineEdit, defineRead, Registry, type CapabilityContext } from '../capability.js';
-import { TxError } from '../session.js';
+import { defineEdit, defineRead, Registry, type CapabilityContext } from './capability.js';
+import { TxError } from '../session/session.js';
 import { text } from '../i18n.js';
 
 /** Batch: several edits combined into one transaction, undone together */

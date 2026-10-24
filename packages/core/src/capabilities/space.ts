@@ -1,15 +1,15 @@
 /** Room and space capabilities. */
 import { z } from 'zod';
-import { defineEdit } from '../capability.js';
-import { dot, MIN_SHARED_EDGE, scale, union, wallNormal } from '../geometry.js';
-import { solveAreaMove } from '../constraints.js';
-import { moveWall, sharedLength, spaceWalls, uniqueName } from '../topology.js';
-import { TxError } from '../session.js';
+import { defineEdit } from './capability.js';
+import { dot, MIN_SHARED_EDGE, scale, union, wallNormal } from '../geometry/geometry.js';
+import { solveAreaMove } from '../rules/constraints.js';
+import { moveWall, sharedLength, spaceWalls, uniqueName } from '../geometry/topology.js';
+import { TxError } from '../session/session.js';
 import { text } from '../i18n.js';
-import type { Id, Opening } from '../schema.js';
-import { getSpace, getWall, listText, resolve, resolveLevel } from '../refs.js';
-import { r2 } from '../info.js';
-import { addOpening, addSpace, centerOnSpace, ensureMaterial, renameWalls, toPolygon, wallsAround } from '../edit-helpers.js';
+import type { Id, Opening } from '../model/schema.js';
+import { getSpace, getWall, listText, resolve, resolveLevel } from '../model/refs.js';
+import { r2 } from '../model/info.js';
+import { addOpening, addSpace, centerOnSpace, ensureMaterial, renameWalls, toPolygon, wallsAround } from './edit-helpers.js';
 import { DIR_VEC, zDirection, zRef, zShape, zSpaceKind, zWallKind } from './inputs.js';
 
 export const roomAdd = defineEdit({

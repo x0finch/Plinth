@@ -4,8 +4,8 @@
  * are deterministic, so they are kept per recipe (by identity), size and parameters; a recipe that fails to build stays failed (one that ran out of time
  * on a busy page is tried again a few times).
  */
-import { buildRecipe, type Built, type Recipe } from '../script.js';
-import type { RecipeSize } from '../recipe.js';
+import { buildRecipe, type Built, type Recipe } from './script.js';
+import type { RecipeSize } from './recipe.js';
 
 interface Entry {
   built?: Built;

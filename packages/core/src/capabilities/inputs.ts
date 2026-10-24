@@ -1,6 +1,6 @@
 /** Zod fragments shared by capability inputs. Their descriptions are part of what the agent sees. */
 import { z } from 'zod';
-import { OPENING_KINDS, SPACE_KINDS, WALL_KINDS, type Point } from '../schema.js';
+import { OPENING_KINDS, SPACE_KINDS, WALL_KINDS, type Point } from '../model/schema.js';
 
 export const zRef = (what: string) => z.string().describe(`ID or name of the ${what} (names may take a level prefix, e.g. “Level 2·Bedroom” or “二层·主卧”)`);
 export const zPoint = z.tuple([z.number(), z.number()]).describe('[x, y] in mm; x points east, y points south');

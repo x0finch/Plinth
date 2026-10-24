@@ -2,9 +2,9 @@
  * Converts design data exported from the legacy page (乌石合院) into the Plinth project data schema.
  * Input is the legacy.json captured by scripts/extract-legacy.mjs; used once, at import.
  */
-import { rect, union, pointInPolygon } from '../geometry.js';
-import { NAME_SEPARATOR, names, type Direction } from '../names.js';
-import { migrate } from '../migrate.js';
+import { rect, union, pointInPolygon } from '../geometry/geometry.js';
+import { NAME_SEPARATOR, names, type Direction } from '../model/names.js';
+import { migrate } from '../model/migrate.js';
 import { upgradeLegacyStairs } from './stairs.js';
 import {
   SCHEMA,
@@ -18,7 +18,7 @@ import {
   type SpaceKind,
   type Wall,
   type WallKind,
-} from '../schema.js';
+} from '../model/schema.js';
 
 interface LRect {
   x: number;

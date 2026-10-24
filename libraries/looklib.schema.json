@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/x0finch/Plinth/blob/main/libraries/looklib.schema.json",
   "title": "Plinth look library",
-  "description": "A look library, like a font file: groups, materials (glTF 2.0) and looks (a JSONata script with JSON Schema parameters). See packages/core/src/library.ts.",
+  "description": "A look library, like a font file: groups, materials (glTF 2.0) and looks (a JSONata script with JSON Schema parameters). See packages/core/src/looks/library.ts.",
   "type": "object",
   "required": ["format", "formatVersion", "id", "name", "version", "looks"],
   "additionalProperties": false,
