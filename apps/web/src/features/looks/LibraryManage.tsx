@@ -1,12 +1,7 @@
-/**
- * Look libraries, shared by the library list (/looks) and a library's page (/looks/$libraryId): its badge, the form that
- * creates one, importing a library file, and the panel that renames, shares and deletes it or removes its looks. Looks get into
- * a library from a design (its looks panel, or the agent) or a library file; designs copy them from there.
- */
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { PlusIcon, Trash2Icon, UploadIcon, UserPlusIcon } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Trash2Icon, UserPlusIcon } from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -19,98 +14,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/components/ui/item';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { api } from '@/lib/api';
 import { m, uiName } from '@/lib/i18n';
-import { importLibrary } from '@/lib/libraries';
 import { useMe } from '@/lib/query';
-import type { LibraryDetail, LibraryRole, LibrarySummary } from '@/shared/looks';
-
-export const libraryRoleLabel = (r: LibraryRole) =>
-  r === 'owner' ? m.libraries_role_owner() : r === 'editor' ? m.libraries_role_editor() : m.libraries_role_viewer();
-
-/** Default, built-in, or the viewer's role */
-export function LibraryBadge({ lib }: { lib: Pick<LibrarySummary, 'role' | 'builtin' | 'default'> }) {
-  return (
-    <Badge variant={lib.default ? 'default' : 'secondary'}>
-      {lib.default ? m.libraries_default() : lib.builtin ? m.libraries_builtin() : libraryRoleLabel(lib.role)}
-    </Badge>
-  );
-}
-
-export function LibraryCreate() {
-  const qc = useQueryClient();
-  const navigate = useNavigate();
-  const [name, setName] = useState('');
-  const create = useMutation({
-    mutationFn: () => api<{ id: string }>('/libraries', { method: 'POST', json: { name: name.trim() } }),
-    onSuccess: r => {
-      setName('');
-      void qc.invalidateQueries({ queryKey: ['libraries'] });
-      void navigate({ to: '/looks/$libraryId', params: { libraryId: r.id } });
-    },
-    onError: e => toast.error(e.message),
-  });
-  return (
-    <form
-      className="flex gap-2"
-      onSubmit={e => {
-        e.preventDefault();
-        if (name.trim()) create.mutate();
-      }}
-    >
-      <Input
-        value={name}
-        onChange={e => setName(e.target.value)}
-        placeholder={m.libraries_new_placeholder()}
-        aria-label={m.libraries_new_placeholder()}
-        className="sm:w-80"
-      />
-      <Button type="submit" variant="outline" disabled={!name.trim() || create.isPending}>
-        <PlusIcon /> {m.libraries_new()}
-      </Button>
-    </form>
-  );
-}
-
-/** Import a library file (*.looklib.json) as a new library of the user's, then open it */
-export function LibraryImport() {
-  const qc = useQueryClient();
-  const navigate = useNavigate();
-  const input = useRef<HTMLInputElement>(null);
-  const run = useMutation({
-    mutationFn: async (f: File) => importLibrary(JSON.parse(await f.text())),
-    onSuccess: r => {
-      void qc.invalidateQueries({ queryKey: ['libraries'] });
-      void navigate({ to: '/looks/$libraryId', params: { libraryId: r.id } });
-    },
-    onError: e => toast.error(e instanceof SyntaxError ? m.libraries_import_not_json() : e.message),
-  });
-  return (
-    <>
-      <Input
-        ref={input}
-        type="file"
-        accept=".json,application/json"
-        className="hidden"
-        aria-hidden
-        tabIndex={-1}
-        onChange={e => {
-          const f = e.target.files?.[0];
-          e.target.value = '';
-          if (f) run.mutate(f);
-        }}
-      />
-      <Button variant="outline" disabled={run.isPending} onClick={() => input.current?.click()}>
-        <UploadIcon /> {m.libraries_import()}
-      </Button>
-    </>
-  );
-}
+import type { LibraryDetail } from '@/shared/looks';
+import { libraryRoleLabel } from './library-role';
 
 /** Rename, looks, members and sharing, delete or leave: what the viewer's role allows on a library of their own or shared with them */
 export function LibraryManage({ detail }: { detail: LibraryDetail }) {

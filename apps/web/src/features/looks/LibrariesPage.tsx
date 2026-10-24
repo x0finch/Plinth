@@ -5,7 +5,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { ShapesIcon } from 'lucide-react';
-import { LibraryBadge, LibraryCreate, LibraryImport } from '@/features/looks/library';
+import { LibraryBadge } from './LibraryBadge';
+import { LibraryCreate } from './LibraryCreate';
+import { LibraryImport } from './LibraryImport';
 import { LookStill } from '@/features/looks/LookStill';
 import { SiteFooter, SiteHeader } from '@/features/site/SiteHeader';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
