@@ -13,6 +13,7 @@ import { materialPattern } from '@/editor/floor-materials';
 import { useBuild } from '@/editor/model3d/looks';
 import { m, uiName } from '@/lib/i18n';
 import { materialStyle } from '@/lib/materials';
+import { cn } from '@/lib/utils';
 import { paramTitle } from './ParamControls';
 import { LookStill } from './LookStill';
 import { LookViewer } from './LookViewer';
@@ -22,21 +23,21 @@ export const sizeText = (s: { w: number; d: number; h: number }) => `${s.w} × $
 
 /**
  * A look drawn at a size with parameter values: a still, or `live` in 3D to turn around; a look that builds nothing (a door that
- * stays an opening) shows a placeholder instead of an empty frame
+ * stays an opening) shows a placeholder instead of an empty frame. `bleed`: no frame of its own, to fill a card to its edges.
  */
-export function LookImage({ lib, look, size, params, live }: { lib: LookLibrary; look: LibraryLook; size?: { w: number; d: number; h: number }; params?: Record<string, unknown>; live?: boolean }) {
+export function LookImage({ lib, look, size, params, live, bleed }: { lib: LookLibrary; look: LibraryLook; size?: { w: number; d: number; h: number }; params?: Record<string, unknown>; live?: boolean; bleed?: boolean }) {
   const recipe = libraryRecipe(lib, look), at = size ?? lookSizeOf(look);
   const built = useBuild(recipe, at, params);
   if (built && !built.parts.length) {
     return (
-      <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-1 rounded-md border text-xs text-muted-foreground">
+      <div className={cn('flex aspect-[4/3] w-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground', !bleed && 'rounded-md border')}>
         <BoxIcon className="size-6" />{m.libraries_no_model()}
       </div>
     );
   }
-  if (!built) return <Skeleton className="aspect-[4/3] w-full" />;
+  if (!built) return <Skeleton className={cn('aspect-[4/3] w-full', bleed && 'rounded-none')} />;
   const alt = m.libraries_look_alt({ name: uiName(look.name) });
-  return live ? <LookViewer recipe={recipe} size={at} params={params} alt={alt} /> : <LookStill single recipe={recipe} size={at} params={params} alt={alt} />;
+  return live ? <LookViewer recipe={recipe} size={at} params={params} alt={alt} /> : <LookStill single bleed={bleed} recipe={recipe} size={at} params={params} alt={alt} />;
 }
 
 export function LookCard({ lib, id, look }: { lib: LookLibrary; id: string; look: LibraryLook }) {
@@ -44,8 +45,8 @@ export function LookCard({ lib, id, look }: { lib: LookLibrary; id: string; look
   return (
     <Card className="gap-0 overflow-hidden py-0" data-look={id}>
       <Link to="/looks/$libraryId/$lookId" params={{ libraryId: lib.id, lookId: id }} className="block" aria-label={m.libraries_open_look({ name: uiName(look.name) })}>
-        <div className="bg-card p-2"><LookImage lib={lib} look={look} /></div>
-        <CardHeader className="border-t px-3 pt-2 pb-1">
+        <LookImage lib={lib} look={look} bleed />
+        <CardHeader className="rounded-t-none border-t px-3 pt-2 pb-1">
           <CardTitle className="truncate text-sm">{uiName(look.name)}</CardTitle>
           <CardDescription className="text-xs">{sizeText(lookSizeOf(look))}</CardDescription>
         </CardHeader>
