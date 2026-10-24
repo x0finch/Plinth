@@ -5,9 +5,9 @@
  */
 import chineseFile from '../../../../libraries/chinese.looklib.json' with { type: 'json' };
 import defaultFile from '../../../../libraries/default.looklib.json' with { type: 'json' };
-import { libraryTypes, lookRecipeOf, parseLibrary, type LibraryLook, type LookLibrary, type LookType } from '../library.js';
-import type { Material, Names } from '../material.js';
-import type { Recipe } from '../script.js';
+import { libraryTypes, lookRecipeOf, parseLibrary, type LibraryLook, type LookLibrary, type LookType } from './library.js';
+import type { Material, Names } from './material.js';
+import type { Recipe } from './script.js';
 
 /** The default library's id (configuration, not a property of the file) */
 export const DEFAULT_LIBRARY_ID = 'builtin-default';

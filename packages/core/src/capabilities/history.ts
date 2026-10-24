@@ -1,6 +1,6 @@
 /** Undo, redo and the operation log. */
 import { z } from 'zod';
-import { defineRead, defineSession } from '../capability.js';
+import { defineRead, defineSession } from './capability.js';
 
 export const historyUndo = defineSession({
   name: 'history_undo',

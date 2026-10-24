@@ -1,11 +1,11 @@
 /** Opening (door, window, opening) capabilities. */
 import { z } from 'zod';
-import { defineEdit } from '../capability.js';
-import { TxError } from '../session.js';
+import { defineEdit } from './capability.js';
+import { TxError } from '../session/session.js';
 import { text } from '../i18n.js';
-import type { Opening } from '../schema.js';
-import { getOpening, getSpace, getWall, resolve } from '../refs.js';
-import { addOpening, centerOnSpace } from '../edit-helpers.js';
+import type { Opening } from '../model/schema.js';
+import { getOpening, getSpace, getWall, resolve } from '../model/refs.js';
+import { addOpening, centerOnSpace } from './edit-helpers.js';
 import { zOpeningKind, zRef } from './inputs.js';
 
 const OPENING_EN: Record<Opening['kind'], string> = { door: 'door', 'sliding-door': 'sliding door', gate: 'gate', window: 'window', opening: 'opening' };

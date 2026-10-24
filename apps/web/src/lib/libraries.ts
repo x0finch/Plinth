@@ -1,4 +1,4 @@
-/** Look libraries from the API, as library files (packages/core/src/library.ts) */
+/** Look libraries from the API, as library files (packages/core/src/looks/library.ts) */
 import type { LookLibrary } from '@plinth/core';
 import type { LibraryDetail, LibraryLookInput, LibrarySummary } from '@/shared/looks';
 import { api } from './api';

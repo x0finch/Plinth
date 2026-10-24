@@ -1,13 +1,15 @@
 /**
- * The default looks: a recipe for every target the default library draws (furniture types, kinds of opening, element types,
- * railings). It is never written to a project; designs that don't choose other looks follow it as the library improves.
+ * What objects look like: look library files, the JSONata scripts a look is and the parts they return, materials, the default
+ * library, and building looks into parts
  */
-import type { Recipe } from '../script.js';
-import { DEFAULT_LIBRARY, libraryRecipe } from './builtin.js';
-
-/** What a look is for: a furniture type, a kind of opening (glass-block windows count as their own kind), an element type or a railing */
-export type LookTarget = `furniture:${string}` | `opening:${string}` | `element:${string}` | `wall:${string}`;
-
-export const DEFAULT_LOOKS: Record<LookTarget, Recipe> = Object.fromEntries(
-  Object.values(DEFAULT_LIBRARY.looks).flatMap(look => look.for.map(t => [t, libraryRecipe(DEFAULT_LIBRARY, look)] as const)),
-);
+export * from './expr.js';
+export * from './recipe.js';
+export * from './script.js';
+export * from './recipe-convert.js';
+export * from './material.js';
+export * from './library.js';
+export * from './defaults.js';
+export * from './builtin.js';
+export * from './resolve.js';
+export * from './transfer.js';
+export * from './cache.js';

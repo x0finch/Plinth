@@ -1,13 +1,13 @@
 /** Furniture capabilities. */
 import { z } from 'zod';
-import { defineEdit } from '../capability.js';
-import { add, bbox, pointInPolygon, round } from '../geometry.js';
-import { nextId, uniqueName } from '../topology.js';
-import { TxError } from '../session.js';
+import { defineEdit } from './capability.js';
+import { add, bbox, pointInPolygon, round } from '../geometry/geometry.js';
+import { nextId, uniqueName } from '../geometry/topology.js';
+import { TxError } from '../session/session.js';
 import { text } from '../i18n.js';
-import { NAME_SEPARATOR } from '../names.js';
-import type { Furniture } from '../schema.js';
-import { getFurniture, getSpace, resolve, resolveLevel } from '../refs.js';
+import { NAME_SEPARATOR } from '../model/names.js';
+import type { Furniture } from '../model/schema.js';
+import { getFurniture, getSpace, resolve, resolveLevel } from '../model/refs.js';
 import { zPoint, zRef } from './inputs.js';
 
 export const furnitureAdd = defineEdit({

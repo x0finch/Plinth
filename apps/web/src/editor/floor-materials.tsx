@@ -1,6 +1,6 @@
 /**
  * Materials drawn as patterns: wood planks, tiles, bricks, terrazzo, gravel… made from a material's procedural texture (its
- * glTF `extras`: pattern, size, colours; see packages/core/src/material.ts), used by the plan (an SVG pattern fill) and by the
+ * glTF `extras`: pattern, size, colours; see packages/core/src/looks/material.ts), used by the plan (an SVG pattern fill) and by the
  * 3D floors (the same tile rasterized as a texture), so the house growing out of the plan keeps its floors. Sizes in
  * millimetres; colours from the material (library data, not the theme).
  */

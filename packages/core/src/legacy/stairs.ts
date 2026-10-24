@@ -2,9 +2,9 @@
  * The legacy page's stair ("legacy-stair": its parameters copied as they were) becomes proper U-shaped stairs (see elements.ts),
  * one per storey, all in the same stairwell. Used by the v2 → v3 migration and by the legacy conversion.
  */
-import { NAME_SEPARATOR } from '../names.js';
-import type { Element, Level, Project } from '../schema.js';
-import type { StairParams } from '../elements.js';
+import { NAME_SEPARATOR } from '../model/names.js';
+import type { Element, Level, Project } from '../model/schema.js';
+import type { StairParams } from '../geometry/elements.js';
 
 interface LegacyStair {
   footprint?: { x: number; y: number; w: number; h: number };

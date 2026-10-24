@@ -1,7 +1,7 @@
 /**
  * A look library's page, the same for every library, like a font's specimen page: what the file says about it, its looks by
  * group (an index to jump to each group, then a section per group with a card per look), and its materials. Everything comes
- * from the library file (packages/core/src/library.ts); nothing here knows one library from another. A look opens its own page
+ * from the library file (packages/core/src/looks/library.ts); nothing here knows one library from another. A look opens its own page
  * (looks.$libraryId_.$lookId.tsx).
  */
 import { groupedLooks, type LookLibrary } from '@plinth/core';

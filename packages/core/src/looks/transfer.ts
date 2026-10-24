@@ -2,9 +2,9 @@
  * Looks moving between libraries and designs: a design copies a library look with the materials it uses and the furniture type
  * it brings (look_import), and saves one of its own looks to a library in the library's structure.
  */
-import { lookRecipeOf, materialsUsed, type LibraryLook, type LookLibrary } from '../library.js';
-import { nameIn, type Material, type Names } from '../material.js';
-import type { Look, Project, ProjectLanguage } from '../schema.js';
+import { lookRecipeOf, materialsUsed, type LibraryLook, type LookLibrary } from './library.js';
+import { nameIn, type Material, type Names } from './material.js';
+import type { Look, Project, ProjectLanguage } from '../model/schema.js';
 import { DEFAULT_LIBRARY, DEFAULT_LIBRARY_ID, DEFAULT_TYPES, groupNames } from './builtin.js';
 
 /** A name in one language, as names in several: in Chinese if it has Chinese characters, else in English */

@@ -15,7 +15,7 @@ The UI is available in Chinese (default) and English, chosen in Settings → Lan
 | `samples/wushi-10` | Test sample: Wushi courtyard, scheme 10 |
 
 Key conventions:
-- Every mutation (UI, agent, `window.artifact.call`) calls the same capability registry (`packages/core/src/builtins.ts` + `apps/web/src/agent/view-capabilities.ts`) and goes through the same transaction and undo stack.
+- Every mutation (UI, agent, `window.artifact.call`) calls the same capability registry (`packages/core/src/capabilities/builtins.ts` + `apps/web/src/agent/view-capabilities.ts`) and goes through the same transaction and undo stack.
 - The agent's tools are the capability registry, executed in the browser that has the project open; the server only forwards model requests using the project's configured key.
 - Pages are served directly by the static asset layer; the Worker only handles `/api/*` and doesn't bundle React (about 0.7 MB compressed, fits the free plan).
 

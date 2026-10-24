@@ -1,14 +1,14 @@
 /** Wall capabilities. */
 import { z } from 'zod';
-import { defineEdit } from '../capability.js';
+import { defineEdit } from './capability.js';
 import { materialOf } from '../looks/builtin.js';
-import { dot, round, scale, wallNormal } from '../geometry.js';
-import { moveWall } from '../topology.js';
-import { TxError } from '../session.js';
+import { dot, round, scale, wallNormal } from '../geometry/geometry.js';
+import { moveWall } from '../geometry/topology.js';
+import { TxError } from '../session/session.js';
 import { text } from '../i18n.js';
-import type { Point } from '../schema.js';
-import { getWall, resolve, resolveLevel } from '../refs.js';
-import { addWall, renameWalls, setWallName } from '../edit-helpers.js';
+import type { Point } from '../model/schema.js';
+import { getWall, resolve, resolveLevel } from '../model/refs.js';
+import { addWall, renameWalls, setWallName } from './edit-helpers.js';
 import { DIR_VEC, zDirection, zPoint, zRef, zWallKind } from './inputs.js';
 
 export const wallAdd = defineEdit({

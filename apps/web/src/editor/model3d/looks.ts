@@ -1,5 +1,5 @@
 /**
- * 3D geometry from recipes (see packages/core/src/recipe.ts): each built part becomes a three.js geometry in metres, and the
+ * 3D geometry from recipes (see packages/core/src/looks/recipe.ts): each built part becomes a three.js geometry in metres, and the
  * parts are merged into one geometry per material (one draw call each). Recipes only name materials; what a material looks
  * like comes from its library (lookMaterial).
  */
