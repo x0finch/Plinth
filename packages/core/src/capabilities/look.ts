@@ -7,9 +7,9 @@ import { z } from 'zod';
 import { defineEdit, defineRead } from '../capability.js';
 import { text } from '../i18n.js';
 import { DEFAULT_LOOKS, type LookTarget } from '../looks/index.js';
-import { elementTarget, furnitureTarget, lookOf, openingTarget, targetSize } from '../looks/resolve.js';
+import { elementTarget, furnitureTarget, lookOf, lookRecipe, openingTarget, targetSize } from '../looks/resolve.js';
 import { normalizeRecipe } from '../recipe-convert.js';
-import { checkRecipe, type Recipe } from '../script.js';
+import { buildRecipe, checkRecipe, paramDefaults, type Recipe } from '../script.js';
 import { resolve, type Kind } from '../refs.js';
 import { OPENING_KINDS, type Look, type Project } from '../schema.js';
 import { TxError } from '../session.js';
@@ -209,22 +209,71 @@ export const furnitureTypeAdd = defineEdit({
   },
 });
 
+const zParamValue = z.union([z.string().max(200), z.number(), z.boolean(), z.null()]);
+
+/** Describe a recipe's parameters for the agent: name → default (and label, doc, options, range when given) */
+const describeParams = (r: Recipe | null) => Object.fromEntries(Object.entries(r?.params ?? {}).map(([k, d]) => [k, d !== null && typeof d === 'object' ? d : { default: d }]));
+
+export const paramsSet = defineEdit({
+  name: 'params_set', title: 'Set look parameters',
+  description: [
+    'Customise one piece of furniture, door or window, or element without changing its look: set values for the parameters its look declares',
+    '(materials of its main surfaces, decoration on/off, shape choices…; look_get with its target lists them with their defaults). null puts a parameter back to the look\'s default; reset clears all.',
+    'Values are checked by building the object with them. To change many objects, call it for each one that should change.',
+  ].join(' '),
+  input: z.object({
+    object: z.string().describe('ID or name of a piece of furniture, door or window, or element'),
+    params: z.record(z.string(), zParamValue).default({}).describe('Parameter → value (null: back to the default)'),
+    reset: z.boolean().default(false).describe('Clear all values first'),
+  }),
+  label: (i, p) => text('log_params_set', 'Customise “{name}”', { name: lookHolder(p, i.object).name }),
+  prepare: async (i, ctx) => {
+    const p = ctx.session.project, { obj, target } = lookHolder(p, i.object);
+    const recipe = lookRecipe(p, target, obj.look);
+    const declared = paramDefaults(recipe ?? { params: {} });
+    const unknown = Object.keys(i.params).filter(k => !(k in declared));
+    if (unknown.length) {
+      throw new TxError('invalid-input', text('err_params_unknown', 'Its look has no parameter {names}; it has: {known}', {
+        names: unknown.join(', '), known: Object.keys(declared).join(', ') || text('none', 'none'),
+      }));
+    }
+    const merged = Object.fromEntries(Object.entries({ ...(i.reset ? {} : obj.lookParams ?? {}), ...i.params }).filter(([, v]) => v !== null));
+    const size = 'size' in obj ? obj.size : targetSize(p, target);
+    try {
+      await buildRecipe(recipe!, size, merged);
+    } catch (e) {
+      throw new TxError('invalid-input', text('err_params_build', 'The look does not build with these values: {problem}', { problem: e instanceof Error ? e.message : String(e) }));
+    }
+  },
+  apply: (p, i) => {
+    const { obj } = lookHolder(p, i.object);
+    const next = { ...(i.reset ? {} : obj.lookParams ?? {}) };
+    for (const [k, v] of Object.entries(i.params)) {
+      if (v === null) delete next[k];
+      else next[k] = v;
+    }
+    if (Object.keys(next).length) obj.lookParams = next;
+    else delete obj.lookParams;
+    return { params: next };
+  },
+});
+
 export const lookGet = defineRead({
   name: 'look_get', title: 'Read a look',
-  description: 'Read the recipe that draws a target in this design (its look, or the default one) or a look by ID or name, with the size it is usually built at. Start from it to change what something looks like.',
+  description: 'Read the recipe that draws a target in this design (its look, or the default one) or a look by ID or name, with the size it is usually built at and its parameters (what params_set can change per object). Start from it to change what something looks like.',
   input: z.object({ target: zTarget.optional(), look: z.string().optional().describe('Look ID or name') }),
   run: (i, ctx) => {
     const p = ctx.session.project;
     if (i.look) {
       const look = getLook(p, i.look);
-      return { id: lookId(p, i.look), name: look.name, for: look.for, version: look.version, size: targetSize(p, look.for[0]), recipe: look.recipe };
+      return { id: lookId(p, i.look), name: look.name, for: look.for, version: look.version, size: targetSize(p, look.for[0]), params: describeParams(look.recipe), recipe: look.recipe };
     }
     if (!i.target) throw new TxError('invalid-input', text('err_look_get_input', 'Give a target or a look'));
     checkTarget(p, i.target);
     const id = lookOf(p, i.target as LookTarget);
-    if (id) return { id, name: p.library.looks![id].name, for: p.library.looks![id].for, size: targetSize(p, i.target), recipe: p.library.looks![id].recipe };
+    if (id) return { id, name: p.library.looks![id].name, for: p.library.looks![id].for, size: targetSize(p, i.target), params: describeParams(p.library.looks![id].recipe), recipe: p.library.looks![id].recipe };
     const recipe = DEFAULT_LOOKS[i.target as LookTarget];
-    return { id: null, default: true, size: targetSize(p, i.target), recipe: recipe ?? null };
+    return { id: null, default: true, size: targetSize(p, i.target), params: describeParams(recipe ?? null), recipe: recipe ?? null };
   },
 });
 

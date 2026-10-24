@@ -13,6 +13,7 @@ import { fmtArea } from '@/lib/query';
 import { useEditor } from '../store';
 import { kindLabel, Row, useRun } from './common';
 import { ConstraintsList } from './ConstraintsList';
+import { LookParams } from './LookParams';
 import { LooksPanel } from './LooksPanel';
 
 type Info<T extends ObjectInfo['type']> = Extract<ObjectInfo, { type: T }>;
@@ -78,6 +79,7 @@ function ObjectProps({ info }: { info: ObjectInfo }) {
       {info.type === 'furniture' && <FurnitureProps info={info} />}
       {info.type === 'element' && <ElementProps info={info} />}
       {(info.type === 'furniture' || info.type === 'opening' || info.type === 'element') && <LookPicker id={info.id} />}
+      {(info.type === 'furniture' || info.type === 'opening' || info.type === 'element') && <LookParams id={info.id} />}
       {canEdit && (info.type === 'wall' || info.type === 'opening' || info.type === 'furniture') && (
         <p className="text-xs text-muted-foreground">{m.panels_drag_hint()}</p>
       )}
