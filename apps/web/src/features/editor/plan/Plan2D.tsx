@@ -7,7 +7,7 @@ import { TransformComponent, TransformWrapper, type ReactZoomPanPinchRef } from 
 import { wallBody, type Point, type Project } from '@plinth/core';
 import { dragCall, draggable, type DragResult } from './plan-drag';
 import { exteriorDimensions, selectionDimensions } from '@/graphics/plan/dimensions';
-import { dimensionScale, labelSize, levelShapes, planFrame, polyPath } from '@/graphics/plan/plan-geometry';
+import { dimensionScale, levelShapes, planFrame, polyPath } from '@/graphics/plan/plan-geometry';
 import { PlanDefs, PlanDimensions, PlanInk, PlanLabels, PlanPaper, screenLine } from '@/graphics/plan/PlanDrawing';
 import { useRun } from '../panels/common';
 import { useEditor } from '../store';
@@ -60,7 +60,6 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
   const [zoom, setZoom] = useState(1);
   const frame = planFrame(project, view.level, view.layers.dimensions && size);
   const vb = `${frame.x} ${frame.y} ${frame.w} ${frame.h}`;
-  const font = labelSize(shapes.bounds);
   // Dimensions follow the drawing (the dragged preview included) and keep a readable size as the plan zooms
   const scale = dimensionScale(shapes.bounds, size.width ? zoom * Math.min(size.width / frame.w, size.height / frame.h) : undefined);
   const exterior = useMemo(
