@@ -200,9 +200,10 @@ project.delete('/', minRole('owner'), async c => {
 
 project.put('/thumbnail', minRole('editor'), async c => {
   const id = c.var.projectId;
-  const svg = await c.req.text();
-  if (svg.length > 200_000 || !svg.startsWith('<svg')) throw new HTTPException(400, { message: m.server_err_invalid_thumbnail() });
-  await repo.setThumbnail(id, svg);
+  // The plan as SVG, or a still of the house in 3D as a JPEG data URL
+  const image = await c.req.text();
+  if (image.length > 300_000 || !(image.startsWith('<svg') || /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image))) throw new HTTPException(400, { message: m.server_err_invalid_thumbnail() });
+  await repo.setThumbnail(id, image);
   return c.json({ ok: true });
 });
 

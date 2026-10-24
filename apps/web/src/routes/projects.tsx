@@ -127,10 +127,15 @@ function Projects() {
             {list.data.map(r => (
               <li key={r.id}><Card className="relative gap-0 overflow-hidden py-0">
                 <Link to="/p/$projectId" params={{ projectId: r.id }} className="block">
-                  <div className="flex aspect-[4/3] items-center justify-center bg-card p-3">
-                    {r.thumbnail ? <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(r.thumbnail)}`} alt="" className="max-h-full max-w-full" /> : <HouseIcon className="size-8 text-muted-foreground" />}
-                  </div>
-                  <CardHeader className="border-t px-3 py-2">
+                  {r.thumbnail?.startsWith('data:image/') ? (
+                    // A still of the house in 3D, filling the frame
+                    <img src={r.thumbnail} alt="" className="aspect-[4/3] w-full object-cover" />
+                  ) : (
+                    <div className="flex aspect-[4/3] items-center justify-center bg-card p-3">
+                      {r.thumbnail ? <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(r.thumbnail)}`} alt="" className="max-h-full max-w-full" /> : <HouseIcon className="size-8 text-muted-foreground" />}
+                    </div>
+                  )}
+                  <CardHeader className="rounded-t-none border-t px-3 py-2">
                     <CardTitle className="truncate text-sm">{r.name}</CardTitle>
                     <CardDescription className="text-xs">{r.role === 'owner' ? m.projects_mine() : m.projects_shared_by({ owner: r.owner_name || m.projects_someone(), role: roleLabel(r.role) })} · {m.projects_version({ version: r.head_version })} · {fmtTime(r.updated_at)}</CardDescription>
                   </CardHeader>

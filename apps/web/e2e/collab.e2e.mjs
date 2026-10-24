@@ -85,5 +85,5 @@ await owner.screenshot({ path: `${OUT}/versions.png` });
 // Project list thumbnail
 await owner.waitForTimeout(3500);
 const projects = await oapi('/projects');
-check(!!projects.body[0].thumbnail?.startsWith('<svg'), 'thumbnail generated after save');
+check(/^(<svg|data:image\/jpeg;base64,)/.test(projects.body[0].thumbnail ?? ''), 'thumbnail generated after save (a 3D still, or the plan)');
 await b.close();

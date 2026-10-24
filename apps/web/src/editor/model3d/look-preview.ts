@@ -16,6 +16,13 @@ type Opts = { width?: number; height?: number; single?: boolean; params?: Record
 
 let shared: THREE.WebGLRenderer | null = null;
 let queue: Promise<unknown> = Promise.resolve();
+
+/** Draw with the one offscreen renderer, after the stills queued before (also used for house stills, house-still.ts) */
+export function withStillRenderer<T>(draw: (renderer: THREE.WebGLRenderer) => Promise<T>): Promise<T> {
+  const run = queue.then(() => draw((shared ??= new THREE.WebGLRenderer({ canvas: document.createElement('canvas'), antialias: true, preserveDrawingBuffer: true }))));
+  queue = run.catch(() => {});
+  return run;
+}
 const stills = new Map<string, Promise<string>>();
 const ids = new WeakMap<object, number>();
 let nextId = 1;
@@ -28,18 +35,16 @@ export function renderLookPreview(recipe: Recipe, size: { w: number; d: number; 
   let still = stills.get(key);
   if (!still) {
     if (stills.size > 400) stills.delete(stills.keys().next().value!);
-    still = queue.then(() => draw(recipe, size, opts));
-    queue = still.catch(() => {});
+    still = withStillRenderer(r => draw(r, recipe, size, opts));
     stills.set(key, still);
     still.catch(() => stills.delete(key));
   }
   return still;
 }
 
-async function draw(recipe: Recipe, size: { w: number; d: number; h: number }, opts: Opts): Promise<string> {
+async function draw(renderer: THREE.WebGLRenderer, recipe: Recipe, size: { w: number; d: number; h: number }, opts: Opts): Promise<string> {
   const W = opts.width ?? 960, H = opts.height ?? 320, doc = await lightDocument();
-  shared ??= new THREE.WebGLRenderer({ canvas: document.createElement('canvas'), antialias: true, preserveDrawingBuffer: true });
-  const renderer = shared, canvas = renderer.domElement;
+  const canvas = renderer.domElement;
   renderer.setPixelRatio(1);
   renderer.setSize(W, H, false);
   renderer.toneMapping = THREE.NoToneMapping;
