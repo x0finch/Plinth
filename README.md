@@ -34,19 +34,19 @@ npm run dev                            # http://localhost:3000; OTP codes are pr
 ```sh
 npm test                               # core: area reference values, capability contracts, constraints (repo root)
 npm run bench                          # core: transaction timings on the sample project
+npm run lint && npm run format:check   # oxlint, oxfmt (npm run format writes)
 cd apps/web
 npm test                               # web unit tests: editor store (autosave, conflicts, versions, read-only)
 npm run fake-llm &                     # fake model (OpenAI-compatible API, scripted tool calls)
 npm run dev > dev.log &
-node e2e/permissions.e2e.mjs           # API permission matrix: every route × every role (also runs in CI)
-node e2e/versions.e2e.mjs              # version history: quick autosaves by one author merge into one version (also runs in CI)
-DEV_LOG=dev.log npm run e2e            # end to end: permissions, agent chat, approvals, starting from scratch, sharing, comments, versions, mobile layout, dragging in the plan, the agent making looks, shared look libraries, email/password sign-in (OTP codes read from dev.log)
+npm run e2e                            # end to end (Playwright Test, e2e/*.spec.mjs): agent chat and approvals, the agent making looks, shared look libraries, sharing and comments, email/password sign-in (OTP codes read from dev.log), the English UI, dragging in the plan, the API permission matrix, version history
+npx playwright test permissions        # one file; the servers above are reused, or started by the config when not running
 ```
 
 ## Deployment (Cloudflare Workers free plan, via GitHub Actions)
 
 `.github/workflows/deploy.yml`:
-- Pull requests and pushes: three parallel jobs — `core` (typecheck + tests), `lint` (theme color and i18n checks), `web` (build + typecheck).
+- Pull requests and pushes: four parallel jobs — `core` (typecheck + tests), `lint` (oxlint, oxfmt, theme color and i18n checks), `web` (build + typecheck + unit tests), `api` (the permission matrix and version history against a local Worker, with Playwright Test).
 - Pushes to `main`: after the checks pass, migrate the remote D1 database → deploy → sync the secrets below to the Worker. Until the Cloudflare secrets are set, the deploy job is skipped with a warning.
 
 The D1 database `plinth` already exists (its ID is in `apps/web/wrangler.jsonc`); the token must belong to the same Cloudflare account.

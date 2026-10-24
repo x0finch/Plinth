@@ -17,6 +17,7 @@
     "format:check": "oxfmt --check"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@types/node": "^22.0.0",
     "oxfmt": "0.74.0",
     "oxlint": "1.89.0",
