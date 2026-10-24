@@ -1,5 +1,5 @@
 /** Local preferences (this browser only): agent autonomy level, the model picked in each project's chat */
-import type { Autonomy } from '@/agent/policy';
+import type { Autonomy } from '@/features/editor/agent/policy';
 import { m } from './i18n';
 
 const KEY = 'plinth.autonomy';

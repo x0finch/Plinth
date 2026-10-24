@@ -8,9 +8,9 @@ import { createGeminiChat } from '@tanstack/ai-gemini';
 import { createOpenaiChat } from '@tanstack/ai-openai';
 import { openaiCompatibleText } from '@tanstack/ai-openai/compatible';
 import { createOpenRouterText } from '@tanstack/ai-openrouter';
-import { isAutonomy, needsApproval, type Autonomy } from '../agent/policy';
-import { registry } from '../agent/registry';
-import { SYSTEM_PROMPT, contextPrompt, type AgentContext } from '../agent/prompt';
+import { isAutonomy, needsApproval, type Autonomy } from '../features/editor/agent/policy';
+import { registry } from '../features/editor/agent/registry';
+import { SYSTEM_PROMPT, contextPrompt, type AgentContext } from '../features/editor/agent/prompt';
 import { m } from '@/lib/i18n';
 import type { ModelWithKey } from './repo';
 
