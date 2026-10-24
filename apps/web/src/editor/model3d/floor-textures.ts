@@ -13,7 +13,8 @@ const M = 0.001;
 const PX_PER_MM = 0.25;
 const cache = new WeakMap<Document, WeakMap<Material, Promise<THREE.Texture>>>();
 
-function load(doc: Document, material: Material) {
+/** A floor material's pattern as a texture repeated per metre, made once per document (the material must have a pattern) */
+export function floorTexture(doc: Document, material: Material) {
   let m = cache.get(doc);
   if (!m) cache.set(doc, (m = new WeakMap()));
   let t = m.get(material);
@@ -47,7 +48,7 @@ export function useFloorTexture(doc: Document, id: string, material: Material | 
   useEffect(() => {
     if (!material || !materialPattern(material)) return setTex(null);
     let live = true;
-    void load(doc, material).then(t => live && setTex(t));
+    void floorTexture(doc, material).then(t => live && setTex(t));
     return () => void (live = false);
   }, [doc, id, material]);
   return tex;

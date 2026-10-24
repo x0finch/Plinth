@@ -26,6 +26,7 @@ import { lookMaterial, partsGeometry, useBuild } from './model3d/looks';
 const ELEMENT_SIZE = { w: 2000, d: 2000, h: 3000 };
 import { detectQuality, isTouchDevice, Renderer, type Quality } from './model3d/Renderer';
 import { modelStyle } from './model-style';
+import { BIRD, FOV, framed, type Pose } from './model3d/framing';
 import { planFrame, plinthRect } from './plan-geometry';
 import { useEditor, useEditorStore } from './store';
 
@@ -385,42 +386,9 @@ function Capture({ draw }: { draw: React.RefObject<(() => void) | null> }) {
 }
 
 type Orbit = { target: THREE.Vector3; enabled: boolean; update(): void };
-type Pose = { pos: THREE.Vector3; target: THREE.Vector3 };
-const FOV = 40;
-/** How much of the view the framed model fills (in its tighter direction) */
-const FILL = 0.86;
-/** Default viewing direction: from the south-east, looking down at about 45°, steep enough to see into the rooms */
-const BIRD = new THREE.Vector3(0.9, 1.4, 1.1).normalize();
 /** The last 3D camera per project, so coming back from the plan returns to it */
 const lastPose = new Map<string, Pose>();
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
-
-/**
- * Camera looking from this direction at the model's box: close enough that the box fills the view, and aimed so its outline
- * sits in the middle of the screen. The aim point is where the camera then orbits, so the model stays centered while rotating.
- */
-function framed(box: THREE.Box3, aspect: number, dir: THREE.Vector3): Pose {
-  const ty = Math.tan(THREE.MathUtils.degToRad(FOV) / 2) * FILL, tx = ty * aspect;
-  const back = dir.clone().normalize();
-  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), back).normalize();
-  const up = new THREE.Vector3().crossVectors(back, right);
-  const corners = [box.min, box.max].flatMap(a => [box.min, box.max].flatMap(b => [box.min, box.max].map(c => new THREE.Vector3(a.x, b.y, c.z))));
-  const target = box.getCenter(new THREE.Vector3());
-  let dist = 1;
-  // Perspective makes the outline's middle drift from the box center: fit, measure the outline on screen, re-aim, repeat
-  for (let i = 0; i < 4; i++) {
-    const rel = corners.map(p => {
-      const o = p.clone().sub(target);
-      return { x: o.dot(right), y: o.dot(up), d: o.dot(back) };
-    });
-    dist = Math.max(...rel.map(r => r.d + Math.max(Math.abs(r.x) / tx, Math.abs(r.y) / ty)));
-    const sx = rel.map(r => r.x / (dist - r.d)), sy = rel.map(r => r.y / (dist - r.d));
-    const mx = (Math.min(...sx) + Math.max(...sx)) / 2, my = (Math.min(...sy) + Math.max(...sy)) / 2;
-    target.addScaledVector(right, mx * dist).addScaledVector(up, my * dist);
-  }
-  return { target, pos: target.clone().addScaledVector(back, dist) };
-}
-
 
 /**
  * How far each floor has grown at overall progress g (0: flat like the plan, 1: built). The current floor and the ones below rise

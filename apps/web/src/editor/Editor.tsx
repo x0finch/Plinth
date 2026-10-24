@@ -244,7 +244,10 @@ function PanelBody() {
   );
 }
 
-/** Upload a plan thumbnail after each save (for the plan list) */
+/**
+ * Upload a thumbnail for the design list after each save (and on opening): a still of the house in 3D, or the plan when 3D can't
+ * be drawn
+ */
 function Thumbnail() {
   const version = useEditor(s => s.version);
   const projectId = useEditor(s => s.projectId);
@@ -260,8 +263,12 @@ function Thumbnail() {
   useEffect(() => {
     const svg = ref.current?.querySelector('svg');
     if (!snap || !svg) return;
-    const html = standaloneSvg(svg);
-    if (html.length < 190_000) void api(`/projects/${projectId}/thumbnail`, { method: 'PUT', body: html, headers: { 'Content-Type': 'image/svg+xml' } }).catch(() => {});
+    const put = (body: string, type: string) => body.length < 290_000 && api(`/projects/${projectId}/thumbnail`, { method: 'PUT', body, headers: { 'Content-Type': type } });
+    const plan = standaloneSvg(svg);
+    void import('./model3d/house-still')
+      .then(({ renderHouseStill }) => renderHouseStill(snap))
+      .then(jpeg => put(jpeg, 'text/plain'), () => put(plan, 'image/svg+xml'))
+      .catch(() => {});
   }, [snap]);
   return snap ? <div ref={ref} className="hidden" aria-hidden><PlanPreview project={snap} /></div> : null;
 }
