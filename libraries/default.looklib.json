@@ -3,9 +3,9 @@
   "format": "plinth-looks",
   "formatVersion": 1,
   "id": "builtin-default",
-  "name": {"zh": "默认物件", "en": "Default looks"},
+  "name": {"zh": "默认物品", "en": "Default looks"},
   "description": {
-    "zh": "没有指定外观的物件都用它来画：北欧风的家具、门窗和构件，以及墙面、地面和家具的全套材质",
+    "zh": "没有指定外观的物品都用它来画：北欧风的家具、门窗和构件，以及墙面、地面和家具的全套材质",
     "en": "What every object without a look of its own is drawn with: Scandinavian furniture, doors and windows, building elements, and the full set of wall, floor and furniture materials"
   },
   "version": "1.0.0",

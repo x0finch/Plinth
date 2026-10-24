@@ -46,10 +46,10 @@ test('libraries', async ({ browser: b }) => {
   // The top navigation opens the library list: the default library, the built-in Chinese one; A creates a library there
   await a.page.locator('header a[href="/looks"]').click();
   await a.page.waitForURL(/\/looks$/);
-  await a.page.getByRole('link', { name: '打开“中式物件”' }).waitFor({ timeout: 15000 });
-  check(await a.page.getByRole('link', { name: '打开“默认物件”' }).isVisible(), 'the library list shows the default and the built-in libraries');
-  await a.page.getByLabel('新物料库的名字').fill('家具库');
-  await a.page.getByRole('button', { name: '新建物料库' }).click();
+  await a.page.getByRole('link', { name: '打开“中式物品”' }).waitFor({ timeout: 15000 });
+  check(await a.page.getByRole('link', { name: '打开“默认物品”' }).isVisible(), 'the library list shows the default and the built-in libraries');
+  await a.page.getByLabel('新物品库的名字').fill('家具库');
+  await a.page.getByRole('button', { name: '新建物品库' }).click();
   await a.page.waitForURL(/\/looks\/lib/);
   await a.page.getByText('还没有外观', { exact: false }).waitFor();
   check(true, 'a new library opens on its own page, empty');
@@ -59,9 +59,9 @@ test('libraries', async ({ browser: b }) => {
   await a.page.waitForFunction(() => window.artifact?.ready);
   await a.page.evaluate(r => window.artifact.call('look_add', { name: '圆餐桌', for: ['furniture:dining'], recipe: r, use: true }), ROUND);
   await openLooks(a.page);
-  await a.page.getByRole('combobox', { name: '把“圆餐桌”存入物料库' }).click();
+  await a.page.getByRole('combobox', { name: '把“圆餐桌”存入物品库' }).click();
   await a.page.getByRole('option', { name: '家具库' }).click();
-  await a.page.getByText('“圆餐桌”已存入物料库').waitFor();
+  await a.page.getByText('“圆餐桌”已存入物品库').waitFor();
   let pa = await project(a.page);
   const aLook = Object.values(pa.library.looks)[0];
   check(aLook.source?.version === '1.0.0', 'saving links the design copy to the library (v1.0.0)');
@@ -88,7 +88,7 @@ test('libraries', async ({ browser: b }) => {
 
   // Bob adds the look to his own design
   await openLooks(bob.page);
-  await bob.page.getByRole('button', { name: '从物料库添加' }).click();
+  await bob.page.getByRole('button', { name: '从物品库添加' }).click();
   await bob.page.getByRole('button', { name: '添加并使用' }).click();
   await bob.page.getByText('已添加“圆餐桌”').waitFor();
   let pb = await project(bob.page);
@@ -97,9 +97,9 @@ test('libraries', async ({ browser: b }) => {
   check(JSON.stringify(pb.library.looks[bId].recipe) === JSON.stringify(aLook.recipe), 'both see the same look');
 
   // Bob also uses a look from the built-in Chinese library: one design, looks from two libraries
-  await bob.page.getByRole('button', { name: '从物料库添加' }).click();
-  await bob.page.getByRole('combobox', { name: '物料库' }).click();
-  await bob.page.getByRole('option', { name: '中式物件' }).click();
+  await bob.page.getByRole('button', { name: '从物品库添加' }).click();
+  await bob.page.getByRole('combobox', { name: '物品库' }).click();
+  await bob.page.getByRole('option', { name: '中式物品' }).click();
   await bob.page.getByRole('dialog').locator('div.space-y-1', { hasText: '功夫茶台' }).getByRole('button', { name: '添加并使用' }).click();
   await bob.page.getByText('已添加“功夫茶台”').waitFor();
   pb = await project(bob.page);
@@ -119,16 +119,16 @@ test('libraries', async ({ browser: b }) => {
   const id = Object.keys((await project(a.page)).library.looks)[0];
   await a.page.evaluate(([id, r]) => window.artifact.call('look_update', { look: id, recipe: { ...r, params: { top: 'woodDark' } } }), [id, ROUND]);
   await openLooks(a.page);
-  await a.page.getByRole('combobox', { name: '把“圆餐桌”存入物料库' }).click();
+  await a.page.getByRole('combobox', { name: '把“圆餐桌”存入物品库' }).click();
   await a.page.getByRole('option', { name: '家具库' }).click();
-  await a.page.getByText('“圆餐桌”已存入物料库').waitFor();
+  await a.page.getByText('“圆餐桌”已存入物品库').waitFor();
   pa = await project(a.page);
   check(Object.values(pa.library.looks)[0].source?.version === '2.0.0', 'saving again makes v2.0.0 in the library');
   await bob.page.waitForTimeout(2500);
   await bob.page.reload();
   await bob.page.waitForFunction(() => window.artifact?.ready);
   await openLooks(bob.page);
-  await bob.page.getByText('物料库里有新版本 v2.0.0').waitFor({ timeout: 10000 });
+  await bob.page.getByText('物品库里有新版本 v2.0.0').waitFor({ timeout: 10000 });
   check(true, 'the other design shows that a newer version exists');
   await bob.page.getByRole('button', { name: '更新', exact: true }).click();
   await bob.page.getByRole('img', { name: '更新后' }).waitFor({ timeout: 15000 });
@@ -173,7 +173,7 @@ test('libraries', async ({ browser: b }) => {
     .setInputFiles({ name: 'broken.looklib.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ ...exported, format: 'nope' })) });
   check(
     await a.page
-      .getByText('不是可用的物料库文件', { exact: false })
+      .getByText('不是可用的物品库文件', { exact: false })
       .waitFor({ timeout: 10000 })
       .then(
         () => true,
