@@ -61,23 +61,13 @@ function Library({ detail }: { detail: LibraryDetail }) {
         </Empty>
       ) : (
         <div className="grid gap-6 md:grid-cols-[11rem_1fr]">
-          <nav aria-label={m.libraries_groups()} className="md:sticky md:top-4 md:self-start">
-            <ItemGroup className="flex-row flex-wrap gap-1 md:flex-col">
-              {groups.map(g => (
-                <Item key={anchor(g.group)} size="xs" render={<a href={`#${anchor(g.group)}`} />} className="hover:bg-muted">
-                  <ItemContent><ItemTitle>{g.names ? uiName(g.names) : m.libraries_group_other()} <span className="text-muted-foreground">{g.looks.length}</span></ItemTitle></ItemContent>
-                </Item>
-              ))}
-              {materials.length > 0 && (
-                <Item size="xs" render={<a href="#materials" />} className="hover:bg-muted">
-                  <ItemContent><ItemTitle>{m.libraries_materials()} <span className="text-muted-foreground">{materials.length}</span></ItemTitle></ItemContent>
-                </Item>
-              )}
-            </ItemGroup>
-          </nav>
+          <GroupIndex entries={[
+            ...groups.map(g => ({ href: `#${anchor(g.group)}`, name: g.names ? uiName(g.names) : m.libraries_group_other(), count: g.looks.length })),
+            ...(materials.length ? [{ href: '#materials', name: m.libraries_materials(), count: materials.length }] : []),
+          ]} />
           <div className="min-w-0 space-y-8">
             {groups.map(g => (
-              <section key={anchor(g.group)} id={anchor(g.group)} aria-labelledby={`${anchor(g.group)}-title`} className="scroll-mt-4 space-y-3">
+              <section key={anchor(g.group)} id={anchor(g.group)} aria-labelledby={`${anchor(g.group)}-title`} className="scroll-mt-16 space-y-3 md:scroll-mt-4">
                 <h2 id={`${anchor(g.group)}-title`} className="text-base font-medium">
                   {g.names ? uiName(g.names) : m.libraries_group_other()} <span className="text-sm font-normal text-muted-foreground">{m.libraries_count({ count: g.looks.length })}</span>
                 </h2>
@@ -90,6 +80,35 @@ function Library({ detail }: { detail: LibraryDetail }) {
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+/**
+ * The index of a library's groups: a list beside the looks on wide screens; on phones, a row of chips above them that stays at the
+ * top while scrolling (left out when there are only one or two groups, whose headings are enough)
+ */
+function GroupIndex({ entries }: { entries: { href: string; name: string; count: number }[] }) {
+  return (
+    <>
+      {entries.length >= 3 && (
+        <nav aria-label={m.libraries_groups()} className="sticky top-0 z-10 -mx-4 flex gap-2 overflow-x-auto bg-background px-4 py-2 md:hidden">
+          {entries.map(e => (
+            <Button key={e.href} size="sm" variant="outline" className="shrink-0" nativeButton={false} render={<a href={e.href} />}>
+              {e.name} <span className="text-muted-foreground">{e.count}</span>
+            </Button>
+          ))}
+        </nav>
+      )}
+      <nav aria-label={m.libraries_groups()} className="hidden md:sticky md:top-4 md:block md:self-start">
+        <ItemGroup className="gap-1">
+          {entries.map(e => (
+            <Item key={e.href} size="xs" render={<a href={e.href} />} className="hover:bg-muted">
+              <ItemContent><ItemTitle>{e.name} <span className="text-muted-foreground">{e.count}</span></ItemTitle></ItemContent>
+            </Item>
+          ))}
+        </ItemGroup>
+      </nav>
     </>
   );
 }
@@ -134,7 +153,7 @@ function LibraryHeader({ detail }: { detail: LibraryDetail }) {
 function Materials({ lib }: { lib: LookLibrary }) {
   const materials = Object.entries(lib.materials ?? {});
   return (
-    <section id="materials" aria-labelledby="materials-title" className="scroll-mt-4 space-y-3">
+    <section id="materials" aria-labelledby="materials-title" className="scroll-mt-16 space-y-3 md:scroll-mt-4">
       <h2 id="materials-title" className="text-base font-medium">
         {m.libraries_materials()} <span className="text-sm font-normal text-muted-foreground">{m.libraries_materials_count({ count: materials.length })}</span>
       </h2>
