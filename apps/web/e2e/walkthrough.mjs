@@ -241,7 +241,7 @@ await owner.getByLabel('更多').click();
 const [dl] = await Promise.all([owner.waitForEvent('download'), owner.getByRole('menuitem', { name: '导出图片' }).click()]);
 await pause(1000);
 const png = readFileSync(await dl.path());
-check('Export image', /\.png$/.test(dl.suggestedFilename()) && png.subarray(1, 4).toString() === 'PNG', `${dl.suggestedFilename()} (${(png.length / 1024).toFixed(0)} KB)`);
+check('Export image', dl.suggestedFilename().endsWith('.png') && png.subarray(1, 4).toString() === 'PNG', `${dl.suggestedFilename()} (${(png.length / 1024).toFixed(0)} KB)`);
 
 // ---------- 11. Sign in ----------
 await caption(owner, '⑳ 登录：输入邮箱收验证码；试用期间的方案自动转到正式账号');

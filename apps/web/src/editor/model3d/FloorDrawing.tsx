@@ -85,7 +85,10 @@ export function FloorDrawing({ project, level, current, furniture, labels, quali
     ]).then(([paper, ink]) => {
       made = { paper, ink };
       if (live) setTextures(made);
-      else (paper.dispose(), ink.dispose());
+      else {
+        paper.dispose();
+        ink.dispose();
+      }
     });
     return () => {
       live = false;

@@ -127,10 +127,10 @@ function helpers(seed: number) {
     /** A box standing on y0 */
     block: (size: V3, x: number, y0: number, z: number, mat: string, r?: number) => clean({ kind: 'box', mat, size, at: [x, y0 + size[1] / 2, z], r: opt(r) }),
     /** A cylinder of radius r (bottom) and height h centred at `at`; o: { r2 top radius, axis x|y|z, seg, scale } */
-    cylinder: (r: number, h: number, at: V3, mat: string, o?: Record<string, unknown>) => clean({ kind: 'cylinder', mat, r, h, at, ...(o ?? {}) }),
+    cylinder: (r: number, h: number, at: V3, mat: string, o?: Record<string, unknown>) => clean({ kind: 'cylinder', mat, r, h, at, ...o }),
     sphere: (r: number, at: V3, mat: string, scale?: V3) => clean({ kind: 'sphere', mat, r, at, scale: opt(scale) }),
     /** A solid of revolution: profile [[r, y]…] from the axis out and back, standing at `at`; o: { scale, seg } */
-    lathe: (profile: [number, number][], at: V3, mat: string, o?: Record<string, unknown>) => clean({ kind: 'lathe', mat, profile, at, ...(o ?? {}) }),
+    lathe: (profile: [number, number][], at: V3, mat: string, o?: Record<string, unknown>) => clean({ kind: 'lathe', mat, profile, at, ...o }),
     rod: (from: V3, to: V3, r: number, mat: string, seg?: number) => clean({ kind: 'rod', mat, from, to, r, seg: opt(seg) }),
     /** A torus of radius R and thickness r; axis y lies flat, z stands up */
     ring: (R: number, r: number, at: V3, mat: string, axis?: string) => clean({ kind: 'ring', mat, R, r, at, axis: opt(axis) }),

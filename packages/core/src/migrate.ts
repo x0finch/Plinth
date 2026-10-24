@@ -68,7 +68,7 @@ function toV7(doc: any) {
       const to = type(f.type);
       if (to === f.type) return f;
       // The diamond shower is the shower's diamond shape, unless the piece has a look of its own
-      const params = f.type === 'shower5' && !f.look ? { ...(f.lookParams ?? {}), shape: 'diamond' } : f.lookParams;
+      const params = f.type === 'shower5' && !f.look ? { ...f.lookParams, shape: 'diamond' } : f.lookParams;
       return { ...f, type: to, ...(params ? { lookParams: params } : {}) };
     }),
     spaces: (doc.spaces ?? []).map((s: any) => (RENAMED_FLOORS[s.floor] ? { ...s, floor: RENAMED_FLOORS[s.floor] } : s)),

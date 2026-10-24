@@ -118,8 +118,6 @@ export function LooksPanel() {
 
 /** Copy a look from a library into the design, used for every object it fits */
 function ImportDialog() {
-  const project = useEditor(s => s.project);
-  const run = useRun();
   const [open, setOpen] = useState(false);
   const all = useQuery({ queryKey: ['libraries'], queryFn: listLibraries, enabled: open });
   // The default library is what the design already falls back to; to go back to it, reset a look instead

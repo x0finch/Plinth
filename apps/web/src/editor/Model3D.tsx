@@ -271,7 +271,11 @@ function SolidMesh({ s, base, color, ...o }: Outline & { s: Solid; base: number;
 }
 
 function Furniture({ f, recipe, base, color, ...o }: Outline & { f: Project['furniture'][number]; recipe: Recipe | null; base: number; color: string }) {
-  if (recipe) return <FurnitureModel f={f} recipe={recipe} base={base} {...o} />;
+  return recipe ? <FurnitureModel f={f} recipe={recipe} base={base} {...o} /> : <FurnitureBox f={f} base={base} color={color} {...o} />;
+}
+
+/** Furniture without a look: a box of its size */
+function FurnitureBox({ f, base, color, ...o }: Outline & { f: Project['furniture'][number]; base: number; color: string }) {
   const y = (base + (f.elevation ?? 0) + f.size.h / 2) * M;
   const ref = useFeedback<THREE.Mesh>(f.id, color, !!o.sel);
   return (
@@ -623,7 +627,6 @@ function Picker() {
 export function Model3D() {
   const project = useEditor(s => s.project);
   const view = useEditor(s => s.view);
-  const select = useEditor(s => s.select);
   const projectId = useEditor(s => s.projectId);
   const c = useColors();
   const style = modelStyle();

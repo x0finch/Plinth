@@ -119,8 +119,8 @@ export const lookAdd = defineEdit({
     i.for.forEach(t => checkTarget(p, t));
     const recipe = i.recipe as Recipe;
     const id = nextLookId(p);
-    p.library.looks = { ...(p.library.looks ?? {}), [id]: { name: i.name, for: [...new Set(i.for)], recipe, version: 1 } };
-    if (i.use) p.library.use = { ...(p.library.use ?? {}), ...Object.fromEntries(i.for.map(t => [t, id])) };
+    p.library.looks = { ...p.library.looks, [id]: { name: i.name, for: [...new Set(i.for)], recipe, version: 1 } };
+    if (i.use) p.library.use = { ...p.library.use, ...Object.fromEntries(i.for.map(t => [t, id])) };
     return { id };
   },
 });
@@ -170,7 +170,7 @@ export const lookUse = defineEdit({
     : text('log_look_use', 'Use look “{name}” for {target}', { name: p.library.looks?.[lookId(p, i.look)]?.name ?? i.look, target: i.target }),
   apply: (p, i) => {
     checkTarget(p, i.target);
-    const use = { ...(p.library.use ?? {}) };
+    const use = { ...p.library.use };
     if (i.look === null) delete use[i.target];
     else {
       const look = getLook(p, i.look);
@@ -218,8 +218,8 @@ export const furnitureTypeAdd = defineEdit({
     p.library.furniture[i.type] = { name: i.name, ...(i.group ? { group: i.group } : {}), size: { ...i.size } };
     if (i.recipe === undefined) return { type: i.type };
     const target = `furniture:${i.type}`, recipe = i.recipe as Recipe, id = nextLookId(p);
-    p.library.looks = { ...(p.library.looks ?? {}), [id]: { name: i.name, for: [target], recipe, version: 1 } };
-    p.library.use = { ...(p.library.use ?? {}), [target]: id };
+    p.library.looks = { ...p.library.looks, [id]: { name: i.name, for: [target], recipe, version: 1 } };
+    p.library.use = { ...p.library.use, [target]: id };
     return { type: i.type, look: id };
   },
 });
@@ -327,7 +327,7 @@ export const lookImport = defineEdit({
     const existing = i.replace ? lookId(p, i.replace) : Object.entries(looks).find(([, l]) => l.source?.library === i.source.library && l.source.look === i.source.look)?.[0];
     const id = existing ?? nextLookId(p);
     p.library.looks = { ...looks, [id]: { name: i.name, for: [...new Set(i.for)], recipe, version: (looks[id]?.version ?? 0) + 1, source: { ...i.source } } };
-    if (i.use) p.library.use = { ...(p.library.use ?? {}), ...Object.fromEntries(i.for.map(t => [t, id])) };
+    if (i.use) p.library.use = { ...p.library.use, ...Object.fromEntries(i.for.map(t => [t, id])) };
     return { id, updated: !!existing };
   },
 });

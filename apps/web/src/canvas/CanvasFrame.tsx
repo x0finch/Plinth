@@ -72,7 +72,9 @@ export function CanvasFrame({ children, className }: { children: ReactNode; clas
     if (el) el.textContent = css;
   }, [doc, css]);
 
+  // Same-origin and script-free by design: React renders into it from this document, which a sandbox would block
   return (
+    // oxlint-disable-next-line react/iframe-missing-sandbox
     <iframe ref={ref} title={m.editor_canvas()} data-canvas="" srcDoc="<!doctype html><html><head><meta charset='utf-8'></head><body></body></html>"
       onLoad={mount} className={className}>
       {doc && createPortal(<CanvasDoc.Provider value={doc}>{children}</CanvasDoc.Provider>, doc.body)}
