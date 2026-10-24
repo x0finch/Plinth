@@ -3,7 +3,7 @@
   "format": "plinth-looks",
   "formatVersion": 1,
   "id": "builtin-chinese",
-  "name": {"zh": "中式物件", "en": "Chinese pieces"},
+  "name": {"zh": "中式物品", "en": "Chinese pieces"},
   "description": {
     "zh": "功夫茶台、神位供桌、土灶、石桌和石鼓凳，带朱漆和金色两种材质",
     "en": "A gongfu tea table, an ancestral altar, a brick wood-fired stove, a stone table and drum stools, with red lacquer and gold"
