@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "immer": "^11.2.7",
+    "jsonata": "^2.2.2",
     "polygon-clipping": "0.15.7",
     "zod": "^4.6.7"
   }

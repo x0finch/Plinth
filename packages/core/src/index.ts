@@ -23,3 +23,5 @@ export * from './recipe.js';
 export * from './looks/index.js';
 export * from './looks/builtin.js';
 export * from './looks/resolve.js';
+export * from './script.js';
+export * from './looks-script/samples.js';
