@@ -87,6 +87,7 @@ check(await visible(page.getByRole('heading', { name: /^Living room/ })) && awai
 await page.getByRole('link', { name: 'Open “Sofa”' }).click();
 await page.waitForURL(/\/looks\/builtin-default\/sofa$/);
 check(await visible(page.getByRole('heading', { name: 'Variants' })) && await page.getByRole('combobox', { name: 'Fabric' }).isVisible(), 'a look’s page has its controls and variants, in English');
+check(await visible(page.getByRole('img', { name: /Sofa/ }).locator('canvas')) && await page.getByRole('button', { name: 'Back to the starting view' }).isVisible(), 'a look’s page shows it in 3D to turn around');
 await page.screenshot({ path: `${OUT}/en-gallery.png` });
 
 // Blank design: project data follows the UI language

@@ -738,5 +738,9 @@
   "look_variant_narrow": "窄",
   "look_variant_wide": "宽",
   "look_page_variants": "变体",
-  "look_page_variants_hint": "每次只改一个参数，其余保持默认；点一个变体可以在上面试。"
+  "look_page_variants_hint": "每次只改一个参数，其余保持默认；点一个变体可以在上面试。",
+  "look_page_for": "用于：{targets}",
+  "look_viewer_reset": "回到初始视角",
+  "look_viewer_maximize": "最大化",
+  "look_viewer_restore": "还原"
 }

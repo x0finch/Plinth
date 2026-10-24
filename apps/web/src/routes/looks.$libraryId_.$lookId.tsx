@@ -11,7 +11,6 @@ import { useState } from 'react';
 import { sizeText, LookImage } from '@/components/looks/LookCard';
 import { ParamControls, paramText, paramTitle } from '@/components/looks/ParamControls';
 import { SiteFooter, SiteHeader } from '@/components/site/SiteHeader';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
@@ -66,14 +65,12 @@ function Look({ lib, look }: { lib: LookLibrary; look: LibraryLook }) {
     <>
       <div className="space-y-1">
         <h1 className="text-xl font-semibold">{uiName(look.name)}</h1>
-        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          {groupName && <Badge variant="secondary">{uiName(groupName)}</Badge>}
-          {look.for.map(t => <Badge key={t} variant="outline" className="font-normal">{targetName(lib, look, t)}</Badge>)}
-          <span>v{look.version} · {sizeText(usual)}</span>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          {[groupName && uiName(groupName), m.look_page_for({ targets: look.for.map(t => targetName(lib, look, t)).join(m.looks_target_separator()) }), `v${look.version}`, sizeText(usual)].filter(Boolean).join(' · ')}
+        </p>
       </div>
       <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
-        <div className="min-w-0"><LookImage lib={lib} look={look} size={size} params={values} large /></div>
+        <div className="min-w-0"><LookImage lib={lib} look={look} size={size} params={values} live /></div>
         <Card className="gap-3 self-start py-4">
           <CardHeader className="px-4"><CardTitle className="text-sm">{m.look_page_controls()}</CardTitle></CardHeader>
           <CardContent className="space-y-3 px-4">

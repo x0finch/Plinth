@@ -738,5 +738,9 @@
   "look_variant_narrow": "narrow",
   "look_variant_wide": "wide",
   "look_page_variants": "Variants",
-  "look_page_variants_hint": "One parameter at a time, the rest at their defaults; pick one to try it above."
+  "look_page_variants_hint": "One parameter at a time, the rest at their defaults; pick one to try it above.",
+  "look_page_for": "For: {targets}",
+  "look_viewer_reset": "Back to the starting view",
+  "look_viewer_maximize": "Maximize",
+  "look_viewer_restore": "Restore"
 }
