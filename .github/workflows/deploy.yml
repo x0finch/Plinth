@@ -80,12 +80,10 @@ jobs:
           for i in $(seq 1 120); do curl -sf localhost:3000/api/me > /dev/null && exit 0; sleep 1; done
           cat dev.log
           exit 1
-      - name: API permission matrix
+      # Both tests use no browser and no model; the Worker started above is reused
+      - name: API permission matrix, version history (autosave merging)
         working-directory: apps/web
-        run: node e2e/permissions.e2e.mjs
-      - name: Version history (autosave merging)
-        working-directory: apps/web
-        run: node e2e/versions.e2e.mjs
+        run: npx playwright test permissions versions
       - name: Worker log
         if: failure()
         working-directory: apps/web
