@@ -40,7 +40,9 @@ export function LookViewer({ recipe, size, params, alt }: { recipe: Recipe; size
   if (!doc || !built) return <Skeleton className="aspect-[4/3] w-full" />;
   return (
     <div className="relative aspect-[4/3] w-full">
-      <div className={cn('overflow-hidden', max ? 'fixed inset-0 z-50' : 'absolute inset-0 rounded-md border')} role="img" aria-label={alt}>
+      {/* Turning it is a drag: no text selection or long-press menu, here or (while dragging) on the rest of the page */}
+      <div className={cn('touch-none overflow-hidden select-none [-webkit-touch-callout:none]', max ? 'fixed inset-0 z-50' : 'absolute inset-0 rounded-md border')} role="img" aria-label={alt}
+        onPointerDown={noSelectWhileDragging} onContextMenu={e => e.preventDefault()}>
         <Canvas shadows="soft" frameloop="demand" dpr={[1, 2]} gl={{ antialias: true, toneMapping: THREE.NoToneMapping }} camera={{ fov: FOV, near: 0.01, far: 200 }}>
           <Stage doc={doc} recipe={recipe} parts={built.parts} size={size} view={view} />
         </Canvas>
@@ -55,6 +57,19 @@ export function LookViewer({ recipe, size, params, alt }: { recipe: Recipe; size
       </div>
     </div>
   );
+}
+
+/** Keep the page from selecting text while a drag that started on the viewer goes on, wherever the pointer moves */
+function noSelectWhileDragging() {
+  const style = document.documentElement.style, before = style.userSelect;
+  style.userSelect = style.webkitUserSelect = 'none';
+  const end = () => {
+    style.userSelect = style.webkitUserSelect = before;
+    window.removeEventListener('pointerup', end);
+    window.removeEventListener('pointercancel', end);
+  };
+  window.addEventListener('pointerup', end);
+  window.addEventListener('pointercancel', end);
 }
 
 function Stage({ doc, recipe, parts, size, view }: { doc: Document; recipe: Recipe; parts: Parameters<typeof partsGeometry>[0]; size: Size; view: number }) {
