@@ -24,9 +24,14 @@ export function lookBounds(geometries: THREE.BufferGeometry[], size: { w: number
   return { center: box.getCenter(new THREE.Vector3()), radius: box.getSize(new THREE.Vector3()).length() / 2 || 1 };
 }
 
+/** How far the camera is from a look of this radius so it fills a view of this aspect (width / height) without being cut off */
+export function fitDistance(radius: number, aspect = 4 / 3) {
+  const v = ((FOV / 2) * Math.PI) / 180, h = Math.atan(Math.tan(v) * aspect);
+  return (radius / Math.sin(Math.min(v, h))) * 1.05;
+}
+
 /** The camera's position for a look of this centre and radius: far enough that it fills the view */
-export const cameraPosition = (center: THREE.Vector3, radius: number) =>
-  center.clone().addScaledVector(VIEW_DIR, (radius / Math.sin(((FOV / 2) * Math.PI) / 180)) * 1.05);
+export const cameraPosition = (center: THREE.Vector3, radius: number, aspect?: number) => center.clone().addScaledVector(VIEW_DIR, fitDistance(radius, aspect));
 
 /** A sun casting a soft shadow over the look's extent */
 export function stageSun(color: THREE.ColorRepresentation, center: THREE.Vector3, radius: number) {

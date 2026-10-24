@@ -1,20 +1,22 @@
 /**
  * A look you can turn around: the same stage as its stills (editor/model3d/look-stage.ts), starting from the same view, with
- * drag to orbit, pinch or scroll to zoom, and a button back to the starting view. It redraws as its parameters and size change.
- * Drawn in the canvas's light theme whatever the website's theme, like the stills.
+ * drag to orbit, pinch or scroll to zoom, a button back to the starting view, and one that fills the window with it (an overlay:
+ * phones' browsers don't put a page element in full screen; Esc or the button again brings it back). It redraws as its
+ * parameters and size change. Drawn in the canvas's light theme whatever the website's theme, like the stills.
  */
 import type { Recipe } from '@plinth/core';
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
-import { RotateCcwIcon } from 'lucide-react';
+import { Maximize2Icon, Minimize2Icon, RotateCcwIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { lightDocument } from '@/canvas/CanvasFrame';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cameraPosition, FOV, lookBounds, stageGround, stageSun } from '@/editor/model3d/look-stage';
+import { cameraPosition, fitDistance, FOV, lookBounds, stageGround, stageSun } from '@/editor/model3d/look-stage';
 import { lookMaterial, partsGeometry, useBuild } from '@/editor/model3d/looks';
 import { m } from '@/lib/i18n';
+import { cn } from '@/lib/utils';
 import { useThemeColors } from '@/lib/theme';
 
 type Size = { w: number; d: number; h: number };
@@ -25,15 +27,32 @@ export function LookViewer({ recipe, size, params, alt }: { recipe: Recipe; size
   const built = useBuild(recipe, size, params);
   // A new starting view whenever the look's extent changes; the button goes back to it
   const [view, setView] = useState(0);
+  const [max, setMax] = useState(false);
+  // While it fills the window: Esc brings it back, and the page behind doesn't scroll
+  useEffect(() => {
+    if (!max) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMax(false);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = overflow; };
+  }, [max]);
   if (!doc || !built) return <Skeleton className="aspect-[4/3] w-full" />;
   return (
-    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md border" role="img" aria-label={alt}>
-      <Canvas shadows="soft" frameloop="demand" dpr={[1, 2]} gl={{ antialias: true, toneMapping: THREE.NoToneMapping }} camera={{ fov: FOV, near: 0.01, far: 200 }}>
-        <Stage doc={doc} recipe={recipe} parts={built.parts} size={size} view={view} />
-      </Canvas>
-      <Button size="icon-sm" variant="outline" className="absolute right-2 bottom-2 bg-background" aria-label={m.look_viewer_reset()} onClick={() => setView(v => v + 1)}>
-        <RotateCcwIcon />
-      </Button>
+    <div className="relative aspect-[4/3] w-full">
+      <div className={cn('overflow-hidden', max ? 'fixed inset-0 z-50' : 'absolute inset-0 rounded-md border')} role="img" aria-label={alt}>
+        <Canvas shadows="soft" frameloop="demand" dpr={[1, 2]} gl={{ antialias: true, toneMapping: THREE.NoToneMapping }} camera={{ fov: FOV, near: 0.01, far: 200 }}>
+          <Stage doc={doc} recipe={recipe} parts={built.parts} size={size} view={view} />
+        </Canvas>
+        <div className={cn('absolute right-2 flex gap-2', max ? 'bottom-[max(0.5rem,env(safe-area-inset-bottom))]' : 'bottom-2')}>
+          <Button size="icon-sm" variant="outline" className="bg-background" aria-label={m.look_viewer_reset()} onClick={() => setView(v => v + 1)}>
+            <RotateCcwIcon />
+          </Button>
+          <Button size="icon-sm" variant="outline" className="bg-background" aria-label={max ? m.look_viewer_restore() : m.look_viewer_maximize()} aria-pressed={max} onClick={() => setMax(v => !v)}>
+            {max ? <Minimize2Icon /> : <Maximize2Icon />}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -42,6 +61,7 @@ function Stage({ doc, recipe, parts, size, view }: { doc: Document; recipe: Reci
   const c = useThemeColors({ backdrop: '--canvas-backdrop', sky: '--canvas-skylight', ground: '--card', sun: '--canvas-sun' }, doc);
   const camera = useThree(s => s.camera);
   const invalidate = useThree(s => s.invalidate);
+  const aspect = useThree(s => s.size.width / Math.max(1, s.size.height));
   const geometry = useMemo(() => partsGeometry(parts), [parts]);
   useEffect(() => () => geometry.forEach(([, g]) => g.dispose()), [geometry]);
   const { center, radius } = useMemo(() => lookBounds(geometry.map(([, g]) => g), size), [geometry, size]);
@@ -51,10 +71,16 @@ function Stage({ doc, recipe, parts, size, view }: { doc: Document; recipe: Reci
   // The starting view: when the look's extent changes, or on reset
   const key = `${radius.toFixed(3)}:${view}`;
   useEffect(() => {
-    camera.position.copy(cameraPosition(center, radius));
+    camera.position.copy(cameraPosition(center, radius, aspect));
     camera.lookAt(center);
     invalidate();
   }, [key]);
+  // When the view changes shape (filling the window and back), keep the angle and refit the distance
+  useEffect(() => {
+    const dir = camera.position.clone().sub(center).normalize();
+    camera.position.copy(center).addScaledVector(dir, fitDistance(radius, aspect));
+    invalidate();
+  }, [aspect.toFixed(2)]);
   return (
     <>
       <color attach="background" args={[c.backdrop]} />
