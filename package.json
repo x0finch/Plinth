@@ -1,11 +1,11 @@
 {
   "name": "plinth",
   "private": true,
-  "type": "module",
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
+  "type": "module",
   "scripts": {
     "extract": "node scripts/extract-legacy.mjs",
     "convert": "tsx scripts/convert-legacy.ts",

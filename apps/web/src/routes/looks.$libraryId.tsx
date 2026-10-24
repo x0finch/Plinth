@@ -32,12 +32,20 @@ function LibraryPage() {
     <div className="flex min-h-dvh flex-col">
       <SiteHeader />
       <main className="mx-auto w-full max-w-5xl flex-1 space-y-6 px-4 py-6">
-        <Button variant="link" size="sm" className="h-auto px-0" nativeButton={false} render={<Link to="/looks" />}><ArrowLeftIcon /> {m.libraries_back()}</Button>
-        {detail.isLoading ? <Skeleton className="h-40" /> : !detail.data ? (
+        <Button variant="link" size="sm" className="h-auto px-0" nativeButton={false} render={<Link to="/looks" />}>
+          <ArrowLeftIcon /> {m.libraries_back()}
+        </Button>
+        {detail.isLoading ? (
+          <Skeleton className="h-40" />
+        ) : !detail.data ? (
           <Empty>
-            <EmptyHeader><EmptyTitle>{detail.error?.message ?? m.server_err_library_not_found()}</EmptyTitle></EmptyHeader>
+            <EmptyHeader>
+              <EmptyTitle>{detail.error?.message ?? m.server_err_library_not_found()}</EmptyTitle>
+            </EmptyHeader>
           </Empty>
-        ) : <Library detail={detail.data} />}
+        ) : (
+          <Library detail={detail.data} />
+        )}
       </main>
       <SiteFooter />
     </div>
@@ -54,25 +62,39 @@ function Library({ detail }: { detail: LibraryDetail }) {
       {!groups.length && !materials.length ? (
         <Empty className="border">
           <EmptyHeader>
-            <EmptyMedia variant="icon"><ShapesIcon /></EmptyMedia>
+            <EmptyMedia variant="icon">
+              <ShapesIcon />
+            </EmptyMedia>
             <EmptyTitle>{m.libraries_empty()}</EmptyTitle>
             <EmptyDescription>{m.libraries_canvas_empty()}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
         <div className="grid gap-6 md:grid-cols-[11rem_1fr]">
-          <GroupIndex entries={[
-            ...groups.map(g => ({ href: `#${anchor(g.group)}`, name: g.names ? uiName(g.names) : m.libraries_group_other(), count: g.looks.length })),
-            ...(materials.length ? [{ href: '#materials', name: m.libraries_materials(), count: materials.length }] : []),
-          ]} />
+          <GroupIndex
+            entries={[
+              ...groups.map(g => ({ href: `#${anchor(g.group)}`, name: g.names ? uiName(g.names) : m.libraries_group_other(), count: g.looks.length })),
+              ...(materials.length ? [{ href: '#materials', name: m.libraries_materials(), count: materials.length }] : []),
+            ]}
+          />
           <div className="min-w-0 space-y-8">
             {groups.map(g => (
-              <section key={anchor(g.group)} id={anchor(g.group)} aria-labelledby={`${anchor(g.group)}-title`} className="scroll-mt-16 space-y-3 md:scroll-mt-4">
+              <section
+                key={anchor(g.group)}
+                id={anchor(g.group)}
+                aria-labelledby={`${anchor(g.group)}-title`}
+                className="scroll-mt-16 space-y-3 md:scroll-mt-4"
+              >
                 <h2 id={`${anchor(g.group)}-title`} className="text-base font-medium">
-                  {g.names ? uiName(g.names) : m.libraries_group_other()} <span className="text-sm font-normal text-muted-foreground">{m.libraries_count({ count: g.looks.length })}</span>
+                  {g.names ? uiName(g.names) : m.libraries_group_other()}{' '}
+                  <span className="text-sm font-normal text-muted-foreground">{m.libraries_count({ count: g.looks.length })}</span>
                 </h2>
                 <ul className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
-                  {g.looks.map(([id, look]) => <li key={id}><LookCard lib={lib} id={id} look={look} /></li>)}
+                  {g.looks.map(([id, look]) => (
+                    <li key={id}>
+                      <LookCard lib={lib} id={id} look={look} />
+                    </li>
+                  ))}
                 </ul>
               </section>
             ))}
@@ -92,7 +114,10 @@ function GroupIndex({ entries }: { entries: { href: string; name: string; count:
   return (
     <>
       {entries.length >= 3 && (
-        <nav aria-label={m.libraries_groups()} className="sticky top-0 z-10 -mx-4 flex gap-2 overflow-x-auto bg-background px-4 py-2 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
+        <nav
+          aria-label={m.libraries_groups()}
+          className="sticky top-0 z-10 -mx-4 flex gap-2 overflow-x-auto bg-background px-4 py-2 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden"
+        >
           {entries.map(e => (
             <Button key={e.href} size="sm" variant="outline" className="shrink-0" nativeButton={false} render={<a href={e.href} />}>
               {e.name} <span className="text-muted-foreground">{e.count}</span>
@@ -104,7 +129,11 @@ function GroupIndex({ entries }: { entries: { href: string; name: string; count:
         <ItemGroup className="gap-1">
           {entries.map(e => (
             <Item key={e.href} size="xs" render={<a href={e.href} />} className="hover:bg-muted">
-              <ItemContent><ItemTitle>{e.name} <span className="text-muted-foreground">{e.count}</span></ItemTitle></ItemContent>
+              <ItemContent>
+                <ItemTitle>
+                  {e.name} <span className="text-muted-foreground">{e.count}</span>
+                </ItemTitle>
+              </ItemContent>
             </Item>
           ))}
         </ItemGroup>
@@ -115,7 +144,8 @@ function GroupIndex({ entries }: { entries: { href: string; name: string; count:
 
 function LibraryHeader({ detail }: { detail: LibraryDetail }) {
   const lib = detail.library;
-  const looks = Object.keys(lib.looks).length, materials = Object.keys(lib.materials ?? {}).length;
+  const looks = Object.keys(lib.looks).length,
+    materials = Object.keys(lib.materials ?? {}).length;
   const facts = [
     `v${lib.version}`,
     lib.author && m.libraries_by({ author: lib.author }),
@@ -134,13 +164,21 @@ function LibraryHeader({ detail }: { detail: LibraryDetail }) {
         <p className="text-xs text-muted-foreground">{facts.join(' · ')}</p>
       </div>
       <div className="flex gap-2">
-        <Button size="sm" variant="outline" onClick={() => downloadLibrary(lib)}><DownloadIcon /> {m.libraries_export()}</Button>
+        <Button size="sm" variant="outline" onClick={() => downloadLibrary(lib)}>
+          <DownloadIcon /> {m.libraries_export()}
+        </Button>
         {!detail.builtin && (
           <Sheet>
-            <SheetTrigger render={<Button size="sm" variant="outline" />}><SettingsIcon /> {m.libraries_manage()}</SheetTrigger>
+            <SheetTrigger render={<Button size="sm" variant="outline" />}>
+              <SettingsIcon /> {m.libraries_manage()}
+            </SheetTrigger>
             <SheetContent className="overflow-y-auto">
-              <SheetHeader><SheetTitle>{uiName(lib.name)}</SheetTitle></SheetHeader>
-              <div className="px-4 pb-4"><LibraryManage detail={detail} /></div>
+              <SheetHeader>
+                <SheetTitle>{uiName(lib.name)}</SheetTitle>
+              </SheetHeader>
+              <div className="px-4 pb-4">
+                <LibraryManage detail={detail} />
+              </div>
             </SheetContent>
           </Sheet>
         )}
@@ -158,7 +196,11 @@ function Materials({ lib }: { lib: LookLibrary }) {
         {m.libraries_materials()} <span className="text-sm font-normal text-muted-foreground">{m.libraries_materials_count({ count: materials.length })}</span>
       </h2>
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {materials.map(([id, mat]) => <li key={id}><MaterialSwatch id={id} material={mat} /></li>)}
+        {materials.map(([id, mat]) => (
+          <li key={id}>
+            <MaterialSwatch id={id} material={mat} />
+          </li>
+        ))}
       </ul>
     </section>
   );

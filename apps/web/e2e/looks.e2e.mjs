@@ -19,11 +19,23 @@ await page.goto(BASE, { waitUntil: 'networkidle' });
 await page.getByRole('button', { name: /打开样例方案/ }).click();
 await page.waitForURL(/\/p\//);
 await page.waitForFunction(() => window.artifact?.ready);
-const api = (path, init) => page.evaluate(async ([p, i]) => {
-  const r = await fetch(`/api${p}`, { ...i, headers: { 'Content-Type': 'application/json' } });
-  return { status: r.status, body: await r.json() };
-}, [path, init]);
-await api('/keys', { method: 'POST', body: JSON.stringify({ provider: 'compatible', model: 'fake-model', apiKey: 'sk-test-12345678', baseUrl: process.env.FAKE_LLM ?? 'http://127.0.0.1:8787/v1' }) });
+const api = (path, init) =>
+  page.evaluate(
+    async ([p, i]) => {
+      const r = await fetch(`/api${p}`, { ...i, headers: { 'Content-Type': 'application/json' } });
+      return { status: r.status, body: await r.json() };
+    },
+    [path, init],
+  );
+await api('/keys', {
+  method: 'POST',
+  body: JSON.stringify({
+    provider: 'compatible',
+    model: 'fake-model',
+    apiKey: 'sk-test-12345678',
+    baseUrl: process.env.FAKE_LLM ?? 'http://127.0.0.1:8787/v1',
+  }),
+});
 await page.reload();
 await page.waitForFunction(() => window.artifact?.ready);
 
@@ -79,8 +91,7 @@ await page.waitForTimeout(800);
 const others = pp => JSON.stringify(pp.furniture.filter(f => f.id !== sofa.id).map(f => f.lookParams ?? null));
 const before = others(p);
 p = await project();
-check(p.furniture.find(f => f.id === sofa.id).lookParams?.fabric === 'linen' && others(p) === before,
-  'a look option changes only that object');
+check(p.furniture.find(f => f.id === sofa.id).lookParams?.fabric === 'linen' && others(p) === before, 'a look option changes only that object');
 await page.screenshot({ path: `${OUT}/looks-3-params.png` });
 await page.getByRole('button', { name: '恢复默认' }).click();
 await page.waitForTimeout(500);

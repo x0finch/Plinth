@@ -1,7 +1,25 @@
 /** Server API (Hono). Pages are served by the static assets layer; only /api/* comes here. */
 import {
-  buildRecipe, checkRecipe, createProject as newProjectData, DEFAULT_LIBRARY, FURNITURE_TYPES, libraryLookSchema, lookRecipeOf, materialOf, materialSchema, migrate, namesOf, normalizeParams,
-  normalizeRecipe, parseLibrary, typicalSize, validate, type LookLibrary, type Material, type Project, type ValidationIssue,
+  buildRecipe,
+  checkRecipe,
+  createProject as newProjectData,
+  DEFAULT_LIBRARY,
+  FURNITURE_TYPES,
+  libraryLookSchema,
+  lookRecipeOf,
+  materialOf,
+  materialSchema,
+  migrate,
+  namesOf,
+  normalizeParams,
+  normalizeRecipe,
+  parseLibrary,
+  typicalSize,
+  validate,
+  type LookLibrary,
+  type Material,
+  type Project,
+  type ValidationIssue,
 } from '@plinth/core';
 import { env } from 'cloudflare:workers';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
@@ -66,14 +84,16 @@ type ProjectEnv = { Variables: Vars & { projectId: string; role: Role } };
 const project = new Hono<ProjectEnv>();
 
 /** Let only project members with at least this role through (404 for non-members, 403 for too low a role) */
-const minRole = (min: Role): MiddlewareHandler<ProjectEnv> => async (c, next) => {
-  const id = c.req.param('id')!;
-  const role = await repo.getRole(id, c.get('user')?.id ?? null);
-  if (!can(role, min)) throw new HTTPException(role ? 403 : 404, { message: role ? m.server_err_forbidden() : m.server_err_project_not_accessible() });
-  c.set('projectId', id);
-  c.set('role', role!);
-  await next();
-};
+const minRole =
+  (min: Role): MiddlewareHandler<ProjectEnv> =>
+  async (c, next) => {
+    const id = c.req.param('id')!;
+    const role = await repo.getRole(id, c.get('user')?.id ?? null);
+    if (!can(role, min)) throw new HTTPException(role ? 403 : 404, { message: role ? m.server_err_forbidden() : m.server_err_project_not_accessible() });
+    c.set('projectId', id);
+    c.set('role', role!);
+    await next();
+  };
 
 const body = async <T extends z.ZodType>(c: Pick<Context, 'req'>, schema: T): Promise<z.output<T>> => {
   const parsed = schema.safeParse(await c.req.json().catch(() => null));
@@ -114,7 +134,14 @@ async function checkStructure(id: string, base: number, content: Project) {
   const known = new Set(prev ? validate(checkContent(JSON.parse(prev.content))).map(issueKey) : []);
   const fresh = issues.filter(i => !known.has(issueKey(i)));
   if (fresh.length) {
-    throw new HTTPException(400, { message: m.server_err_project_invalid({ issues: fresh.slice(0, 5).map(i => `${i.path}: ${i.message}`).join('; ') }) });
+    throw new HTTPException(400, {
+      message: m.server_err_project_invalid({
+        issues: fresh
+          .slice(0, 5)
+          .map(i => `${i.path}: ${i.message}`)
+          .join('; '),
+      }),
+    });
   }
 }
 
@@ -138,11 +165,19 @@ api.get('/projects', async c => c.json(await repo.listProjects(requireUser(c).id
 
 api.post('/projects', async c => {
   const u = requireUser(c);
-  const b = await body(c, z.object({ name: z.string().trim().min(1).max(60), template: z.enum(['blank', 'sample']).default('blank'), floors: z.number().int().min(1).max(6).default(1) }));
+  const b = await body(
+    c,
+    z.object({
+      name: z.string().trim().min(1).max(60),
+      template: z.enum(['blank', 'sample']).default('blank'),
+      floors: z.number().int().min(1).max(6).default(1),
+    }),
+  );
   const id = repo.newId('p');
-  const data: Project = b.template === 'sample'
-    ? { ...(structuredClone(sample) as unknown as Project), id, name: b.name }
-    : newProjectData({ id, name: b.name, floors: b.floors, language: getLocale() === 'en' ? 'en' : 'zh' });
+  const data: Project =
+    b.template === 'sample'
+      ? { ...(structuredClone(sample) as unknown as Project), id, name: b.name }
+      : newProjectData({ id, name: b.name, floors: b.floors, language: getLocale() === 'en' ? 'en' : 'zh' });
   await repo.createProject(u.id, id, b.name, JSON.stringify(data), b.template === 'sample' ? m.server_version_from_sample() : m.server_version_blank());
   return c.json({ id });
 });
@@ -155,7 +190,11 @@ project.get('/', minRole('viewer'), async c => {
   // Editors chat with the owner's models; everyone else doesn't need the list
   const models = can(role, 'editor') ? await repo.listModels(p.owner_id) : [];
   return c.json({
-    id: p.id, name: p.name, role, version: v.version, ownerId: p.owner_id,
+    id: p.id,
+    name: p.name,
+    role,
+    version: v.version,
+    ownerId: p.owner_id,
     models: models.map(x => ({ id: x.id, label: x.label, provider: x.provider, model: x.model })),
     projectModelId: models.some(x => x.id === p.model_config_id) ? p.model_config_id : null,
     defaultModelId: models.length ? await repo.defaultModelId(p.owner_id, models) : null,
@@ -168,11 +207,18 @@ project.put('/', minRole('editor'), async c => {
   const user = c.var.user!;
   const raw = await c.req.text();
   if (raw.length > MAX_CONTENT) throw new HTTPException(413, { message: m.server_err_project_too_large() });
-  const parsed = z.object({
-    base: z.number().int(), summary: z.string().max(200).default(() => m.server_version_saved()), content: z.unknown(),
-    /** A deliberate save (e.g. restoring a version) that must not absorb the version before it */
-    checkpoint: z.boolean().optional(),
-  }).safeParse(parseJson(raw));
+  const parsed = z
+    .object({
+      base: z.number().int(),
+      summary: z
+        .string()
+        .max(200)
+        .default(() => m.server_version_saved()),
+      content: z.unknown(),
+      /** A deliberate save (e.g. restoring a version) that must not absorb the version before it */
+      checkpoint: z.boolean().optional(),
+    })
+    .safeParse(parseJson(raw));
   if (!parsed.success) throw new HTTPException(400, { message: z.prettifyError(parsed.error) });
   const b = parsed.data;
   const content = checkContent(b.content);
@@ -202,7 +248,8 @@ project.put('/thumbnail', minRole('editor'), async c => {
   const id = c.var.projectId;
   // The plan as SVG, or a still of the house in 3D as a JPEG data URL
   const image = await c.req.text();
-  if (image.length > 300_000 || !(image.startsWith('<svg') || /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image))) throw new HTTPException(400, { message: m.server_err_invalid_thumbnail() });
+  if (image.length > 300_000 || !(image.startsWith('<svg') || /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image)))
+    throw new HTTPException(400, { message: m.server_err_invalid_thumbnail() });
   await repo.setThumbnail(id, image);
   return c.json({ ok: true });
 });
@@ -301,10 +348,16 @@ project.get('/comments', minRole('viewer'), async c => {
 project.post('/comments', minRole('commenter'), async c => {
   const id = c.var.projectId;
   const user = c.var.user!;
-  const b = await body(c, z.object({
-    body: z.string().trim().min(1).max(2000), targetId: z.string().max(100).nullish(), targetName: z.string().max(100).nullish(),
-    parentId: z.string().max(40).nullish(), status: z.enum(['open', 'pending-confirm']).optional(),
-  }));
+  const b = await body(
+    c,
+    z.object({
+      body: z.string().trim().min(1).max(2000),
+      targetId: z.string().max(100).nullish(),
+      targetName: z.string().max(100).nullish(),
+      parentId: z.string().max(40).nullish(),
+      status: z.enum(['open', 'pending-confirm']).optional(),
+    }),
+  );
   return c.json({ id: await repo.addComment(id, user.id, b) });
 });
 
@@ -338,17 +391,28 @@ const modelName = z.string().trim().min(1).max(100);
 
 api.post('/keys', async c => {
   const u = requireUser(c);
-  const b = await body(c, z.object({
-    provider: z.enum(Object.keys(PROVIDERS) as [string, ...string[]]), apiKey: z.string().trim().min(8).max(400), baseUrl: z.url().max(300).nullish(),
-    // The first model to use with the key, so a new key is usable in one step
-    model: modelName.optional(),
-  }));
+  const b = await body(
+    c,
+    z.object({
+      provider: z.enum(Object.keys(PROVIDERS) as [string, ...string[]]),
+      apiKey: z.string().trim().min(8).max(400),
+      baseUrl: z.url().max(300).nullish(),
+      // The first model to use with the key, so a new key is usable in one step
+      model: modelName.optional(),
+    }),
+  );
   if (PROVIDERS[b.provider].needsBaseUrl && !b.baseUrl) throw new HTTPException(400, { message: m.server_err_base_url_required() });
   const id = repo.newId('k');
   const { ciphertext, iv } = await encryptSecret(b.apiKey, id);
   await repo.insertApiKey({
-    id, user_id: u.id, provider: b.provider, base_url: b.baseUrl ?? null,
-    key_ciphertext: ciphertext, key_iv: iv, key_hint: keyHint(b.apiKey), created_at: Date.now(),
+    id,
+    user_id: u.id,
+    provider: b.provider,
+    base_url: b.baseUrl ?? null,
+    key_ciphertext: ciphertext,
+    key_iv: iv,
+    key_hint: keyHint(b.apiKey),
+    created_at: Date.now(),
   });
   const modelId = b.model ? repo.newId('l') : null;
   if (modelId) await repo.insertModel({ id: modelId, user_id: u.id, key_id: id, label: b.model!, model: b.model! });
@@ -414,7 +478,7 @@ project.post('/chat', minRole('editor'), async c => {
     // The model picked in the chat, else the project's pinned model, else the owner's default; always one of the owner's
     const models = await repo.listModels(p.owner_id);
     const has = (x: string | null | undefined) => (x && models.some(o => o.id === x) ? x : null);
-    const modelId = has(requested) ?? has(p.model_config_id) ?? await repo.defaultModelId(p.owner_id, models);
+    const modelId = has(requested) ?? has(p.model_config_id) ?? (await repo.defaultModelId(p.owner_id, models));
     const config = modelId ? await repo.getModel(modelId) : null;
     if (!config) throw new HTTPException(400, { message: m.server_err_no_model() });
     return {
@@ -451,7 +515,9 @@ project.put('/chat-thread', minRole('editor'), async c => {
 // ---------- Look libraries ----------
 
 /** A look as the client sends it: the library file's look without a version, with the materials it brings; a plain name is accepted */
-const zLibraryLook = z.object({ name: z.union([z.string().min(1).max(80), z.record(z.string(), z.string())]), materials: z.record(z.string(), materialSchema).optional() }).loose();
+const zLibraryLook = z
+  .object({ name: z.union([z.string().min(1).max(80), z.record(z.string(), z.string())]), materials: z.record(z.string(), materialSchema).optional() })
+  .loose();
 
 function parseLook(input: z.output<typeof zLibraryLook>): LibraryLookInput {
   const { materials, ...rest } = input;
@@ -459,7 +525,13 @@ function parseLook(input: z.output<typeof zLibraryLook>): LibraryLookInput {
   if ('recipe' in named) Object.assign(named, normalizeRecipe(named.recipe), { recipe: undefined });
   else if ('params' in named) named.params = normalizeParams(named.params, materials);
   const parsed = libraryLookSchema.safeParse(JSON.parse(JSON.stringify(named)));
-  if (!parsed.success) throw new HTTPException(400, { message: parsed.error.issues.slice(0, 5).map(i => `${i.path.join('.')}: ${i.message}`).join('; ') });
+  if (!parsed.success)
+    throw new HTTPException(400, {
+      message: parsed.error.issues
+        .slice(0, 5)
+        .map(i => `${i.path.join('.')}: ${i.message}`)
+        .join('; '),
+    });
   const { version: _v, ...look } = parsed.data;
   return { ...look, ...(materials ? { materials } : {}) };
 }
@@ -491,10 +563,12 @@ async function saveLook(libraryId: string, lookId: string, l: LibraryLookInput, 
 
 /** The library and the caller's role in it, if at least `min` (404 for non-members, 403 for too low a role); built-in libraries are read-only */
 async function libraryAccess(c: C, min: LibraryRole) {
-  const u = requireUser(c), id = c.req.param('lib')!;
+  const u = requireUser(c),
+    id = c.req.param('lib')!;
   const role = isBuiltinLibrary(id) ? 'viewer' : await repo.libraryRole(id, u.id);
   const rank = { viewer: 0, editor: 1, owner: 2 };
-  if (!role || rank[role] < rank[min]) throw new HTTPException(role ? 403 : 404, { message: role ? m.server_err_forbidden() : m.server_err_library_not_found() });
+  if (!role || rank[role] < rank[min])
+    throw new HTTPException(role ? 403 : 404, { message: role ? m.server_err_forbidden() : m.server_err_library_not_found() });
   return { id, role, user: u };
 }
 

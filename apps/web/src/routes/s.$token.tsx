@@ -40,7 +40,9 @@ function AcceptShare() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-5 text-center">
-        <div className="flex justify-center"><Logo /></div>
+        <div className="flex justify-center">
+          <Logo />
+        </div>
         {link.isLoading ? (
           <LoaderIcon className="mx-auto animate-spin" />
         ) : link.error ? (
@@ -52,7 +54,10 @@ function AcceptShare() {
               <h1 className="mt-1 text-xl font-semibold">{link.data!.name}</h1>
               <p className="mt-1 text-sm text-muted-foreground">{m.share_link_role({ role: roleLabel(link.data!.role) })}</p>
             </div>
-            <Button className="w-full" onClick={accept} disabled={busy}>{busy && <LoaderIcon className="animate-spin" />}{m.share_link_open()}</Button>
+            <Button className="w-full" onClick={accept} disabled={busy}>
+              {busy && <LoaderIcon className="animate-spin" />}
+              {m.share_link_open()}
+            </Button>
             {!me.data?.user && <p className="text-xs text-muted-foreground">{m.share_link_no_sign_up()}</p>}
             {error && <p className="text-sm text-destructive">{error}</p>}
           </>

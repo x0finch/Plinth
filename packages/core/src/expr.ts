@@ -86,7 +86,10 @@ export function parseExpr(src: string): ExprNode {
   };
   const unary = (): ExprNode => {
     if (peek() === '-' || peek() === '!') return { t: 'un', op: take() as '-' | '!', a: unary() };
-    if (peek() === '+') { take(); return unary(); }
+    if (peek() === '+') {
+      take();
+      return unary();
+    }
     return atom();
   };
   const atom = (): ExprNode => {
@@ -102,15 +105,17 @@ export function parseExpr(src: string): ExprNode {
       if (peek() !== '(') return { t: 'name', v };
       take('(');
       const args: ExprNode[] = [];
-      if (peek() !== ')') for (;;) {
-        args.push(ternary());
-        if (peek() !== ',') break;
-        take(',');
-      }
+      if (peek() !== ')')
+        for (;;) {
+          args.push(ternary());
+          if (peek() !== ',') break;
+          take(',');
+        }
       take(')');
       const fn = FUNCTIONS[v];
       if (!fn) throw new ExprError(`unknown function "${v}" in "${src}" (known: ${EXPR_FUNCTIONS.join(', ')})`);
-      if (args.length < fn.n[0] || args.length > fn.n[1]) throw new ExprError(`${v}() takes ${fn.n[0] === fn.n[1] ? fn.n[0] : `${fn.n[0]}+`} arguments in "${src}"`);
+      if (args.length < fn.n[0] || args.length > fn.n[1])
+        throw new ExprError(`${v}() takes ${fn.n[0] === fn.n[1] ? fn.n[0] : `${fn.n[0]}+`} arguments in "${src}"`);
       return { t: 'call', fn: v, args };
     }
     throw new ExprError(`unexpected "${v}" in "${src}"`);
@@ -124,7 +129,8 @@ export type Scope = Record<string, number>;
 
 export function evalNode(n: ExprNode, scope: Scope, seed: number): number {
   switch (n.t) {
-    case 'num': return n.v;
+    case 'num':
+      return n.v;
     case 'name': {
       if (n.v === 'pi') return Math.PI;
       const v = scope[n.v];
@@ -135,25 +141,41 @@ export function evalNode(n: ExprNode, scope: Scope, seed: number): number {
       const a = evalNode(n.a, scope, seed);
       return n.op === '-' ? -a : a ? 0 : 1;
     }
-    case 'cond': return evalNode(n.c, scope, seed) ? evalNode(n.a, scope, seed) : evalNode(n.b, scope, seed);
-    case 'call': return FUNCTIONS[n.fn].f(n.args.map(a => evalNode(a, scope, seed)), seed);
+    case 'cond':
+      return evalNode(n.c, scope, seed) ? evalNode(n.a, scope, seed) : evalNode(n.b, scope, seed);
+    case 'call':
+      return FUNCTIONS[n.fn].f(
+        n.args.map(a => evalNode(a, scope, seed)),
+        seed,
+      );
     case 'bin': {
       const a = evalNode(n.a, scope, seed);
       if (n.op === '&&') return a ? evalNode(n.b, scope, seed) : a;
       if (n.op === '||') return a ? a : evalNode(n.b, scope, seed);
       const b = evalNode(n.b, scope, seed);
       switch (n.op) {
-        case '+': return a + b;
-        case '-': return a - b;
-        case '*': return a * b;
-        case '/': return a / b;
-        case '%': return a % b;
-        case '<': return +(a < b);
-        case '<=': return +(a <= b);
-        case '>': return +(a > b);
-        case '>=': return +(a >= b);
-        case '==': return +(a === b);
-        case '!=': return +(a !== b);
+        case '+':
+          return a + b;
+        case '-':
+          return a - b;
+        case '*':
+          return a * b;
+        case '/':
+          return a / b;
+        case '%':
+          return a % b;
+        case '<':
+          return +(a < b);
+        case '<=':
+          return +(a <= b);
+        case '>':
+          return +(a > b);
+        case '>=':
+          return +(a >= b);
+        case '==':
+          return +(a === b);
+        case '!=':
+          return +(a !== b);
       }
     }
   }

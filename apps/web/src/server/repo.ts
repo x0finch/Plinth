@@ -1,12 +1,22 @@
 /** Data access: plain D1 prepared statements for minimal overhead. */
-import { DEFAULT_LIBRARY, LIBRARY_FORMAT, LIBRARY_FORMAT_VERSION, libraryRecipe, lookSizeOf, namesOf, normalizeRecipe, type LibraryLook, type LookLibrary, type Recipe } from '@plinth/core';
+import {
+  DEFAULT_LIBRARY,
+  LIBRARY_FORMAT,
+  LIBRARY_FORMAT_VERSION,
+  libraryRecipe,
+  lookSizeOf,
+  namesOf,
+  normalizeRecipe,
+  type LibraryLook,
+  type LookLibrary,
+  type Recipe,
+} from '@plinth/core';
 import { env } from 'cloudflare:workers';
 import { m } from '@/lib/i18n';
 import type { CommentRow, CommentStatus } from '@/shared/comments';
 import type { LibraryLookInput, LibraryRole, LibrarySummary } from '@/shared/looks';
 import { uiName } from '@/lib/i18n';
 import { ROLE_RANK, type Role } from '@/shared/roles';
-
 
 const db = () => env.DB;
 const now = () => Date.now();
@@ -41,7 +51,9 @@ export async function createProject(userId: string, id: string, name: string, co
   const t = now();
   await db().batch([
     db().prepare('insert into project (id, name, owner_id, head_version, created_at, updated_at) values (?, ?, ?, 1, ?, ?)').bind(id, name, userId, t, t),
-    db().prepare('insert into project_version (project_id, version, content, author_id, summary, created_at) values (?, 1, ?, ?, ?, ?)').bind(id, content, userId, summary, t),
+    db()
+      .prepare('insert into project_version (project_id, version, content, author_id, summary, created_at) values (?, 1, ?, ?, ?, ?)')
+      .bind(id, content, userId, summary, t),
     db().prepare(`insert into project_member (project_id, user_id, role, created_at) values (?, ?, 'owner', ?)`).bind(id, userId, t),
   ]);
 }
@@ -57,9 +69,11 @@ export async function getRole(projectId: string, userId: string | null): Promise
 export async function getVersion(projectId: string, version?: number) {
   const q = version
     ? db().prepare('select version, content, summary, created_at from project_version where project_id = ? and version = ?').bind(projectId, version)
-    : db().prepare(
-        'select v.version, v.content, v.summary, v.created_at from project p join project_version v on v.project_id = p.id and v.version = p.head_version where p.id = ?',
-      ).bind(projectId);
+    : db()
+        .prepare(
+          'select v.version, v.content, v.summary, v.created_at from project p join project_version v on v.project_id = p.id and v.version = p.head_version where p.id = ?',
+        )
+        .bind(projectId);
   return q.first<{ version: number; content: string; summary: string | null; created_at: number }>();
 }
 
@@ -73,14 +87,21 @@ export const SQUASH_WINDOW = 10 * 60_000;
  * Version 1 (the starting point) and the version before a checkpoint (a restore) are always kept.
  */
 export async function saveVersion(
-  projectId: string, userId: string, base: number, content: string, summary: string,
+  projectId: string,
+  userId: string,
+  base: number,
+  content: string,
+  summary: string,
   o: { name?: string; checkpoint?: boolean } = {},
 ) {
   const t = now();
-  const prev = o.checkpoint || base <= 1 ? null : await db()
-    .prepare('select author_id, summary, created_at, started_at from project_version where project_id = ? and version = ?')
-    .bind(projectId, base)
-    .first<{ author_id: string | null; summary: string | null; created_at: number; started_at: number | null }>();
+  const prev =
+    o.checkpoint || base <= 1
+      ? null
+      : await db()
+          .prepare('select author_id, summary, created_at, started_at from project_version where project_id = ? and version = ?')
+          .bind(projectId, base)
+          .first<{ author_id: string | null; summary: string | null; created_at: number; started_at: number | null }>();
   const startedAt = prev?.started_at ?? prev?.created_at;
   const squash = !!prev && prev.author_id === userId && startedAt != null && t - startedAt < SQUASH_WINDOW;
   const merged = squash ? joinSummaries(prev.summary, summary) : summary;
@@ -96,9 +117,13 @@ export async function saveVersion(
       .bind(content, userId, merged, t, squash ? startedAt : null, projectId, base + 1, t),
     // Only when the insert above happened (no conflict)
     ...(squash
-      ? [db()
-          .prepare('delete from project_version where project_id = ? and version = ? and exists (select 1 from project_version where project_id = ? and version = ? and created_at = ?)')
-          .bind(projectId, base, projectId, base + 1, t)]
+      ? [
+          db()
+            .prepare(
+              'delete from project_version where project_id = ? and version = ? and exists (select 1 from project_version where project_id = ? and version = ? and created_at = ?)',
+            )
+            .bind(projectId, base, projectId, base + 1, t),
+        ]
       : []),
   ]);
   return upd.meta.changes ? base + 1 : null;
@@ -145,7 +170,9 @@ export async function upsertMember(projectId: string, userId: string, role: Role
   const cur = await getRole(projectId, userId);
   if (cur && ROLE_RANK[cur] >= ROLE_RANK[role]) return cur;
   await db()
-    .prepare('insert into project_member (project_id, user_id, role, created_at) values (?, ?, ?, ?) on conflict (project_id, user_id) do update set role = excluded.role')
+    .prepare(
+      'insert into project_member (project_id, user_id, role, created_at) values (?, ?, ?, ?) on conflict (project_id, user_id) do update set role = excluded.role',
+    )
     .bind(projectId, userId, role, now())
     .run();
   return role;
@@ -158,7 +185,10 @@ export const removeMember = (projectId: string, userId: string) =>
 
 export async function createShareLink(projectId: string, role: Role, userId: string) {
   const token = newId('s') + newId();
-  await db().prepare('insert into share_link (token, project_id, role, created_by, created_at) values (?, ?, ?, ?, ?)').bind(token, projectId, role, userId, now()).run();
+  await db()
+    .prepare('insert into share_link (token, project_id, role, created_by, created_at) values (?, ?, ?, ?, ?)')
+    .bind(token, projectId, role, userId, now())
+    .run();
   return token;
 }
 
@@ -181,7 +211,10 @@ export const getShareLink = (token: string) =>
 
 export async function createInvite(projectId: string, email: string, role: Role, userId: string) {
   const id = newId('i');
-  await db().prepare('insert into invite (id, project_id, email, role, created_by, created_at) values (?, ?, ?, ?, ?, ?)').bind(id, projectId, email.toLowerCase(), role, userId, now()).run();
+  await db()
+    .prepare('insert into invite (id, project_id, email, role, created_by, created_at) values (?, ?, ?, ?, ?, ?)')
+    .bind(id, projectId, email.toLowerCase(), role, userId, now())
+    .run();
   return id;
 }
 
@@ -236,7 +269,11 @@ export async function listComments(projectId: string) {
   return results;
 }
 
-export async function addComment(projectId: string, userId: string, c: { targetId?: string | null; targetName?: string | null; parentId?: string | null; body: string; status?: CommentStatus }) {
+export async function addComment(
+  projectId: string,
+  userId: string,
+  c: { targetId?: string | null; targetName?: string | null; parentId?: string | null; body: string; status?: CommentStatus },
+) {
   const id = newId('m');
   await db()
     .prepare('insert into comment (id, project_id, target_id, target_name, parent_id, author_id, body, status, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -299,7 +336,9 @@ export const deleteApiKey = (userId: string, id: string) => db().prepare('delete
 /** The user's models, oldest first */
 export async function listModels(userId: string) {
   const { results } = await db()
-    .prepare('select m.id, m.key_id, m.label, m.model, k.provider, m.created_at from model_config m join api_key k on k.id = m.key_id where m.user_id = ? order by m.created_at, m.id')
+    .prepare(
+      'select m.id, m.key_id, m.label, m.model, k.provider, m.created_at from model_config m join api_key k on k.id = m.key_id where m.user_id = ? order by m.created_at, m.id',
+    )
     .bind(userId)
     .all<ModelRow>();
   return results;
@@ -308,22 +347,30 @@ export async function listModels(userId: string) {
 export async function insertModel(row: { id: string; user_id: string; key_id: string; label: string; model: string }) {
   const t = now();
   await db().batch([
-    db().prepare('insert into model_config (id, user_id, key_id, label, model, created_at) values (?, ?, ?, ?, ?, ?)').bind(row.id, row.user_id, row.key_id, row.label, row.model, t),
+    db()
+      .prepare('insert into model_config (id, user_id, key_id, label, model, created_at) values (?, ?, ?, ?, ?, ?)')
+      .bind(row.id, row.user_id, row.key_id, row.label, row.model, t),
     // The first model becomes the default
-    db().prepare('insert into user_pref (user_id, default_model_id) values (?, ?) on conflict (user_id) do update set default_model_id = coalesce(default_model_id, excluded.default_model_id)').bind(row.user_id, row.id),
+    db()
+      .prepare(
+        'insert into user_pref (user_id, default_model_id) values (?, ?) on conflict (user_id) do update set default_model_id = coalesce(default_model_id, excluded.default_model_id)',
+      )
+      .bind(row.user_id, row.id),
   ]);
 }
 
 export const getModel = (id: string) =>
   db()
-    .prepare('select m.id, m.key_id, m.label, m.model, m.created_at, m.user_id, k.provider, k.base_url, k.key_ciphertext, k.key_iv from model_config m join api_key k on k.id = m.key_id where m.id = ?')
+    .prepare(
+      'select m.id, m.key_id, m.label, m.model, m.created_at, m.user_id, k.provider, k.base_url, k.key_ciphertext, k.key_iv from model_config m join api_key k on k.id = m.key_id where m.id = ?',
+    )
     .bind(id)
     .first<ModelWithKey>();
 export const deleteModel = (userId: string, id: string) => db().prepare('delete from model_config where user_id = ? and id = ?').bind(userId, id).run();
 
 /** The user's default model: the one they chose, else their earliest (when the chosen one was deleted) */
 export async function defaultModelId(userId: string, models?: ModelRow[]) {
-  const list = models ?? await listModels(userId);
+  const list = models ?? (await listModels(userId));
   const pref = await db().prepare('select default_model_id from user_pref where user_id = ?').bind(userId).first<{ default_model_id: string | null }>();
   return list.find(x => x.id === pref?.default_model_id)?.id ?? list[0]?.id ?? null;
 }
@@ -358,7 +405,9 @@ export const getChat = (projectId: string, userId: string) =>
 
 export const putChat = (projectId: string, userId: string, messages: string) =>
   db()
-    .prepare('insert into chat_thread (project_id, user_id, messages, updated_at) values (?, ?, ?, ?) on conflict (project_id, user_id) do update set messages = excluded.messages, updated_at = excluded.updated_at')
+    .prepare(
+      'insert into chat_thread (project_id, user_id, messages, updated_at) values (?, ?, ?, ?) on conflict (project_id, user_id) do update set messages = excluded.messages, updated_at = excluded.updated_at',
+    )
     .bind(projectId, userId, messages, now())
     .run();
 
@@ -403,7 +452,8 @@ export async function listLibraries(userId: string): Promise<LibrarySummary[]> {
   return results.map(({ meta, first, ...r }) => {
     if (!first) return r;
     const [look_id, name, data, version] = JSON.parse(first) as [string, string, string, number];
-    const look = fileLook({ look_id, name, data, version }), lib = { id: r.id, materials: (JSON.parse(meta) as LibraryMeta).materials } as LookLibrary;
+    const look = fileLook({ look_id, name, data, version }),
+      lib = { id: r.id, materials: (JSON.parse(meta) as LibraryMeta).materials } as LookLibrary;
     return { ...r, cover: { recipe: libraryRecipe(lib, look), size: lookSizeOf(look) } };
   });
 }
@@ -411,36 +461,52 @@ export async function listLibraries(userId: string): Promise<LibrarySummary[]> {
 /** What a library file has besides its id, name and looks (look_library.data) */
 export type LibraryMeta = Partial<Pick<LookLibrary, 'description' | 'version' | 'author' | 'license' | 'groups' | 'materials'>>;
 
-interface LookRow { look_id: string; name: string; data: string; version: number }
+interface LookRow {
+  look_id: string;
+  name: string;
+  data: string;
+  version: number;
+}
 
 /**
  * A stored look as the library file has it, at version <n>.0.0 (every save is a new version); looks saved before library files
  * ({ for, recipe, types }) and before recipes were scripts are converted as they are read
  */
 function fileLook(row: LookRow): LibraryLook {
-  const d = JSON.parse(row.data), version = `${row.version}.0.0`;
+  const d = JSON.parse(row.data),
+    version = `${row.version}.0.0`;
   if ('script' in d) return { ...d, name: d.name ?? namesOf(row.name), version };
   const r = normalizeRecipe(d.recipe) as Recipe;
   const [type, def] = (Object.entries(d.types ?? {})[0] ?? []) as [string?, { name: string; group?: string; size: { w: number; d: number; h: number } }?];
   const group = def?.group && Object.entries(DEFAULT_LIBRARY.groups ?? {}).find(([, g]) => g.name.zh === def.group || g.name.en === def.group)?.[0];
   return {
-    name: namesOf(row.name), for: d.for,
+    name: namesOf(row.name),
+    for: d.for,
     ...(type && def && d.for.includes(`furniture:${type}`) ? { newType: { name: namesOf(def.name), ...(group ? { group } : {}), size: def.size } } : {}),
-    version, ...(r.params ? { params: r.params } : {}), ...(r.seed !== undefined ? { seed: r.seed } : {}), script: r.script,
+    version,
+    ...(r.params ? { params: r.params } : {}),
+    ...(r.seed !== undefined ? { seed: r.seed } : {}),
+    script: r.script,
   };
 }
 
 export async function createLibrary(userId: string, name: string, meta: LibraryMeta = {}) {
-  const id = newId('lib'), t = now();
+  const id = newId('lib'),
+    t = now();
   await db().batch([
-    db().prepare('insert into look_library (id, owner_id, name, data, created_at, updated_at) values (?, ?, ?, ?, ?, ?)').bind(id, userId, name, JSON.stringify(meta), t, t),
+    db()
+      .prepare('insert into look_library (id, owner_id, name, data, created_at, updated_at) values (?, ?, ?, ?, ?, ?)')
+      .bind(id, userId, name, JSON.stringify(meta), t, t),
     db().prepare(`insert into look_library_member (library_id, user_id, role, created_at) values (?, ?, 'owner', ?)`).bind(id, userId, t),
   ]);
   return id;
 }
 
 export async function libraryRole(libraryId: string, userId: string) {
-  const r = await db().prepare('select role from look_library_member where library_id = ? and user_id = ?').bind(libraryId, userId).first<{ role: LibraryRole }>();
+  const r = await db()
+    .prepare('select role from look_library_member where library_id = ? and user_id = ?')
+    .bind(libraryId, userId)
+    .first<{ role: LibraryRole }>();
   return r?.role ?? null;
 }
 
@@ -450,12 +516,21 @@ export async function getLibrary(libraryId: string) {
   if (!lib) return null;
   const [looks, members] = await Promise.all([
     db().prepare('select look_id, name, data, version from library_look where library_id = ? order by rowid').bind(libraryId).all<LookRow>(),
-    db().prepare(`select m.user_id, u.name, u.email, m.role from look_library_member m join "user" u on u.id = m.user_id where m.library_id = ? order by m.created_at`).bind(libraryId)
+    db()
+      .prepare(
+        `select m.user_id, u.name, u.email, m.role from look_library_member m join "user" u on u.id = m.user_id where m.library_id = ? order by m.created_at`,
+      )
+      .bind(libraryId)
       .all<{ user_id: string; name: string; email: string; role: LibraryRole }>(),
   ]);
   const meta = JSON.parse(lib.data) as LibraryMeta;
   const library: LookLibrary = {
-    format: LIBRARY_FORMAT, formatVersion: LIBRARY_FORMAT_VERSION, id: lib.id, name: namesOf(lib.name), ...meta, version: meta.version ?? '1.0.0',
+    format: LIBRARY_FORMAT,
+    formatVersion: LIBRARY_FORMAT_VERSION,
+    id: lib.id,
+    name: namesOf(lib.name),
+    ...meta,
+    version: meta.version ?? '1.0.0',
     looks: Object.fromEntries(looks.results.map(r => [r.look_id, fileLook(r)])),
   };
   return { library, members: members.results };
@@ -464,7 +539,10 @@ export async function getLibrary(libraryId: string) {
 /** Change what the library file has besides its looks (merged into what it has) */
 export async function updateLibraryMeta(libraryId: string, change: (meta: LibraryMeta) => LibraryMeta) {
   const cur = await db().prepare('select data from look_library where id = ?').bind(libraryId).first<{ data: string }>();
-  await db().prepare('update look_library set data = ?, updated_at = ? where id = ?').bind(JSON.stringify(change(JSON.parse(cur?.data ?? '{}'))), now(), libraryId).run();
+  await db()
+    .prepare('update look_library set data = ?, updated_at = ? where id = ?')
+    .bind(JSON.stringify(change(JSON.parse(cur?.data ?? '{}'))), now(), libraryId)
+    .run();
 }
 
 export const renameLibrary = (libraryId: string, name: string) =>
@@ -473,14 +551,18 @@ export const deleteLibrary = (libraryId: string) => db().prepare('delete from lo
 
 /** Save a look: a new one at version 1, an existing one at its next version; returns the version */
 export async function putLibraryLook(libraryId: string, lookId: string, look: Omit<LibraryLookInput, 'materials'>, userId: string) {
-  const name = uiName(look.name), data = look;
+  const name = uiName(look.name),
+    data = look;
   const cur = await db().prepare('select version from library_look where library_id = ? and look_id = ?').bind(libraryId, lookId).first<{ version: number }>();
-  const version = (cur?.version ?? 0) + 1, t = now();
+  const version = (cur?.version ?? 0) + 1,
+    t = now();
   await db().batch([
-    db().prepare(
-      `insert into library_look (library_id, look_id, name, data, version, updated_by, updated_at) values (?, ?, ?, ?, ?, ?, ?)
+    db()
+      .prepare(
+        `insert into library_look (library_id, look_id, name, data, version, updated_by, updated_at) values (?, ?, ?, ?, ?, ?, ?)
        on conflict (library_id, look_id) do update set name = excluded.name, data = excluded.data, version = excluded.version, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
-    ).bind(libraryId, lookId, name, JSON.stringify(data), version, userId, t),
+      )
+      .bind(libraryId, lookId, name, JSON.stringify(data), version, userId, t),
     db().prepare('update look_library set updated_at = ? where id = ?').bind(t, libraryId),
   ]);
   return version;
@@ -493,8 +575,11 @@ export const userByEmail = (email: string) =>
   db().prepare('select id, name, email from "user" where lower(email) = ?').bind(email.toLowerCase()).first<{ id: string; name: string; email: string }>();
 
 export const setLibraryMember = (libraryId: string, userId: string, role: LibraryRole) =>
-  db().prepare(`insert into look_library_member (library_id, user_id, role, created_at) values (?, ?, ?, ?)
-    on conflict (library_id, user_id) do update set role = excluded.role where look_library_member.role != 'owner'`).bind(libraryId, userId, role, now()).run();
+  db()
+    .prepare(`insert into look_library_member (library_id, user_id, role, created_at) values (?, ?, ?, ?)
+    on conflict (library_id, user_id) do update set role = excluded.role where look_library_member.role != 'owner'`)
+    .bind(libraryId, userId, role, now())
+    .run();
 export const removeLibraryMember = (libraryId: string, userId: string) =>
   db().prepare(`delete from look_library_member where library_id = ? and user_id = ? and role != 'owner'`).bind(libraryId, userId).run();
 

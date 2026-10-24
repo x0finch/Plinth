@@ -7,7 +7,12 @@
 import { buildRecipe, type Built, type Recipe } from '../script.js';
 import type { RecipeSize } from '../recipe.js';
 
-interface Entry { built?: Built; error?: string; pending?: Promise<Built | undefined>; tries?: number }
+interface Entry {
+  built?: Built;
+  error?: string;
+  pending?: Promise<Built | undefined>;
+  tries?: number;
+}
 
 /** A build that ran out of time (a busy page, not a broken recipe) is tried again, up to this many times */
 const RETRIES = 3;
@@ -15,9 +20,13 @@ const TIMEOUT = /D1012|timeout/i;
 
 const store = new WeakMap<Recipe, Map<string, Entry>>();
 const listeners = new Set<() => void>();
-let version = 0, scheduled = false;
+let version = 0,
+  scheduled = false;
 
-const sortObj = (o: Record<string, unknown>) => Object.keys(o).sort().map(k => [k, o[k]]);
+const sortObj = (o: Record<string, unknown>) =>
+  Object.keys(o)
+    .sort()
+    .map(k => [k, o[k]]);
 const key = (size: RecipeSize, params: Record<string, unknown>) => JSON.stringify([sortObj(size), sortObj(params)]);
 
 function entry(recipe: Recipe, size: RecipeSize, params: Record<string, unknown>) {

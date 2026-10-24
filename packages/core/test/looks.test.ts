@@ -2,7 +2,18 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildRecipe, createRegistry, furnitureTarget, lookRecipe, migrate, SCHEMA_VERSION, Session, validate, type Project, type Recipe } from '../src/index.js';
+import {
+  buildRecipe,
+  createRegistry,
+  furnitureTarget,
+  lookRecipe,
+  migrate,
+  SCHEMA_VERSION,
+  Session,
+  validate,
+  type Project,
+  type Recipe,
+} from '../src/index.js';
 
 const registry = createRegistry();
 const sample = () => migrate(JSON.parse(readFileSync(join(import.meta.dirname, '../../../samples/wushi-10/project.json'), 'utf8')));
@@ -57,7 +68,11 @@ describe('looks', () => {
 
   it('rejects a recipe that does not build, a look that does not fit, and an unknown target', async () => {
     const h = harness(sample());
-    const bad = await h.call('look_add', { name: 'x', for: ['furniture:dining'], recipe: { parts: [{ kind: 'box', mat: 'wood', size: ['w', 'h', 'q'], at: [0, 0, 0] }] } });
+    const bad = await h.call('look_add', {
+      name: 'x',
+      for: ['furniture:dining'],
+      recipe: { parts: [{ kind: 'box', mat: 'wood', size: ['w', 'h', 'q'], at: [0, 0, 0] }] },
+    });
     expect(bad.ok).toBe(false);
     expect(bad.error?.message).toMatch(/unknown variable \$q/);
     await h.call('look_add', { name: 'Round', for: ['furniture:dining'], recipe: roundTable });
@@ -84,7 +99,11 @@ describe('looks', () => {
     expect(r.ok, r.error?.message).toBe(true);
     const stored = h.session.project.library.looks![(r.result as { id: string }).id].recipe;
     expect(stored.script).toContain('$box');
-    const v4 = { ...sample(), version: 4, library: { ...sample().library, looks: { 'look-1': { name: 'Block', for: ['furniture:dining'], recipe: old, version: 1 } } } };
+    const v4 = {
+      ...sample(),
+      version: 4,
+      library: { ...sample().library, looks: { 'look-1': { name: 'Block', for: ['furniture:dining'], recipe: old, version: 1 } } },
+    };
     expect(migrate(v4).library.looks!['look-1'].recipe).toEqual(stored);
   });
 
@@ -110,10 +129,13 @@ describe('looks', () => {
     if (other) expect(other.lookParams).toBeUndefined();
   });
 
-  it('look_get lists a look\'s parameters with their defaults', async () => {
+  it("look_get lists a look's parameters with their defaults", async () => {
     const h = harness(sample());
     const r = await h.call('look_get', { target: 'furniture:coffee' });
-    expect((r.result as { params: Record<string, { default: unknown }> }).params).toMatchObject({ top: { type: 'string', format: 'material', default: 'birch' }, decor: { type: 'boolean', default: true } });
+    expect((r.result as { params: Record<string, { default: unknown }> }).params).toMatchObject({
+      top: { type: 'string', format: 'material', default: 'birch' },
+      decor: { type: 'boolean', default: true },
+    });
   });
 
   it('a window can get its own look', async () => {
@@ -130,13 +152,25 @@ describe('looks from libraries', () => {
   it('look_import copies a look with its source and new furniture types; importing a newer version updates the same copy', async () => {
     const h = harness(sample());
     const types = { mahjong: { name: '麻将桌', size: { w: 900, d: 900, h: 750 } } };
-    const r1 = await h.call('look_import', { name: '麻将桌', for: ['furniture:mahjong'], recipe: roundTable, types, source: { library: 'lib1', look: 'lk1', version: 1 }, use: true });
+    const r1 = await h.call('look_import', {
+      name: '麻将桌',
+      for: ['furniture:mahjong'],
+      recipe: roundTable,
+      types,
+      source: { library: 'lib1', look: 'lk1', version: 1 },
+      use: true,
+    });
     expect(r1.ok, r1.error?.message).toBe(true);
     const id = (r1.result as { id: string }).id;
     let p = h.session.project;
     expect(p.library.furniture.mahjong.name).toBe('麻将桌');
     expect(p.library.looks![id].source).toEqual({ library: 'lib1', look: 'lk1', version: '1.0.0' });
-    const r2 = await h.call('look_import', { name: '麻将桌', for: ['furniture:mahjong'], recipe: { ...roundTable, seed: 2 }, source: { library: 'lib1', look: 'lk1', version: '2.0.0' } });
+    const r2 = await h.call('look_import', {
+      name: '麻将桌',
+      for: ['furniture:mahjong'],
+      recipe: { ...roundTable, seed: 2 },
+      source: { library: 'lib1', look: 'lk1', version: '2.0.0' },
+    });
     p = h.session.project;
     expect((r2.result as { id: string }).id).toBe(id);
     expect(Object.keys(p.library.looks!)).toHaveLength(1);
@@ -145,7 +179,13 @@ describe('looks from libraries', () => {
   it('look_import with replace links a design look to the library it was saved to', async () => {
     const h = harness(sample());
     await h.call('look_add', { name: 'Round', for: ['furniture:dining'], recipe: roundTable });
-    const r = await h.call('look_import', { name: 'Round', for: ['furniture:dining'], recipe: roundTable, source: { library: 'lib1', look: 'lk9', version: 1 }, replace: 'Round' });
+    const r = await h.call('look_import', {
+      name: 'Round',
+      for: ['furniture:dining'],
+      recipe: roundTable,
+      source: { library: 'lib1', look: 'lk9', version: 1 },
+      replace: 'Round',
+    });
     expect(r.ok, r.error?.message).toBe(true);
     expect(Object.values(h.session.project.library.looks!)).toHaveLength(1);
     expect(Object.values(h.session.project.library.looks!)[0].source?.look).toBe('lk9');

@@ -1,12 +1,13 @@
 /* Canvas iframe styles: light only, independent of the page color scheme */
 @import 'tailwindcss';
-@import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
-@import "@fontsource-variable/geist-mono";
-@import "../theme/light.css";
-@import "../theme/tokens.css";
+@import 'shadcn/tailwind.css';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+@import '../theme/light.css';
+@import '../theme/tokens.css';
 
-html, body {
+html,
+body {
   height: 100%;
   margin: 0;
   overflow: hidden;
@@ -25,8 +26,12 @@ html, body {
   stroke-width: 1.5px;
 }
 @keyframes plan-changed {
-  from { fill-opacity: 0.5; }
-  to { fill-opacity: 0; }
+  from {
+    fill-opacity: 0.5;
+  }
+  to {
+    fill-opacity: 0;
+  }
 }
 .plan-changed {
   fill-opacity: 0;

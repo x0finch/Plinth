@@ -114,19 +114,31 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
 
           {/* Just changed (or pointed at by the agent): a tint that fades out. Selected: tinted with an outline until deselected */}
           <g pointerEvents="none" data-feedback>
-            {view.highlight.filter(id => outlines.has(id) && !sel.has(id)).map(id => (
-              <path key={`${id}-${changeToken}`} d={outlines.get(id)} fill="var(--chart-1)" className="plan-changed" />
-            ))}
-            {view.selection.filter(id => outlines.has(id)).map(id => (
-              // Walls, doors and windows are thin: fill them nearly solid so the color reads; rooms and furniture get a light wash
-              <path key={id} d={outlines.get(id)} fill="var(--chart-2)" fillOpacity={thin.has(id) ? 0.85 : 0.25} stroke="var(--chart-2)" strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
-            ))}
+            {view.highlight
+              .filter(id => outlines.has(id) && !sel.has(id))
+              .map(id => (
+                <path key={`${id}-${changeToken}`} d={outlines.get(id)} fill="var(--chart-1)" className="plan-changed" />
+              ))}
+            {view.selection
+              .filter(id => outlines.has(id))
+              .map(id => (
+                // Walls, doors and windows are thin: fill them nearly solid so the color reads; rooms and furniture get a light wash
+                <path
+                  key={id}
+                  d={outlines.get(id)}
+                  fill="var(--chart-2)"
+                  fillOpacity={thin.has(id) ? 0.85 : 0.25}
+                  stroke="var(--chart-2)"
+                  strokeWidth={2.5}
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
           </g>
 
           {/* Walls before the change: dashed */}
           {before && (
             <g pointerEvents="none">
-               <path d={before} fill="none" stroke="var(--foreground)" strokeWidth={1.2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
+              <path d={before} fill="none" stroke="var(--foreground)" strokeWidth={1.2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
             </g>
           )}
 
@@ -134,30 +146,67 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
 
           {/* The selected object can be dragged: a handle over it, then snapping guides and the distance while dragging */}
           {handle && outlines.has(handle) && (
-            <path d={outlines.get(handle)} fill="transparent" className="plan-drag cursor-move" style={{ touchAction: 'none' }}
-              onPointerDown={e => drag.start(e, handle, ref.current)} onPointerMove={drag.move} onPointerUp={drag.end} onPointerCancel={drag.cancel}
+            <path
+              d={outlines.get(handle)}
+              fill="transparent"
+              className="plan-drag cursor-move"
+              style={{ touchAction: 'none' }}
+              onPointerDown={e => drag.start(e, handle, ref.current)}
+              onPointerMove={drag.move}
+              onPointerUp={drag.end}
+              onPointerCancel={drag.cancel}
               onClick={e => {
                 e.stopPropagation();
                 if (!drag.moved() && (e.shiftKey || e.metaKey)) pick(handle)(e);
-              }} />
+              }}
+            />
           )}
           {drag.result && (
             <g pointerEvents="none">
               {drag.result.guides.map(([a, b], i) => (
-                <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="var(--chart-2)" strokeWidth={1} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+                <line
+                  key={i}
+                  x1={a[0]}
+                  y1={a[1]}
+                  x2={b[0]}
+                  y2={b[1]}
+                  stroke="var(--chart-2)"
+                  strokeWidth={1}
+                  strokeDasharray="4 3"
+                  vectorEffect="non-scaling-stroke"
+                />
               ))}
               {drag.result.readout && drag.pointer && (
-                <text x={drag.pointer[0] + 14 * drag.mmPerPx} y={drag.pointer[1] - 14 * drag.mmPerPx} fontSize={12 * drag.mmPerPx} fill="var(--foreground)"
-                  fontFamily="var(--font-mono)" paintOrder="stroke" stroke="var(--background)" strokeWidth={3 * drag.mmPerPx}>{drag.result.readout}</text>
+                <text
+                  x={drag.pointer[0] + 14 * drag.mmPerPx}
+                  y={drag.pointer[1] - 14 * drag.mmPerPx}
+                  fontSize={12 * drag.mmPerPx}
+                  fill="var(--foreground)"
+                  fontFamily="var(--font-mono)"
+                  paintOrder="stroke"
+                  stroke="var(--background)"
+                  strokeWidth={3 * drag.mmPerPx}
+                >
+                  {drag.result.readout}
+                </text>
               )}
             </g>
           )}
 
           {/* Dimension: length of the selected wall */}
           {view.layers.dimensions && selWall && (
-            <text x={(selWall.w.start[0] + selWall.w.end[0]) / 2} y={(selWall.w.start[1] + selWall.w.end[1]) / 2 - selWall.w.thickness}
-              fontSize={font * 0.85} textAnchor="middle" fill="var(--foreground)" fontFamily="var(--font-mono)" pointerEvents="none"
-              paintOrder="stroke" stroke="var(--background)" strokeWidth={font / 6}>
+            <text
+              x={(selWall.w.start[0] + selWall.w.end[0]) / 2}
+              y={(selWall.w.start[1] + selWall.w.end[1]) / 2 - selWall.w.thickness}
+              fontSize={font * 0.85}
+              textAnchor="middle"
+              fill="var(--foreground)"
+              fontFamily="var(--font-mono)"
+              pointerEvents="none"
+              paintOrder="stroke"
+              stroke="var(--background)"
+              strokeWidth={font / 6}
+            >
               {(wallLength(selWall.w) / 1000).toFixed(2)} m
             </text>
           )}
@@ -166,7 +215,6 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
     </TransformWrapper>
   );
 }
-
 
 /** Snapping distance in screen pixels */
 const SNAP_PX = 8;
@@ -180,7 +228,10 @@ function useDrag() {
   const preview = useEditor(s => s.preview);
   const run = useRun();
   const [state, setState] = useState<{ preview: Project | null; result: DragResult | null; pointer: Point | null; mmPerPx: number }>({
-    preview: null, result: null, pointer: null, mmPerPx: 1,
+    preview: null,
+    result: null,
+    pointer: null,
+    mmPerPx: 1,
   });
   const active = useRef<{ id: string; origin: Point; svg: SVGSVGElement; pointerId: number; key: string; moved: boolean; frame: number } | null>(null);
   const latest = useRef<DragResult | null>(null);

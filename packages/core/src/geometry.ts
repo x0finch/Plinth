@@ -38,7 +38,8 @@ export const openingCenter = (w: Wall, o: Opening) => pointAt(w, o.at);
 
 /** Distance from a point to the wall's centreline and its projection parameter (distance along the wall) */
 export function project(w: Wall, p: Point): { dist: number; at: number } {
-  const d = wallDir(w), v = sub(p, w.start);
+  const d = wallDir(w),
+    v = sub(p, w.start);
   return { dist: Math.abs(cross(d, v)), at: dot(v, d) };
 }
 
@@ -61,7 +62,14 @@ export function fromPc(mp: PcPolygon[]): Polygon[] {
 }
 
 export function rect(x0: number, y0: number, x1: number, y1: number): Polygon {
-  return { outer: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] };
+  return {
+    outer: [
+      [x0, y0],
+      [x1, y0],
+      [x1, y1],
+      [x0, y1],
+    ],
+  };
 }
 
 export function union(polys: Polygon[]): Polygon[] {
@@ -80,40 +88,57 @@ export function difference(a: Polygon[], b: Polygon[]): Polygon[] {
 export const ringArea = (r: Ring) => {
   let s = 0;
   for (let i = 0; i < r.length; i++) {
-    const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length];
+    const [x1, y1] = r[i],
+      [x2, y2] = r[(i + 1) % r.length];
     s += x1 * y2 - x2 * y1;
   }
   return Math.abs(s) / 2;
 };
 
 /** Area in square millimetres */
-export const area = (polys: Polygon[]) =>
-  polys.reduce((s, p) => s + ringArea(p.outer) - (p.holes ?? []).reduce((h, r) => h + ringArea(r), 0), 0);
+export const area = (polys: Polygon[]) => polys.reduce((s, p) => s + ringArea(p.outer) - (p.holes ?? []).reduce((h, r) => h + ringArea(r), 0), 0);
 
 /**
  * The plan footprint a wall actually occupies. Bearing walls and partitions are extended by half their thickness at each end so corners at junctions are filled;
  * fences, parapets and railings are not extended.
  */
 export function wallBody(w: Wall): Polygon {
-  const d = wallDir(w), n = scale(wallNormal(w), w.thickness / 2);
+  const d = wallDir(w),
+    n = scale(wallNormal(w), w.thickness / 2);
   const e = w.kind === 'bearing' || w.kind === 'partition' ? w.thickness / 2 : 0;
-  const a = sub(w.start, scale(d, e)), b = add(w.end, scale(d, e));
+  const a = sub(w.start, scale(d, e)),
+    b = add(w.end, scale(d, e));
   return { outer: [add(a, n), add(b, n), sub(b, n), sub(a, n)] };
 }
 
 /** Plan footprint of a piece of furniture: its size rotated clockwise about its centre */
 export function furnitureFootprint(f: Furniture): Polygon {
-  const r = (f.rotation * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r);
-  const hw = f.size.w / 2, hd = f.size.d / 2;
-  const corners: Point[] = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]];
+  const r = (f.rotation * Math.PI) / 180,
+    c = Math.cos(r),
+    s = Math.sin(r);
+  const hw = f.size.w / 2,
+    hd = f.size.d / 2;
+  const corners: Point[] = [
+    [-hw, -hd],
+    [hw, -hd],
+    [hw, hd],
+    [-hw, hd],
+  ];
   return { outer: corners.map(([x, y]) => [f.position[0] + x * c - y * s, f.position[1] + x * s + y * c]) };
 }
 
 export function bbox(polys: Polygon[]): [number, number, number, number] {
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const p of polys) for (const [x, y] of p.outer) {
-    x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
-  }
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity;
+  for (const p of polys)
+    for (const [x, y] of p.outer) {
+      x0 = Math.min(x0, x);
+      y0 = Math.min(y0, y);
+      x1 = Math.max(x1, x);
+      y1 = Math.max(y1, y);
+    }
   return [x0, y0, x1, y1];
 }
 
@@ -121,7 +146,8 @@ export function pointInPolygon([x, y]: Point, p: Polygon): boolean {
   const inRing = (r: Ring) => {
     let inside = false;
     for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
-      const [xi, yi] = r[i], [xj, yj] = r[j];
+      const [xi, yi] = r[i],
+        [xj, yj] = r[j];
       if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
     }
     return inside;

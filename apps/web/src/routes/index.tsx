@@ -45,19 +45,31 @@ function Landing() {
         <section className="grid items-center gap-10 py-12 md:grid-cols-[1fr_1.1fr] md:py-20">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-balance md:text-4xl">{m.home_title()}</h1>
-            <p className="mt-4 text-muted-foreground text-pretty">
-              {m.home_intro()}
-            </p>
+            <p className="mt-4 text-muted-foreground text-pretty">{m.home_intro()}</p>
             <div className="mt-6 flex flex-wrap gap-2">
               <Button size="lg" onClick={() => go('sample')} disabled={!!busy}>
-                {busy === 'sample' ? <LoaderIcon className="animate-spin" /> : null}{m.home_try_sample()} <ArrowRightIcon />
+                {busy === 'sample' ? <LoaderIcon className="animate-spin" /> : null}
+                {m.home_try_sample()} <ArrowRightIcon />
               </Button>
               <Button size="lg" variant="outline" onClick={() => go('blank')} disabled={!!busy}>
-                {busy === 'blank' ? <LoaderIcon className="animate-spin" /> : null}{m.home_start_blank()}
+                {busy === 'blank' ? <LoaderIcon className="animate-spin" /> : null}
+                {m.home_start_blank()}
               </Button>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              {m.home_no_sign_up()}{me.data?.user && !me.data.user.isAnonymous ? <Button variant="link" className="h-auto p-0 text-xs" nativeButton={false} render={<Link to="/projects" />}>{m.home_my_projects()}</Button> : <><Button variant="link" className="h-auto p-0 text-xs" nativeButton={false} render={<Link to="/login" />}>{m.home_sign_in()}</Button>{m.home_sign_in_after()}</>}
+              {m.home_no_sign_up()}
+              {me.data?.user && !me.data.user.isAnonymous ? (
+                <Button variant="link" className="h-auto p-0 text-xs" nativeButton={false} render={<Link to="/projects" />}>
+                  {m.home_my_projects()}
+                </Button>
+              ) : (
+                <>
+                  <Button variant="link" className="h-auto p-0 text-xs" nativeButton={false} render={<Link to="/login" />}>
+                    {m.home_sign_in()}
+                  </Button>
+                  {m.home_sign_in_after()}
+                </>
+              )}
             </p>
           </div>
           <Card className="gap-2 p-3">
@@ -81,7 +93,10 @@ function Landing() {
         <section className="border-t py-12">
           <ul className="grid gap-3 md:grid-cols-2">
             {POINTS.map((p, i) => (
-              <li key={i} className="flex gap-2 text-sm"><CheckIcon className="mt-0.5 size-4 shrink-0" />{p()}</li>
+              <li key={i} className="flex gap-2 text-sm">
+                <CheckIcon className="mt-0.5 size-4 shrink-0" />
+                {p()}
+              </li>
             ))}
           </ul>
         </section>

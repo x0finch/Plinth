@@ -3,8 +3,30 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  BUILTIN_LIBRARIES, buildRecipe, checkParamValue, compareVersions, createProject, createRegistry, DEFAULT_LIBRARY, DEFAULT_MATERIALS, DEFAULT_TYPES, designLookOf, FURNITURE_TYPES,
-  groupedLooks, libraryLookOf, libraryRecipe, lookGroup, lookSizeOf, materialOf, materialsUsed, migrate, normalizeParams, parseLibrary, Session, validate, type LookLibrary,
+  BUILTIN_LIBRARIES,
+  buildRecipe,
+  checkParamValue,
+  compareVersions,
+  createProject,
+  createRegistry,
+  DEFAULT_LIBRARY,
+  DEFAULT_MATERIALS,
+  DEFAULT_TYPES,
+  designLookOf,
+  FURNITURE_TYPES,
+  groupedLooks,
+  libraryLookOf,
+  libraryRecipe,
+  lookGroup,
+  lookSizeOf,
+  materialOf,
+  materialsUsed,
+  migrate,
+  normalizeParams,
+  parseLibrary,
+  Session,
+  validate,
+  type LookLibrary,
 } from '../src/index.js';
 
 const registry = createRegistry();
@@ -23,10 +45,12 @@ describe('library files', () => {
         expect(lookGroup(look), `${lib.id}/${id} group`).toBeTruthy();
         const recipe = libraryRecipe(lib, look);
         const built = await buildRecipe(recipe, lookSizeOf(look));
-        for (const p of built.parts) for (const m of p.kind === 'base' ? Object.values(p.mats) : [p.mat]) expect(materialOf(m, recipe), `${lib.id}/${id} ${m}`).toBeTruthy();
-        for (const d of Object.values(look.params ?? {})) for (const v of [d.default, ...(d.enum ?? [])]) {
-          if (d.format === 'material') expect(materialOf(String(v), recipe), `${lib.id}/${id} param ${v}`).toBeTruthy();
-        }
+        for (const p of built.parts)
+          for (const m of p.kind === 'base' ? Object.values(p.mats) : [p.mat]) expect(materialOf(m, recipe), `${lib.id}/${id} ${m}`).toBeTruthy();
+        for (const d of Object.values(look.params ?? {}))
+          for (const v of [d.default, ...(d.enum ?? [])]) {
+            if (d.format === 'material') expect(materialOf(String(v), recipe), `${lib.id}/${id} param ${v}`).toBeTruthy();
+          }
       }
     }
   });
@@ -45,14 +69,20 @@ describe('library files', () => {
     const lib = file('chinese.looklib.json');
     expect(() => parseLibrary({ ...lib, format: 'x' })).toThrow(/format/);
     expect(() => parseLibrary({ ...lib, looks: { a: { ...lib.looks.teatable, group: 'nowhere' } } }, DEFAULT_LIBRARY)).toThrow(/unknown group nowhere/);
-    expect(() => parseLibrary({ ...lib, looks: { a: { ...lib.looks.teatable, params: { wood: { type: 'number', default: 'x' } } } } })).toThrow(/default must be number/);
+    expect(() => parseLibrary({ ...lib, looks: { a: { ...lib.looks.teatable, params: { wood: { type: 'number', default: 'x' } } } } })).toThrow(
+      /default must be number/,
+    );
   });
 
   it('furniture types and the catalogue come from the default library; merged types replace the old ones', () => {
     expect(FURNITURE_TYPES).toBe(DEFAULT_TYPES);
     for (const t of ['sofa', 'bed', 'shower', 'planter']) expect(DEFAULT_TYPES[t], t).toBeTruthy();
     for (const t of ['sofa3', 'sofa2', 'bed18', 'bed15', 'bed12', 'shower5']) expect(DEFAULT_TYPES[t], t).toBeUndefined();
-    expect(createProject({ id: 'x', name: 'x', language: 'en' }).library.furniture.sofa).toEqual({ name: 'Sofa', group: 'Living room', size: { w: 2100, d: 900, h: 800 } });
+    expect(createProject({ id: 'x', name: 'x', language: 'en' }).library.furniture.sofa).toEqual({
+      name: 'Sofa',
+      group: 'Living room',
+      size: { w: 2100, d: 900, h: 800 },
+    });
   });
 
   it('groups come in the order the libraries declare them, only those with looks', () => {
@@ -60,7 +90,9 @@ describe('library files', () => {
     expect(groups).toEqual(Object.keys(DEFAULT_LIBRARY.groups!));
     const chinese = BUILTIN_LIBRARIES.find(l => l.id === 'builtin-chinese')!;
     expect(groupedLooks(chinese).map(g => g.group)).toEqual(['living', 'kitchen', 'yard']);
-    expect(groupedLooks({ ...chinese, looks: { x: { name: { en: 'x' }, for: ['furniture:mystery'], version: '1.0.0', script: '[]' } } })).toEqual([{ group: null, looks: [['x', expect.anything()]] }]);
+    expect(groupedLooks({ ...chinese, looks: { x: { name: { en: 'x' }, for: ['furniture:mystery'], version: '1.0.0', script: '[]' } } })).toEqual([
+      { group: null, looks: [['x', expect.anything()]] },
+    ]);
   });
 
   it('a look outside the default library reaches its own materials, then the default ones', () => {
@@ -91,7 +123,9 @@ describe('parameters', () => {
   });
 
   it('declarations from before v7 become JSON Schema declarations', () => {
-    expect(normalizeParams({ fabric: 'fabric', decor: true, arm: null, n: { default: 2, label: '数量', doc: 'How many', options: [1, 2, 3], min: 1, max: 3 } })).toEqual({
+    expect(
+      normalizeParams({ fabric: 'fabric', decor: true, arm: null, n: { default: 2, label: '数量', doc: 'How many', options: [1, 2, 3], min: 1, max: 3 } }),
+    ).toEqual({
       fabric: { type: 'string', default: 'fabric', format: 'material' },
       decor: { type: 'boolean', default: true },
       arm: { type: ['number', 'null'], default: null },
@@ -128,10 +162,22 @@ describe('v7 migration', () => {
 
   it('copied looks get semver sources and JSON Schema parameters', () => {
     const v6 = { ...migrate(sample()), version: 6 } as any;
-    v6.library.looks = { 'look-1': { name: 'A', for: ['furniture:sofa3'], recipe: { params: { top: 'wood' }, script: '[]' }, version: 1, source: { library: 'lib1', look: 'k', version: 3 } } };
+    v6.library.looks = {
+      'look-1': {
+        name: 'A',
+        for: ['furniture:sofa3'],
+        recipe: { params: { top: 'wood' }, script: '[]' },
+        version: 1,
+        source: { library: 'lib1', look: 'k', version: 3 },
+      },
+    };
     v6.library.use = { 'furniture:sofa3': 'look-1' };
     const p = migrate(v6);
-    expect(p.library.looks!['look-1']).toMatchObject({ for: ['furniture:sofa'], recipe: { params: { top: { type: 'string', format: 'material', default: 'wood' } } }, source: { version: '3.0.0' } });
+    expect(p.library.looks!['look-1']).toMatchObject({
+      for: ['furniture:sofa'],
+      recipe: { params: { top: { type: 'string', format: 'material', default: 'wood' } } },
+      source: { version: '3.0.0' },
+    });
     expect(p.library.use).toEqual({ 'furniture:sofa': 'look-1' });
   });
 });
@@ -161,23 +207,48 @@ describe('capabilities', () => {
     const bad = await h.call('look_add', { name: 'x', for: ['furniture:dining'], recipe: { script: `[$box([$w, $h, $d], [0, $h / 2, 0], 'velvet')]` } });
     expect(bad.error?.message).toMatch(/unknown material velvet/);
     const velvet = { name: { zh: '丝绒' }, pbrMetallicRoughness: { baseColorFactor: [0.3, 0.05, 0.1, 1], roughnessFactor: 1 } };
-    const ok = await h.call('look_add', { name: 'x', for: ['furniture:dining'], recipe: { script: `[$box([$w, $h, $d], [0, $h / 2, 0], 'velvet')]`, materials: { velvet } } });
+    const ok = await h.call('look_add', {
+      name: 'x',
+      for: ['furniture:dining'],
+      recipe: { script: `[$box([$w, $h, $d], [0, $h / 2, 0], 'velvet')]`, materials: { velvet } },
+    });
     expect(ok.ok, ok.error?.message).toBe(true);
   });
 
-  it('a library look goes into a design with its materials and type, and back out in the library\'s structure', async () => {
+  it("a library look goes into a design with its materials and type, and back out in the library's structure", async () => {
     const lib: LookLibrary = {
-      format: 'plinth-looks', formatVersion: 1, id: 'games', name: { zh: '游戏' }, version: '1.0.0',
+      format: 'plinth-looks',
+      formatVersion: 1,
+      id: 'games',
+      name: { zh: '游戏' },
+      version: '1.0.0',
       materials: { felt: { name: { zh: '台呢' }, pbrMetallicRoughness: { baseColorFactor: [0.05, 0.3, 0.1, 1] } } },
-      looks: { mahjong: { name: { zh: '麻将桌' }, for: ['furniture:mahjong'], newType: { name: { zh: '麻将桌' }, group: 'living', size: { w: 900, d: 900, h: 750 } }, version: '1.2.0', script: `[$box([$w, 40, $d], [0, $h - 20, 0], 'felt')]` } },
+      looks: {
+        mahjong: {
+          name: { zh: '麻将桌' },
+          for: ['furniture:mahjong'],
+          newType: { name: { zh: '麻将桌' }, group: 'living', size: { w: 900, d: 900, h: 750 } },
+          version: '1.2.0',
+          script: `[$box([$w, 40, $d], [0, $h - 20, 0], 'felt')]`,
+        },
+      },
     };
     const h = harness();
     const k = designLookOf(lib, 'mahjong', 'zh');
-    expect(k).toMatchObject({ name: '麻将桌', types: { mahjong: { name: '麻将桌', group: '客厅' } }, source: { library: 'games', look: 'mahjong', version: '1.2.0' } });
+    expect(k).toMatchObject({
+      name: '麻将桌',
+      types: { mahjong: { name: '麻将桌', group: '客厅' } },
+      source: { library: 'games', look: 'mahjong', version: '1.2.0' },
+    });
     expect(Object.keys(k.recipe.materials!)).toEqual(['felt']);
     const r = await h.call('look_import', { ...k, use: true });
     expect(r.ok, r.error?.message).toBe(true);
-    const id = (r.result as { id: string }).id, p = h.session.project;
-    expect(libraryLookOf(p, p.library.looks![id])).toMatchObject({ name: { zh: '麻将桌' }, newType: { group: 'living', size: { w: 900, d: 900, h: 750 } }, materials: { felt: lib.materials!.felt } });
+    const id = (r.result as { id: string }).id,
+      p = h.session.project;
+    expect(libraryLookOf(p, p.library.looks![id])).toMatchObject({
+      name: { zh: '麻将桌' },
+      newType: { group: 'living', size: { w: 900, d: 900, h: 750 } },
+      materials: { felt: lib.materials!.felt },
+    });
   });
 });

@@ -55,7 +55,10 @@ export interface TxResult<R = unknown> {
 }
 
 export class TxError extends Error {
-  constructor(public code: string, message: string) {
+  constructor(
+    public code: string,
+    message: string,
+  ) {
     super(message);
   }
 }
@@ -101,8 +104,10 @@ function areaSnapshot(p: Project) {
 function diffAreas(a: ReturnType<typeof areaSnapshot>, b: ReturnType<typeof areaSnapshot>): AreaChange[] {
   const out: AreaChange[] = [];
   for (const id of new Set([...a.keys(), ...b.keys()])) {
-    const x = a.get(id), y = b.get(id);
-    const before = x ? Math.round(x.net * 100) / 100 : null, after = y ? Math.round(y.net * 100) / 100 : null;
+    const x = a.get(id),
+      y = b.get(id);
+    const before = x ? Math.round(x.net * 100) / 100 : null,
+      after = y ? Math.round(y.net * 100) / 100 : null;
     if (before !== after) out.push({ id, name: (y ?? x)!.name, level: (y ?? x)!.level, before, after });
   }
   return out;
@@ -135,8 +140,12 @@ export class Session {
     this.emit('load');
   }
 
-  get canUndo() { return this.past.length > 0; }
-  get canRedo() { return this.future.length > 0; }
+  get canUndo() {
+    return this.past.length > 0;
+  }
+  get canRedo() {
+    return this.future.length > 0;
+  }
 
   /** Read-only access: not in a transaction */
   read<R>(fn: (p: Project) => R): R {
@@ -155,7 +164,12 @@ export class Session {
         pruneConstraints(draft as Project);
         constraints = solveConstraints(draft as Project, touchedGeometry(before, current(draft) as Project));
         if (constraints.violatedHard.length) {
-          throw new TxError('constraint-violated', text('err_constraint_violated', 'Hard constraint violated: {constraints}', { constraints: joinMessages(constraints.violatedHard.map(c => c.message)) }));
+          throw new TxError(
+            'constraint-violated',
+            text('err_constraint_violated', 'Hard constraint violated: {constraints}', {
+              constraints: joinMessages(constraints.violatedHard.map(c => c.message)),
+            }),
+          );
         }
       });
     } catch (e) {
@@ -173,13 +187,22 @@ export class Session {
       return {
         ok: false,
         error: { code: 'rule-violated', message: joinMessages(errors.map(e => e.message)), issues: errors },
-        changed: [], warnings: [], areaChanges: [],
+        changed: [],
+        warnings: [],
+        areaChanges: [],
       };
     }
 
     const changed = changedIds(before, next, patches);
     const entry: HistoryEntry = {
-      id: ++this.seq, at: new Date().toISOString(), actor, label, reason: opts.reason, changed, patches, inverse,
+      id: ++this.seq,
+      at: new Date().toISOString(),
+      actor,
+      label,
+      reason: opts.reason,
+      changed,
+      patches,
+      inverse,
     };
     this.project = next;
     this.past.push(entry);
@@ -187,7 +210,9 @@ export class Session {
     this.log.push({ id: entry.id, at: entry.at, actor, label, reason: opts.reason, changed });
     this.emit('tx');
     return {
-      ok: true, result, changed,
+      ok: true,
+      result,
+      changed,
       warnings: fresh.filter(i => i.severity === 'warning'),
       areaChanges: diffAreas(areaSnapshot(before), areaSnapshot(next)),
       constraints,

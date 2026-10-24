@@ -37,8 +37,16 @@ export function detectQuality(win: Window, gl: WebGLRenderingContext | WebGL2Ren
  * Takes over rendering from react-three-fiber; `draw` renders one frame the same way, for screenshots. Edges show once the house
  * has grown out of the plan (`growth`: 0 flat, 1 built), so the flat start still looks exactly like the plan.
  */
-export function Renderer({ draw, edges: withEdges, edgeColor, growth }: {
-  draw: React.RefObject<(() => void) | null>; edges: boolean; edgeColor: string; growth: React.RefObject<{ g: number }>;
+export function Renderer({
+  draw,
+  edges: withEdges,
+  edgeColor,
+  growth,
+}: {
+  draw: React.RefObject<(() => void) | null>;
+  edges: boolean;
+  edgeColor: string;
+  growth: React.RefObject<{ g: number }>;
 }) {
   const { gl, scene, camera, size } = useThree();
   const { composer, edges } = useMemo(() => {

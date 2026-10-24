@@ -65,14 +65,29 @@ export const capabilityTitle = (c: { name: string; title: string }) => text(`cap
 type Definition<C> = Omit<C, 'mode' | 'kind' | 'permission' | 'runtime'> & Partial<Pick<C & Base<z.ZodType>, 'kind' | 'permission' | 'runtime'>>;
 
 /** Edit capability; defaults: kind edit, permission reversible, runtime any */
-export const defineEdit = <I extends z.ZodType, R>(c: Definition<EditCapability<I, R>>): EditCapability<I, R> =>
-  ({ kind: 'edit', permission: 'reversible', runtime: 'any', ...c, mode: 'edit' });
+export const defineEdit = <I extends z.ZodType, R>(c: Definition<EditCapability<I, R>>): EditCapability<I, R> => ({
+  kind: 'edit',
+  permission: 'reversible',
+  runtime: 'any',
+  ...c,
+  mode: 'edit',
+});
 /** Read capability; defaults: kind query, permission read, runtime any */
-export const defineRead = <I extends z.ZodType, R>(c: Definition<ReadCapability<I, R>>): ReadCapability<I, R> =>
-  ({ kind: 'query', permission: 'read', runtime: 'any', ...c, mode: 'read' });
+export const defineRead = <I extends z.ZodType, R>(c: Definition<ReadCapability<I, R>>): ReadCapability<I, R> => ({
+  kind: 'query',
+  permission: 'read',
+  runtime: 'any',
+  ...c,
+  mode: 'read',
+});
 /** Session operation (undo, redo); defaults like an edit: kind edit, permission reversible, runtime any */
-export const defineSession = <I extends z.ZodType, R>(c: Definition<SessionCapability<I, R>>): SessionCapability<I, R> =>
-  ({ kind: 'edit', permission: 'reversible', runtime: 'any', ...c, mode: 'session' });
+export const defineSession = <I extends z.ZodType, R>(c: Definition<SessionCapability<I, R>>): SessionCapability<I, R> => ({
+  kind: 'edit',
+  permission: 'reversible',
+  runtime: 'any',
+  ...c,
+  mode: 'session',
+});
 
 export interface CallResult {
   ok: boolean;
@@ -108,7 +123,10 @@ export class Registry {
 
   /** Keyword search: the more query words appear in name, title (English and translated) and description, the higher the rank */
   search(query: string, limit = 10) {
-    const words = query.toLowerCase().split(/[\s,，、]+/).filter(Boolean);
+    const words = query
+      .toLowerCase()
+      .split(/[\s,，、]+/)
+      .filter(Boolean);
     return this.list()
       .map(c => {
         const hay = `${c.name} ${c.title} ${capabilityTitle(c)} ${c.description}`.toLowerCase();

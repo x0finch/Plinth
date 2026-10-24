@@ -38,7 +38,8 @@ const openLooks = async page => {
   await page.getByText('本方案的外观').waitFor();
 };
 
-const a = await person(), bob = await person();
+const a = await person(),
+  bob = await person();
 
 // The account menu opens Settings
 await a.page.goto(`${BASE}/projects`);
@@ -75,7 +76,11 @@ await a.page.screenshot({ path: `${OUT}/libraries-1-design.png` });
 await a.page.waitForTimeout(2000);
 await a.page.goto(`${BASE}/looks`);
 await a.page.getByRole('link', { name: '打开“家具库”' }).click();
-await a.page.getByText('圆餐桌').first().waitFor({ timeout: 15000 }).catch(() => {});
+await a.page
+  .getByText('圆餐桌')
+  .first()
+  .waitFor({ timeout: 15000 })
+  .catch(() => {});
 await a.page.screenshot({ path: `${OUT}/libraries-2-page.png` });
 await a.page.getByRole('button', { name: '管理' }).click();
 await a.page.getByLabel('对方注册用的邮箱').fill(bob.email);
@@ -104,8 +109,14 @@ await bob.page.getByRole('dialog').locator('div.space-y-1', { hasText: '功夫�
 await bob.page.getByText('已添加“功夫茶台”').waitFor();
 pb = await project(bob.page);
 const tea = pb.library.looks[pb.library.use?.['furniture:teatable']];
-check(tea?.source?.library === 'builtin-chinese' && pb.library.looks[bId].source.library === aLook.source.library, 'one design uses looks from two different libraries');
-check((await a.page.evaluate(async () => (await fetch('/api/libraries/builtin-chinese', { method: 'DELETE' })).status)) === 403, 'the built-in library cannot be deleted');
+check(
+  tea?.source?.library === 'builtin-chinese' && pb.library.looks[bId].source.library === aLook.source.library,
+  'one design uses looks from two different libraries',
+);
+check(
+  (await a.page.evaluate(async () => (await fetch('/api/libraries/builtin-chinese', { method: 'DELETE' })).status)) === 403,
+  'the built-in library cannot be deleted',
+);
 
 // A changes the look and saves a new version; Bob is told and updates after seeing before/after
 await a.page.goto(a.url);
@@ -130,7 +141,10 @@ await bob.page.screenshot({ path: `${OUT}/libraries-4-update.png` });
 await bob.page.getByRole('alertdialog').getByRole('button', { name: '更新' }).click();
 await bob.page.waitForTimeout(500);
 pb = await project(bob.page);
-check(pb.library.looks[bId].source.version === '2.0.0' && pb.library.looks[bId].recipe.params?.top?.default === 'woodDark', 'updating brings that design to v2.0.0');
+check(
+  pb.library.looks[bId].source.version === '2.0.0' && pb.library.looks[bId].recipe.params?.top?.default === 'woodDark',
+  'updating brings that design to v2.0.0',
+);
 
 // The library's page lays its looks out like every library's; A exports it as a file and imports the file as a new library with
 // the same looks
@@ -140,18 +154,38 @@ await a.page.getByRole('link', { name: '查看“圆餐桌”' }).waitFor({ time
 check(await a.page.getByRole('heading', { name: /^餐厨/ }).isVisible(), 'a user library groups its looks like the built-in ones');
 const [download] = await Promise.all([a.page.waitForEvent('download'), a.page.getByRole('button', { name: '导出文件' }).click()]);
 const exported = JSON.parse(readFileSync(await download.path(), 'utf8'));
-check(exported.format === 'plinth-looks' && download.suggestedFilename().endsWith('.looklib.json') && Object.values(exported.looks)[0]?.params?.top?.type === 'string',
-  'exporting writes a library file with JSON Schema parameters');
+check(
+  exported.format === 'plinth-looks' &&
+    download.suggestedFilename().endsWith('.looklib.json') &&
+    Object.values(exported.looks)[0]?.params?.top?.type === 'string',
+  'exporting writes a library file with JSON Schema parameters',
+);
 await a.page.goto(`${BASE}/looks`);
-await a.page.locator('input[type=file]').setInputFiles({ name: 'furniture.looklib.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(exported)) });
+await a.page
+  .locator('input[type=file]')
+  .setInputFiles({ name: 'furniture.looklib.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(exported)) });
 await a.page.waitForURL(u => /\/looks\/lib/.test(u.pathname) && !u.pathname.endsWith(exported.id));
 await a.page.getByRole('link', { name: '查看“圆餐桌”' }).waitFor({ timeout: 15000 });
 const imported = await a.page.evaluate(async id => (await (await fetch(`/api/libraries/${id}`)).json()).library, a.page.url().split('/').pop());
-check(JSON.stringify(Object.values(imported.looks)[0].script) === JSON.stringify(Object.values(exported.looks)[0].script) && Object.keys(imported.looks)[0] === Object.keys(exported.looks)[0],
-  'importing the file makes a new library with the same looks');
+check(
+  JSON.stringify(Object.values(imported.looks)[0].script) === JSON.stringify(Object.values(exported.looks)[0].script) &&
+    Object.keys(imported.looks)[0] === Object.keys(exported.looks)[0],
+  'importing the file makes a new library with the same looks',
+);
 await a.page.goto(`${BASE}/looks`);
-await a.page.locator('input[type=file]').setInputFiles({ name: 'broken.looklib.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ ...exported, format: 'nope' })) });
-check(await a.page.getByText('不是可用的物件库文件', { exact: false }).waitFor({ timeout: 10000 }).then(() => true, () => false), 'a broken file is refused with the reason');
+await a.page
+  .locator('input[type=file]')
+  .setInputFiles({ name: 'broken.looklib.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ ...exported, format: 'nope' })) });
+check(
+  await a.page
+    .getByText('不是可用的物件库文件', { exact: false })
+    .waitFor({ timeout: 10000 })
+    .then(
+      () => true,
+      () => false,
+    ),
+  'a broken file is refused with the reason',
+);
 await a.page.evaluate(async id => fetch(`/api/libraries/${id}`, { method: 'DELETE' }), imported.id);
 
 // Deleting the library leaves designs that copied from it unchanged

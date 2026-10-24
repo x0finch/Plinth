@@ -23,9 +23,7 @@ export const Route = createFileRoute('/login')({
  * - Code: enter email and receive a code; an account is created if none exists
  * - Password: after sign-up the email is verified with a code; forgotten passwords are reset with a code too
  */
-type Step =
-  | { tab: 'code'; at: 'email' | 'code' }
-  | { tab: 'password'; at: 'sign-in' | 'sign-up' | 'verify' | 'forgot' | 'reset' };
+type Step = { tab: 'code'; at: 'email' | 'code' } | { tab: 'password'; at: 'sign-in' | 'sign-up' | 'verify' | 'forgot' | 'reset' };
 
 const MESSAGE: Record<string, () => string> = {
   INVALID_EMAIL_OR_PASSWORD: m.login_error_invalid_credentials,
@@ -55,7 +53,8 @@ function Login() {
   };
 
   /** Run a step: show spinner, clear error, show the reason on failure */
-  const run = (label: string, fn: () => Promise<{ error?: { code?: string; message?: string; status?: number } | null } | void>, fallback: string) =>
+  const run =
+    (label: string, fn: () => Promise<{ error?: { code?: string; message?: string; status?: number } | null } | void>, fallback: string) =>
     async (e: React.FormEvent) => {
       e.preventDefault();
       setBusy(label);
@@ -74,59 +73,88 @@ function Login() {
   };
 
   // Code sign-in
-  const sendCode = run(m.login_busy_sending(), async () => {
-    const r = await authClient.emailOtp.sendVerificationOtp({ email, type: 'sign-in' });
-    if (!r.error) go({ tab: 'code', at: 'code' });
-    return r;
-  }, m.login_send_failed());
-  const signInCode = run(m.login_busy_signing_in(), async () => {
-    const r = await authClient.signIn.emailOtp({ email, otp: code.trim() });
-    if (!r.error) await done();
-    return r;
-  }, m.login_sign_in_failed());
+  const sendCode = run(
+    m.login_busy_sending(),
+    async () => {
+      const r = await authClient.emailOtp.sendVerificationOtp({ email, type: 'sign-in' });
+      if (!r.error) go({ tab: 'code', at: 'code' });
+      return r;
+    },
+    m.login_send_failed(),
+  );
+  const signInCode = run(
+    m.login_busy_signing_in(),
+    async () => {
+      const r = await authClient.signIn.emailOtp({ email, otp: code.trim() });
+      if (!r.error) await done();
+      return r;
+    },
+    m.login_sign_in_failed(),
+  );
 
   // Password sign-in: slow hashing runs on device and takes a few hundred ms
-  const signIn = run(m.login_busy_hashing(), async () => {
-    const r = await authClient.signIn.email({ email, password: await derivePassword(email, password) });
-    if (r.error?.code === 'EMAIL_NOT_VERIFIED') {
-      go({ tab: 'password', at: 'verify' });
-      return;
-    }
-    if (!r.error) await done();
-    return r;
-  }, m.login_sign_in_failed());
-  const signUp = run(m.login_busy_hashing(), async () => {
-    const r = await authClient.signUp.email({ email, password: await derivePassword(email, password), name: email.split('@')[0] });
-    if (r.error) return r;
-    // Without a mail service there is no verification step: sign-up returns a session right away
-    if (r.data?.token) await done();
-    else go({ tab: 'password', at: 'verify' });
-    return r;
-  }, m.login_sign_up_failed());
-  const verify = run(m.login_busy_verifying(), async () => {
-    const r = await authClient.emailOtp.verifyEmail({ email, otp: code.trim() });
-    if (!r.error) await done();
-    return r;
-  }, m.login_verify_failed());
-  const forgot = run(m.login_busy_sending(), async () => {
-    const r = await authClient.emailOtp.requestPasswordReset({ email });
-    if (!r.error) go({ tab: 'password', at: 'reset' });
-    return r;
-  }, m.login_send_failed());
-  const reset = run(m.login_busy_hashing(), async () => {
-    const derived = await derivePassword(email, password);
-    const r = await authClient.emailOtp.resetPassword({ email, otp: code.trim(), password: derived });
-    if (r.error) return r;
-    const s = await authClient.signIn.email({ email, password: derived });
-    if (!s.error) await done();
-    return s;
-  }, m.login_reset_failed());
+  const signIn = run(
+    m.login_busy_hashing(),
+    async () => {
+      const r = await authClient.signIn.email({ email, password: await derivePassword(email, password) });
+      if (r.error?.code === 'EMAIL_NOT_VERIFIED') {
+        go({ tab: 'password', at: 'verify' });
+        return;
+      }
+      if (!r.error) await done();
+      return r;
+    },
+    m.login_sign_in_failed(),
+  );
+  const signUp = run(
+    m.login_busy_hashing(),
+    async () => {
+      const r = await authClient.signUp.email({ email, password: await derivePassword(email, password), name: email.split('@')[0] });
+      if (r.error) return r;
+      // Without a mail service there is no verification step: sign-up returns a session right away
+      if (r.data?.token) await done();
+      else go({ tab: 'password', at: 'verify' });
+      return r;
+    },
+    m.login_sign_up_failed(),
+  );
+  const verify = run(
+    m.login_busy_verifying(),
+    async () => {
+      const r = await authClient.emailOtp.verifyEmail({ email, otp: code.trim() });
+      if (!r.error) await done();
+      return r;
+    },
+    m.login_verify_failed(),
+  );
+  const forgot = run(
+    m.login_busy_sending(),
+    async () => {
+      const r = await authClient.emailOtp.requestPasswordReset({ email });
+      if (!r.error) go({ tab: 'password', at: 'reset' });
+      return r;
+    },
+    m.login_send_failed(),
+  );
+  const reset = run(
+    m.login_busy_hashing(),
+    async () => {
+      const derived = await derivePassword(email, password);
+      const r = await authClient.emailOtp.resetPassword({ email, otp: code.trim(), password: derived });
+      if (r.error) return r;
+      const s = await authClient.signIn.email({ email, password: derived });
+      if (!s.error) await done();
+      return s;
+    },
+    m.login_reset_failed(),
+  );
 
   const google = () => authClient.signIn.social({ provider: 'google', callbackURL: redirect?.startsWith('/') ? redirect : '/projects' });
 
   const submit = (label: string, disabled: boolean) => (
     <Button type="submit" className="w-full" disabled={!!busy || disabled}>
-      {busy && <LoaderIcon className="animate-spin" />}{busy ?? label}
+      {busy && <LoaderIcon className="animate-spin" />}
+      {busy ?? label}
     </Button>
   );
   const emailField = (
@@ -138,20 +166,41 @@ function Login() {
   const passwordField = (label: string, isNew: boolean) => (
     <Field>
       <FieldLabel htmlFor="password">{label}</FieldLabel>
-      <Input id="password" type="password" autoComplete={isNew ? 'new-password' : 'current-password'} required minLength={isNew ? MIN_PASSWORD : undefined}
-        value={password} onChange={e => setPassword(e.target.value)} />
+      <Input
+        id="password"
+        type="password"
+        autoComplete={isNew ? 'new-password' : 'current-password'}
+        required
+        minLength={isNew ? MIN_PASSWORD : undefined}
+        value={password}
+        onChange={e => setPassword(e.target.value)}
+      />
       {isNew && <FieldDescription>{m.login_password_hint({ min: MIN_PASSWORD })}</FieldDescription>}
     </Field>
   );
   const codeField = (hint: React.ReactNode) => (
     <Field>
       <FieldLabel htmlFor="code">{m.login_code()}</FieldLabel>
-      <Input id="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} required autoFocus value={code}
-        onChange={e => setCode(e.target.value)} className="font-mono tracking-widest" />
+      <Input
+        id="code"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        pattern="[0-9]*"
+        maxLength={6}
+        required
+        autoFocus
+        value={code}
+        onChange={e => setCode(e.target.value)}
+        className="font-mono tracking-widest"
+      />
       <FieldDescription>{hint}</FieldDescription>
     </Field>
   );
-  const link = (label: string, s: Step) => <Button type="button" variant="link" className="h-auto p-0" onClick={() => go(s)}>{label}</Button>;
+  const link = (label: string, s: Step) => (
+    <Button type="button" variant="link" className="h-auto p-0" onClick={() => go(s)}>
+      {label}
+    </Button>
+  );
   const pw = step.tab === 'password' ? step.at : null;
   // Production without a mail service: codes can't be delivered, so only email + password (without
   // verification or password reset) and Google are offered
@@ -178,11 +227,19 @@ function Login() {
 
           <TabsContent value="code" className="pt-4">
             {step.tab === 'code' && step.at === 'email' && (
-              <form onSubmit={sendCode} className="space-y-4">{emailField}{submit(m.login_send_code(), !email)}</form>
+              <form onSubmit={sendCode} className="space-y-4">
+                {emailField}
+                {submit(m.login_send_code(), !email)}
+              </form>
             )}
             {step.tab === 'code' && step.at === 'code' && (
               <form onSubmit={signInCode} className="space-y-4">
-                {codeField(<>{m.login_code_sent({ email })}{link(m.login_change_email(), { tab: 'code', at: 'email' })}</>)}
+                {codeField(
+                  <>
+                    {m.login_code_sent({ email })}
+                    {link(m.login_change_email(), { tab: 'code', at: 'email' })}
+                  </>,
+                )}
                 {submit(m.login_submit(), code.length < 6)}
               </form>
             )}
@@ -191,29 +248,42 @@ function Login() {
           <TabsContent value="password" className="pt-4">
             {pw === 'sign-in' && (
               <form onSubmit={signIn} className="space-y-4">
-                {emailField}{passwordField(m.login_password(), false)}
+                {emailField}
+                {passwordField(m.login_password(), false)}
                 {submit(m.login_submit(), !email || !password)}
                 <p className="flex justify-between text-sm text-muted-foreground">
-                  {link(m.login_sign_up_link(), { tab: 'password', at: 'sign-up' })}{!mailOff && link(m.login_forgot_link(), { tab: 'password', at: 'forgot' })}
+                  {link(m.login_sign_up_link(), { tab: 'password', at: 'sign-up' })}
+                  {!mailOff && link(m.login_forgot_link(), { tab: 'password', at: 'forgot' })}
                 </p>
               </form>
             )}
             {pw === 'sign-up' && (
               <form onSubmit={signUp} className="space-y-4">
-                {emailField}{passwordField(m.login_set_password(), true)}
+                {emailField}
+                {passwordField(m.login_set_password(), true)}
                 {submit(m.login_sign_up(), !email || password.length < MIN_PASSWORD)}
-                <p className="text-sm text-muted-foreground">{m.login_have_account()}{link(m.login_go_sign_in(), { tab: 'password', at: 'sign-in' })}</p>
+                <p className="text-sm text-muted-foreground">
+                  {m.login_have_account()}
+                  {link(m.login_go_sign_in(), { tab: 'password', at: 'sign-in' })}
+                </p>
               </form>
             )}
             {pw === 'verify' && (
               <form onSubmit={verify} className="space-y-4">
-                {codeField(<>{m.login_verify_hint_before({ email })}{link(m.login_verify_hint_link(), { tab: 'password', at: 'sign-in' })}{m.login_verify_hint_after()}</>)}
+                {codeField(
+                  <>
+                    {m.login_verify_hint_before({ email })}
+                    {link(m.login_verify_hint_link(), { tab: 'password', at: 'sign-in' })}
+                    {m.login_verify_hint_after()}
+                  </>,
+                )}
                 {submit(m.login_verify_and_sign_in(), code.length < 6)}
               </form>
             )}
             {pw === 'forgot' && (
               <form onSubmit={forgot} className="space-y-4">
-                {emailField}{submit(m.login_send_code(), !email)}
+                {emailField}
+                {submit(m.login_send_code(), !email)}
                 <p className="text-sm text-muted-foreground">{link(m.login_back_to_sign_in(), { tab: 'password', at: 'sign-in' })}</p>
               </form>
             )}
@@ -226,11 +296,21 @@ function Login() {
             )}
           </TabsContent>
         </Tabs>
-        {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+        {error && (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
         {me.data?.googleEnabled && (
           <>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground"><Separator className="flex-1" />{m.login_or()}<Separator className="flex-1" /></div>
-            <Button variant="outline" className="w-full" onClick={google}>{m.login_google()}</Button>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <Separator className="flex-1" />
+              {m.login_or()}
+              <Separator className="flex-1" />
+            </div>
+            <Button variant="outline" className="w-full" onClick={google}>
+              {m.login_google()}
+            </Button>
           </>
         )}
       </div>

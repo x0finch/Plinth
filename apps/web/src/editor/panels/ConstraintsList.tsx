@@ -27,12 +27,31 @@ export function ConstraintsList() {
             const st = status.get(c.id);
             return (
               <Item key={c.id} size="xs" variant="outline">
-                {!st?.ok && <ItemMedia variant="icon"><TriangleAlertIcon className="text-chart-1" /></ItemMedia>}
+                {!st?.ok && (
+                  <ItemMedia variant="icon">
+                    <TriangleAlertIcon className="text-chart-1" />
+                  </ItemMedia>
+                )}
                 <ItemContent className="cursor-pointer" onClick={() => focus(c.targets)}>
                   <ItemTitle>{c.note ?? st?.message ?? constraintLabel(c.type)}</ItemTitle>
-                  <ItemDescription>{constraintLabel(c.type)}{c.hard ? m.panels_constraint_hard() : ''}{st?.ok ? '' : m.panels_constraint_unmet()}</ItemDescription>
+                  <ItemDescription>
+                    {constraintLabel(c.type)}
+                    {c.hard ? m.panels_constraint_hard() : ''}
+                    {st?.ok ? '' : m.panels_constraint_unmet()}
+                  </ItemDescription>
                 </ItemContent>
-                {canEdit && <ItemActions><Button size="icon-xs" variant="ghost" aria-label={m.panels_constraint_remove()} onClick={() => call('constraint_remove', { constraint: c.id })}><Trash2Icon /></Button></ItemActions>}
+                {canEdit && (
+                  <ItemActions>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label={m.panels_constraint_remove()}
+                      onClick={() => call('constraint_remove', { constraint: c.id })}
+                    >
+                      <Trash2Icon />
+                    </Button>
+                  </ItemActions>
+                )}
               </Item>
             );
           })}

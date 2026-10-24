@@ -36,5 +36,12 @@
     // The method is a variable; GET requests are sent without a body
     "unicorn/no-invalid-fetch-options": "off"
   },
-  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "apps/web/src/paraglide/**", "apps/web/src/routeTree.gen.ts", "apps/web/worker-configuration.d.ts", "legacy/**"]
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "apps/web/src/paraglide/**",
+    "apps/web/src/routeTree.gen.ts",
+    "apps/web/worker-configuration.d.ts",
+    "legacy/**"
+  ]
 }

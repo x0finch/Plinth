@@ -26,19 +26,41 @@ export const toPolygon = (input: { rect?: number[]; polygon?: Point[] }): Polygo
   throw new TxError('invalid-input', text('err_shape_required', 'Needs rect or polygon'));
 };
 
-export function addWall(p: Project, level: Id, start: Point, end: Point, o: { thickness?: number; kind?: Wall['kind']; height?: number; name?: string } = {}): Wall {
-  if (Math.hypot(end[0] - start[0], end[1] - start[1]) < MIN_WALL_LENGTH) throw new TxError('invalid-input', text('err_wall_too_short', 'Wall too short (under 50 mm)'));
+export function addWall(
+  p: Project,
+  level: Id,
+  start: Point,
+  end: Point,
+  o: { thickness?: number; kind?: Wall['kind']; height?: number; name?: string } = {},
+): Wall {
+  if (Math.hypot(end[0] - start[0], end[1] - start[1]) < MIN_WALL_LENGTH)
+    throw new TxError('invalid-input', text('err_wall_too_short', 'Wall too short (under 50 mm)'));
   const w: Wall = {
-    id: nextId(p, `${level}-w`), name: '', level, start: round(start), end: round(end),
+    id: nextId(p, `${level}-w`),
+    name: '',
+    level,
+    start: round(start),
+    end: round(end),
     thickness: o.thickness ?? (o.kind === 'bearing' ? 240 : o.kind === 'railing' ? 60 : 120),
-    kind: o.kind ?? 'partition', openings: [], ...(o.height ? { height: o.height } : {}),
+    kind: o.kind ?? 'partition',
+    openings: [],
+    ...(o.height ? { height: o.height } : {}),
   };
   p.walls.push(w);
-  w.name = uniqueName(p.walls.filter(x => x.level === level && x !== w).map(x => x.name), o.name ?? autoWallName(p, w), p.language);
+  w.name = uniqueName(
+    p.walls.filter(x => x.level === level && x !== w).map(x => x.name),
+    o.name ?? autoWallName(p, w),
+    p.language,
+  );
   return w;
 }
 
-export function addOpening(p: Project, w: Wall, kind: Opening['kind'], o: { at?: number; width?: number; height?: number; sill?: number; swing?: Opening['swing']; glassBlock?: boolean; name?: string }): Opening {
+export function addOpening(
+  p: Project,
+  w: Wall,
+  kind: Opening['kind'],
+  o: { at?: number; width?: number; height?: number; sill?: number; swing?: Opening['swing']; glassBlock?: boolean; name?: string },
+): Opening {
   const d = OPENING_DEFAULTS[kind];
   const width = o.width ?? d.width;
   const at = Math.round(o.at ?? wallLength(w) / 2);
@@ -46,8 +68,13 @@ export function addOpening(p: Project, w: Wall, kind: Opening['kind'], o: { at?:
   const word = o.glassBlock ? vocab.glassBlock(vocab.opening[kind]) : vocab.opening[kind];
   const taken = w.openings.map(x => x.name);
   const op: Opening = {
-    id: nextId(p, `${w.id}-o`), name: o.name ?? uniqueName(taken, `${w.name}${NAME_SEPARATOR}${word}`, p.language), kind, at, width,
-    height: o.height ?? d.height, sill: o.sill ?? d.sill,
+    id: nextId(p, `${w.id}-o`),
+    name: o.name ?? uniqueName(taken, `${w.name}${NAME_SEPARATOR}${word}`, p.language),
+    kind,
+    at,
+    width,
+    height: o.height ?? d.height,
+    sill: o.sill ?? d.sill,
     ...(kind === 'door' ? { swing: o.swing ?? { hinge: 'start', side: 'right' } } : {}),
     ...(o.glassBlock ? { glazing: 'glass-block' as const } : {}),
   };
@@ -66,7 +93,8 @@ export function wallsAround(p: Project, level: Id, poly: Polygon, thickness: num
   const out: Wall[] = [];
   const ring = poly.outer;
   for (let i = 0; i < ring.length; i++) {
-    const a = ring[i], b = ring[(i + 1) % ring.length];
+    const a = ring[i],
+      b = ring[(i + 1) % ring.length];
     const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (L < MIN_WALL_LENGTH) continue;
     const dir: Point = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
@@ -78,7 +106,8 @@ export function wallsAround(p: Project, level: Id, poly: Polygon, thickness: num
       if (Math.abs(cross(wd, dir)) > PARALLEL_EPS) continue;
       const off = Math.abs(cross(sub(w.start, a), dir));
       if (off > TOL) continue;
-      const t1 = dot(sub(w.start, a), dir), t2 = dot(sub(w.end, a), dir);
+      const t1 = dot(sub(w.start, a), dir),
+        t2 = dot(sub(w.end, a), dir);
       covered.push([Math.max(0, Math.min(t1, t2)), Math.min(L, Math.max(t1, t2))]);
     }
     covered.sort((x, y) => x[0] - y[0]);
@@ -89,7 +118,8 @@ export function wallsAround(p: Project, level: Id, poly: Polygon, thickness: num
       t = Math.max(t, hi);
     }
     if (t < L - TOL) gaps.push([t, L]);
-    for (const [lo, hi] of gaps) if (hi - lo >= MIN_WALL_LENGTH) out.push(addWall(p, level, add(a, scale(dir, lo)), add(a, scale(dir, hi)), { thickness, kind }));
+    for (const [lo, hi] of gaps)
+      if (hi - lo >= MIN_WALL_LENGTH) out.push(addWall(p, level, add(a, scale(dir, lo)), add(a, scale(dir, hi)), { thickness, kind }));
   }
   return out;
 }
@@ -97,22 +127,37 @@ export function wallsAround(p: Project, level: Id, poly: Polygon, thickness: num
 /** Register a floor material that neither the design nor the default library has (plain grey, named after its key) */
 export function ensureMaterial(p: Project, floor: string) {
   if (!materialOf(floor, null, p.library.materials)) {
-    p.library.materials[floor] = { name: { [p.language]: floor }, pbrMetallicRoughness: { baseColorFactor: [0.8, 0.8, 0.8, 1], metallicFactor: 0, roughnessFactor: 0.9 } };
+    p.library.materials[floor] = {
+      name: { [p.language]: floor },
+      pbrMetallicRoughness: { baseColorFactor: [0.8, 0.8, 0.8, 1], metallicFactor: 0, roughnessFactor: 0.9 },
+    };
   }
 }
 
 /** Rename a wall, made unique on its level; openings named after the wall (“wall·Door”) follow */
 export function setWallName(p: Project, w: Wall, name: string) {
   const old = w.name;
-  w.name = uniqueName(p.walls.filter(x => x.level === w.level && x !== w).map(x => x.name), name, p.language);
+  w.name = uniqueName(
+    p.walls.filter(x => x.level === w.level && x !== w).map(x => x.name),
+    name,
+    p.language,
+  );
   for (const o of w.openings) if (o.name.startsWith(`${old}${NAME_SEPARATOR}`)) o.name = w.name + o.name.slice(old.length);
 }
 
 export function addSpace(p: Project, level: Id, name: string, shape: Polygon[], kind: Space['kind'], floor: string): Space {
   ensureMaterial(p, floor);
   const s: Space = {
-    id: nextId(p, `${level}-s`), name: uniqueName(p.spaces.filter(x => x.level === level).map(x => x.name), name, p.language),
-    level, kind, shape: union(shape), floor,
+    id: nextId(p, `${level}-s`),
+    name: uniqueName(
+      p.spaces.filter(x => x.level === level).map(x => x.name),
+      name,
+      p.language,
+    ),
+    level,
+    kind,
+    shape: union(shape),
+    floor,
   };
   p.spaces.push(s);
   return s;

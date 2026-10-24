@@ -29,7 +29,8 @@ export function lightDocument(): Promise<Document> {
     f.style.cssText = 'position:fixed;width:0;height:0;border:0;visibility:hidden';
     f.srcdoc = "<!doctype html><html><head><meta charset='utf-8'></head><body></body></html>";
     f.onload = () => {
-      const doc = f.contentDocument!, style = doc.createElement('style');
+      const doc = f.contentDocument!,
+        style = doc.createElement('style');
       style.textContent = css;
       doc.head.appendChild(style);
       resolve(doc);
@@ -75,8 +76,14 @@ export function CanvasFrame({ children, className }: { children: ReactNode; clas
   // Same-origin and script-free by design: React renders into it from this document, which a sandbox would block
   return (
     // oxlint-disable-next-line react/iframe-missing-sandbox
-    <iframe ref={ref} title={m.editor_canvas()} data-canvas="" srcDoc="<!doctype html><html><head><meta charset='utf-8'></head><body></body></html>"
-      onLoad={mount} className={className}>
+    <iframe
+      ref={ref}
+      title={m.editor_canvas()}
+      data-canvas=""
+      srcDoc="<!doctype html><html><head><meta charset='utf-8'></head><body></body></html>"
+      onLoad={mount}
+      className={className}
+    >
       {doc && createPortal(<CanvasDoc.Provider value={doc}>{children}</CanvasDoc.Provider>, doc.body)}
     </iframe>
   );

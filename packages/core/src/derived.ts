@@ -30,8 +30,14 @@ export function derived(p: Project): Derived {
   const s = slot as Record<keyof Derived, unknown>;
   const get = <K extends keyof Derived>(k: K): Derived[K] => (k in s ? s[k] : (s[k] = COMPUTE[k](p))) as Derived[K];
   return {
-    get rules() { return get('rules'); },
-    get areas() { return get('areas'); },
-    get constraints() { return get('constraints'); },
+    get rules() {
+      return get('rules');
+    },
+    get areas() {
+      return get('areas');
+    },
+    get constraints() {
+      return get('constraints');
+    },
   };
 }

@@ -22,12 +22,14 @@ else dirs.forEach(walk);
 
 let n = 0;
 for (const f of files) {
-  readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
-    if (cjk.test(line) && !line.includes('i18n-ok')) {
-      console.log(`${relative(root, f)}:${i + 1}  ${line.trim().slice(0, 100)}`);
-      n++;
-    }
-  });
+  readFileSync(f, 'utf8')
+    .split('\n')
+    .forEach((line, i) => {
+      if (cjk.test(line) && !line.includes('i18n-ok')) {
+        console.log(`${relative(root, f)}:${i + 1}  ${line.trim().slice(0, 100)}`);
+        n++;
+      }
+    });
 }
 if (n) {
   console.log(`\n${n} lines hard-code Chinese text. Move it to messages/parts/*.json and use m.key().`);

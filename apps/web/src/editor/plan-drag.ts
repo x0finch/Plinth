@@ -7,8 +7,18 @@
  * door or window to the middle of its wall, furniture against a wall face. Otherwise to a 50 mm step.
  */
 import {
-  directionOf, dot, findObject, furnitureFootprint, parallel, pointAt, wallDir, wallLength, wallNormal,
-  type Point, type Project, type Wall,
+  directionOf,
+  dot,
+  findObject,
+  furnitureFootprint,
+  parallel,
+  pointAt,
+  wallDir,
+  wallLength,
+  wallNormal,
+  type Point,
+  type Project,
+  type Wall,
 } from '@plinth/core';
 
 export interface DragResult {
@@ -51,7 +61,8 @@ function nearLevels(p: Project, level: string) {
 }
 
 function dragWall(p: Project, w: Wall, delta: Point, tol: number): DragResult | null {
-  const n = wallNormal(w), d = wallDir(w);
+  const n = wallNormal(w),
+    d = wallDir(w);
   const c0 = dot(w.start, n);
   const want = c0 + dot(delta, n);
   // The nearest line of a parallel wall, if close enough
@@ -71,7 +82,8 @@ function dragWall(p: Project, w: Wall, delta: Point, tol: number): DragResult | 
   if (best) {
     // Along the shared line, spanning both walls
     const along = [w.start, w.end, best.o.start, best.o.end].map(q => dot(q, d));
-    const a = Math.min(...along), b = Math.max(...along);
+    const a = Math.min(...along),
+      b = Math.max(...along);
     const at = (s: number): Point => [d[0] * s + n[0] * best!.c, d[1] * s + n[1] * best!.c];
     guides.push([at(a), at(b)]);
   }
@@ -85,10 +97,24 @@ function dragOpening(w: Wall, id: string, delta: Point, tol: number): DragResult
   const centred = Math.abs(want - L / 2) < tol;
   const at = Math.min(L - o.width / 2, Math.max(o.width / 2, centred ? L / 2 : snapStep(want)));
   if (Math.abs(at - o.at) < 1) return null;
-  const n = wallNormal(w), mid = pointAt(w, L / 2), h = w.thickness;
-  const guides: [Point, Point][] = centred ? [[[mid[0] - n[0] * h, mid[1] - n[1] * h], [mid[0] + n[0] * h, mid[1] + n[1] * h]]] : [];
+  const n = wallNormal(w),
+    mid = pointAt(w, L / 2),
+    h = w.thickness;
+  const guides: [Point, Point][] = centred
+    ? [
+        [
+          [mid[0] - n[0] * h, mid[1] - n[1] * h],
+          [mid[0] + n[0] * h, mid[1] + n[1] * h],
+        ],
+      ]
+    : [];
   // Clear distances from the wall ends to the opening's edges
-  return { name: 'opening_update', input: { opening: id, at: Math.round(at) }, guides, readout: `${metres(at - o.width / 2)} · ${metres(L - at - o.width / 2)}` };
+  return {
+    name: 'opening_update',
+    input: { opening: id, at: Math.round(at) },
+    guides,
+    readout: `${metres(at - o.width / 2)} · ${metres(L - at - o.width / 2)}`,
+  };
 }
 
 function dragFurniture(p: Project, f: Project['furniture'][number], delta: Point, tol: number): DragResult | null {
@@ -102,13 +128,16 @@ function dragFurniture(p: Project, f: Project['furniture'][number], delta: Point
   const [x0, y0, x1, y1] = box(pos);
   // Against a wall face: for each axis, the nearest face of an axis-aligned wall beside the furniture
   for (const w of p.walls.filter(x => x.level === f.level && (x.kind === 'bearing' || x.kind === 'partition'))) {
-    const vertical = Math.abs(w.start[0] - w.end[0]) < 1, horizontal = Math.abs(w.start[1] - w.end[1]) < 1;
+    const vertical = Math.abs(w.start[0] - w.end[0]) < 1,
+      horizontal = Math.abs(w.start[1] - w.end[1]) < 1;
     if (!vertical && !horizontal) continue;
     const ax = vertical ? 0 : 1;
     if (snapped[ax]) continue;
-    const c = w.start[ax], half = w.thickness / 2;
+    const c = w.start[ax],
+      half = w.thickness / 2;
     // The wall must run alongside the furniture
-    const lo = Math.min(w.start[1 - ax], w.end[1 - ax]), hi = Math.max(w.start[1 - ax], w.end[1 - ax]);
+    const lo = Math.min(w.start[1 - ax], w.end[1 - ax]),
+      hi = Math.max(w.start[1 - ax], w.end[1 - ax]);
     const [a0, a1] = ax === 0 ? [y0, y1] : [x0, x1];
     if (a1 < lo || a0 > hi) continue;
     const [s0, s1] = ax === 0 ? [x0, x1] : [y0, y1];
@@ -117,7 +146,17 @@ function dragFurniture(p: Project, f: Project['furniture'][number], delta: Point
     pos = ax === 0 ? [pos[0] + shift, pos[1]] : [pos[0], pos[1] + shift];
     snapped[ax] = true;
     const face = Math.abs(c + half - s0) < Math.abs(c - half - s1) ? c + half : c - half;
-    guides.push(ax === 0 ? [[face, lo], [face, hi]] : [[lo, face], [hi, face]]);
+    guides.push(
+      ax === 0
+        ? [
+            [face, lo],
+            [face, hi],
+          ]
+        : [
+            [lo, face],
+            [hi, face],
+          ],
+    );
   }
   pos = [snapped[0] ? pos[0] : f.position[0] + snapStep(pos[0] - f.position[0]), snapped[1] ? pos[1] : f.position[1] + snapStep(pos[1] - f.position[1])];
   if (Math.abs(pos[0] - f.position[0]) < 1 && Math.abs(pos[1] - f.position[1]) < 1) return null;

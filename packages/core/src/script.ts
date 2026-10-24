@@ -16,7 +16,20 @@ import jsonata from 'jsonata';
 import { z } from 'zod';
 import { hashRandom } from './expr.js';
 import { materialSchema, type Material, type Names } from './material.js';
-import { buildParts, inspectParts, recipePartSchema, planSymbol, RecipeError, RECIPE_LIMITS, type BuiltPart, type BuiltPlanItem, type PlanSymbol, type RecipeInspection, type RecipePart, type RecipeSize } from './recipe.js';
+import {
+  buildParts,
+  inspectParts,
+  recipePartSchema,
+  planSymbol,
+  RecipeError,
+  RECIPE_LIMITS,
+  type BuiltPart,
+  type BuiltPlanItem,
+  type PlanSymbol,
+  type RecipeInspection,
+  type RecipePart,
+  type RecipeSize,
+} from './recipe.js';
 
 /** A parameter value: any JSON scalar */
 export type ParamValue = string | number | boolean | null;
@@ -55,25 +68,28 @@ export interface Recipe {
 const paramValue = z.union([z.string().max(200), z.number(), z.boolean(), z.null()]);
 const paramName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/);
 const names = z.object({ zh: z.string().max(200).optional(), en: z.string().max(200).optional() });
-export const paramDeclSchema: z.ZodType<ParamDecl> = z.object({
-  type: z.union([z.enum(PARAM_TYPES), z.array(z.enum(PARAM_TYPES)).min(1).max(5)]),
-  default: paramValue,
-  format: z.literal('material').optional(),
-  enum: z.array(paramValue).min(1).max(50).optional(),
-  enumTitles: z.array(names).max(50).optional(),
-  minimum: z.number().optional(),
-  maximum: z.number().optional(),
-  title: names.optional(),
-  description: z.string().max(500).optional(),
-}).superRefine((d, ctx) => {
-  const problem = checkDecl(d);
-  if (problem) ctx.addIssue({ code: 'custom', message: problem });
-});
+export const paramDeclSchema: z.ZodType<ParamDecl> = z
+  .object({
+    type: z.union([z.enum(PARAM_TYPES), z.array(z.enum(PARAM_TYPES)).min(1).max(5)]),
+    default: paramValue,
+    format: z.literal('material').optional(),
+    enum: z.array(paramValue).min(1).max(50).optional(),
+    enumTitles: z.array(names).max(50).optional(),
+    minimum: z.number().optional(),
+    maximum: z.number().optional(),
+    title: names.optional(),
+    description: z.string().max(500).optional(),
+  })
+  .superRefine((d, ctx) => {
+    const problem = checkDecl(d);
+    if (problem) ctx.addIssue({ code: 'custom', message: problem });
+  });
 
 /** The types a declaration allows */
 export const paramTypes = (d: Pick<ParamDecl, 'type'>): ParamType[] => (Array.isArray(d.type) ? d.type : [d.type]);
 
-const typeOf = (v: ParamValue): ParamType => (v === null ? 'null' : typeof v === 'number' ? (Number.isInteger(v) ? 'integer' : 'number') : (typeof v as ParamType));
+const typeOf = (v: ParamValue): ParamType =>
+  v === null ? 'null' : typeof v === 'number' ? (Number.isInteger(v) ? 'integer' : 'number') : (typeof v as ParamType);
 const fits = (types: ParamType[], v: ParamValue) => types.includes(typeOf(v)) || (typeOf(v) === 'integer' && types.includes('number'));
 
 /** Why a declaration doesn't hold together (its default, enum and titles), or null */
@@ -100,7 +116,15 @@ export const recipeSchema: z.ZodType<Recipe> = z.object({
   params: z.record(paramName, paramDeclSchema).optional(),
   seed: z.number().int().optional(),
   script: z.string().min(1).max(30000),
-  materials: z.record(z.string().regex(/^[A-Za-z][A-Za-z0-9_-]*$/).max(64), materialSchema).optional(),
+  materials: z
+    .record(
+      z
+        .string()
+        .regex(/^[A-Za-z][A-Za-z0-9_-]*$/)
+        .max(64),
+      materialSchema,
+    )
+    .optional(),
 });
 
 export const SCRIPT_LIMITS = { stack: 300, timeout: 500, sequence: 20000, parts: RECIPE_LIMITS.parts };
@@ -139,16 +163,24 @@ function helpers(seed: number) {
     /** A vertical panel from [x, z] to [x, z], from height y up h, t thick */
     panel: (from: [number, number], to: [number, number], y: number, h: number, t: number, mat: string) => clean({ kind: 'panel', mat, from, to, y, h, t }),
     /** A profile extruded: plane 'side' (x, y across z) or 'plan' (x, z upwards); items [x, y], {arc: [cx, cy, r, a0, a1, clockwise]}, {curve: [cx, cy, x, y]} */
-    extrude: (plane: string, profile: unknown[], depth: number, mat: string, bevel?: number, at?: V3) => clean({ kind: 'extrude', mat, plane, profile, depth, bevel: opt(bevel), at: opt(at) }),
+    extrude: (plane: string, profile: unknown[], depth: number, mat: string, bevel?: number, at?: V3) =>
+      clean({ kind: 'extrude', mat, plane, profile, depth, bevel: opt(bevel), at: opt(at) }),
     /** An element's own geometry (stairs, ponds, drains) in these materials */
     base: (mats: Record<string, string>) => ({ kind: 'base', mats }) as RecipePart,
     /** Leave parts out of the plan symbol */
     noplan: (p: RecipePart | RecipePart[]) => (Array.isArray(p) ? p.map(x => ({ ...x, plan: false })) : { ...p, plan: false }),
     /** Four legs set in from the corners of w × d, h tall; round legs (radius r) taper slightly to the floor, square ones are 2r wide */
     fourLegs: (w: number, d: number, inset: number, h: number, r: number, mat: string, square?: boolean) =>
-      [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => {
+      [
+        [-1, -1],
+        [1, -1],
+        [-1, 1],
+        [1, 1],
+      ].map(([sx, sz]) => {
         const at: V3 = [sx * (w / 2 - inset), h / 2, sz * (d / 2 - inset)];
-        return square ? clean({ kind: 'box', mat, size: [2 * r, h, 2 * r], at, r: r * 0.3 }) : clean({ kind: 'cylinder', mat, r: r * 0.8, r2: r, h, at, seg: 12 });
+        return square
+          ? clean({ kind: 'box', mat, size: [2 * r, h, 2 * r], at, r: r * 0.3 })
+          : clean({ kind: 'cylinder', mat, r: r * 0.8, r2: r, h, at, seg: 12 });
       }),
     sin: (a: number) => Math.sin(a * DEG),
     cos: (a: number) => Math.cos(a * DEG),
@@ -174,7 +206,8 @@ const compiled = new Map<string, ReturnType<typeof jsonata>>();
  * them as empty, which makes confusing errors later): references that aren't set, a function being called, or `known`
  */
 export function scriptVariables(ast: unknown, known: Set<string>): { unknown: string[]; assigned: Set<string> } {
-  const assigned = new Set<string>(), refs = new Set<string>();
+  const assigned = new Set<string>(),
+    refs = new Set<string>();
   const walk = (n: unknown, callee = false) => {
     if (Array.isArray(n)) return n.forEach(x => walk(x));
     if (!n || typeof n !== 'object') return;
@@ -207,8 +240,14 @@ export async function runScript(r: Recipe, size: RecipeSize, params: Record<stri
   const values: Record<string, unknown> = { ...paramDefaults(r), ...params, ...size };
   const { unknown, assigned } = scriptVariables(expr.ast(), new Set([...Object.keys(values), ...Object.keys(fns), 'pi']));
   const hidden = [...assigned].filter(v => v in values || v in fns);
-  if (hidden.length) throw new RecipeError(`script: $${hidden[0]} is set with :=, which hides the ${hidden[0] in fns ? 'helper' : hidden[0] in size ? 'size' : 'parameter'} of that name; use another name`);
-  if (unknown.length) throw new RecipeError(`script: unknown variable ${unknown.map(u => `$${u}`).join(', ')} (known: ${['w', 'd', 'h', ...Object.keys(paramDefaults(r))].map(k => `$${k}`).join(', ')}, and variables the script sets with :=)`);
+  if (hidden.length)
+    throw new RecipeError(
+      `script: $${hidden[0]} is set with :=, which hides the ${hidden[0] in fns ? 'helper' : hidden[0] in size ? 'size' : 'parameter'} of that name; use another name`,
+    );
+  if (unknown.length)
+    throw new RecipeError(
+      `script: unknown variable ${unknown.map(u => `$${u}`).join(', ')} (known: ${['w', 'd', 'h', ...Object.keys(paramDefaults(r))].map(k => `$${k}`).join(', ')}, and variables the script sets with :=)`,
+    );
   const clash = Object.keys(paramDefaults(r)).find(k => k in fns || k === 'pi' || k in size);
   if (clash) throw new RecipeError(`parameter "${clash}" has the name of a helper or a size`);
   let out: unknown;
@@ -235,7 +274,13 @@ export interface Built {
 export async function buildRecipe(r: Recipe, size: RecipeSize, params: Record<string, unknown> = {}): Promise<Built> {
   const out = await runScript(r, size, params);
   const parsed = outputSchema.safeParse({ parts: out.parts });
-  if (!parsed.success) throw new RecipeError(parsed.error.issues.slice(0, 5).map(i => `${i.path.join('.')}: ${i.message}`).join('; '));
+  if (!parsed.success)
+    throw new RecipeError(
+      parsed.error.issues
+        .slice(0, 5)
+        .map(i => `${i.path.join('.')}: ${i.message}`)
+        .join('; '),
+    );
   return { parts: buildParts(parsed.data, size), ...(out.plan ? { plan: out.plan } : {}) };
 }
 

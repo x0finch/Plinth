@@ -8,10 +8,10 @@ import { resolveLevel } from '../refs.js';
 import { addOpening, addSpace, addWall } from '../edit-helpers.js';
 import { zRef } from './inputs.js';
 
-
 export const levelAdd = defineEdit({
-  name: 'level_add', title: 'Add level',
-  description: 'Add a level above the topmost non-roof level (the roof level moves up). With copy_from, copies that level\'s walls and spaces (not furniture).',
+  name: 'level_add',
+  title: 'Add level',
+  description: "Add a level above the topmost non-roof level (the roof level moves up). With copy_from, copies that level's walls and spaces (not furniture).",
   input: z.object({ name: z.string(), height: z.number().positive().default(3000), copy_from: z.string().optional() }),
   label: i => text('log_level_add', 'Add level “{name}”', { name: i.name }),
   apply: (p, i) => {
@@ -19,7 +19,8 @@ export const levelAdd = defineEdit({
     const floors = p.levels.filter(l => !l.roof);
     const top = floors[floors.length - 1];
     const elevation = top ? top.elevation + top.height : 0;
-    let n = floors.length + 1, id = `L${n}`;
+    let n = floors.length + 1,
+      id = `L${n}`;
     while (p.levels.some(l => l.id === id)) id = `L${++n}`;
     const lv: Level = { id, name: i.name, elevation, height: i.height };
     p.levels.splice(roof ? p.levels.indexOf(roof) : p.levels.length, 0, lv);
@@ -37,7 +38,9 @@ export const levelAdd = defineEdit({
 });
 
 export const levelRemove = defineEdit({
-  name: 'level_remove', title: 'Delete level', permission: 'main',
+  name: 'level_remove',
+  title: 'Delete level',
+  permission: 'main',
   description: 'Delete a level with all its walls, spaces and furniture. Levels above move down. Affects the main design and needs owner confirmation.',
   input: z.object({ level: zRef('level') }),
   label: (i, p) => text('log_level_remove', 'Delete {level}', { level: resolveLevel(p, i.level).name }),

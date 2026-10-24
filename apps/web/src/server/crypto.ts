@@ -24,12 +24,20 @@ function masterKey() {
 
 export async function encryptSecret(plain: string, aad: string) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(aad) }, await masterKey(), new TextEncoder().encode(plain));
+  const ct = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(aad) },
+    await masterKey(),
+    new TextEncoder().encode(plain),
+  );
   return { ciphertext: b64(ct), iv: b64(iv) };
 }
 
 export async function decryptSecret(ciphertext: string, iv: string, aad: string) {
-  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv), additionalData: new TextEncoder().encode(aad) }, await masterKey(), unb64(ciphertext));
+  const pt = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: unb64(iv), additionalData: new TextEncoder().encode(aad) },
+    await masterKey(),
+    unb64(ciphertext),
+  );
   return new TextDecoder().decode(pt);
 }
 

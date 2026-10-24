@@ -6,7 +6,8 @@ import { elementGeometry, migrate, type Element, type Project } from '../src/ind
 const sample: Project = migrate(JSON.parse(readFileSync(join(import.meta.dirname, '../../../samples/wushi-10/project.json'), 'utf8')));
 const el = (id: string) => sample.elements.find(e => e.id === id)!;
 const bounds = (pts: [number, number][]) => {
-  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const xs = pts.map(p => p[0]),
+    ys = pts.map(p => p[1]);
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 };
 
@@ -27,7 +28,10 @@ describe('element geometry', () => {
     expect(x1).toBeLessThanOrEqual(rx + rw + 1e-6);
     expect(y1).toBeLessThanOrEqual(ry + rh + 1e-6);
     // Drawn on its own level, and faintly on the level it arrives at
-    expect(plans.map(p => [p.level, !!p.faint])).toEqual([['L1', false], ['L2', true]]);
+    expect(plans.map(p => [p.level, !!p.faint])).toEqual([
+      ['L1', false],
+      ['L2', true],
+    ]);
   });
 
   it('the landing is at the far end in the climbing direction, the first flight on the side away from the turn', () => {

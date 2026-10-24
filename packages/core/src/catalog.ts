@@ -14,6 +14,9 @@ export const FURNITURE_TYPES: Record<string, LookType> = DEFAULT_TYPES;
 /** Furniture catalog for a new project, named in the project's language */
 export function furnitureCatalog(lang: ProjectLanguage = 'zh'): Library['furniture'] {
   return Object.fromEntries(
-    Object.entries(FURNITURE_TYPES).map(([k, v]) => [k, { name: nameIn(v.name, lang), group: v.group ? nameIn(groupNames(DEFAULT_LIBRARY, v.group), lang) : undefined, size: { ...v.size } }]),
+    Object.entries(FURNITURE_TYPES).map(([k, v]) => [
+      k,
+      { name: nameIn(v.name, lang), group: v.group ? nameIn(groupNames(DEFAULT_LIBRARY, v.group), lang) : undefined, size: { ...v.size } },
+    ]),
   );
 }

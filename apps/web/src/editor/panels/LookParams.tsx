@@ -14,14 +14,28 @@ export function LookParams({ id }: { id: string }) {
   const run = useRun();
   const e = findObject(project, id);
   if (!e || (e.kind !== 'furniture' && e.kind !== 'opening' && e.kind !== 'element' && !(e.kind === 'wall' && e.obj.kind === 'railing'))) return null;
-  const target = e.kind === 'furniture' ? furnitureTarget(e.obj) : e.kind === 'opening' ? openingTarget(e.obj) : e.kind === 'element' ? elementTarget(e.obj) : wallTarget(e.obj);
+  const target =
+    e.kind === 'furniture'
+      ? furnitureTarget(e.obj)
+      : e.kind === 'opening'
+        ? openingTarget(e.obj)
+        : e.kind === 'element'
+          ? elementTarget(e.obj)
+          : wallTarget(e.obj);
   const recipe = lookRecipe(project, target, e.obj.look);
   if (!recipe?.params || !Object.keys(recipe.params).length) return null;
   const set = (name: string, value: ParamValue) => run('params_set', { object: id, params: { [name]: value } });
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">{m.looks_params()}</p>
-      <ParamControls params={recipe.params} values={e.obj.lookParams ?? {}} onChange={set} recipe={recipe} design={project.library.materials} readOnly={!canEdit} />
+      <ParamControls
+        params={recipe.params}
+        values={e.obj.lookParams ?? {}}
+        onChange={set}
+        recipe={recipe}
+        design={project.library.materials}
+        readOnly={!canEdit}
+      />
     </div>
   );
 }

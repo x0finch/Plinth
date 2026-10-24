@@ -26,7 +26,10 @@ function ProjectPage() {
     return (
       <div className="flex h-dvh flex-col">
         <div className="h-12 border-b" />
-        <div className="flex flex-1"><Skeleton className="m-4 flex-1" /><div className="w-[380px] border-l max-md:hidden" /></div>
+        <div className="flex flex-1">
+          <Skeleton className="m-4 flex-1" />
+          <div className="w-[380px] border-l max-md:hidden" />
+        </div>
       </div>
     );
   }
@@ -37,7 +40,15 @@ function ProjectPage() {
         <p className="text-lg font-medium">{status === 401 ? m.project_page_sign_in_first() : m.project_page_cannot_open()}</p>
         <p className="text-sm text-muted-foreground">{q.error?.message}</p>
         <div className="flex gap-2">
-          {status === 401 ? <Button nativeButton={false} render={<Link to="/login" search={{ redirect: `/p/${projectId}` }} />}>{m.project_page_sign_in()}</Button> : <Button nativeButton={false} render={<Link to="/projects" />}>{m.project_page_back_to_projects()}</Button>}
+          {status === 401 ? (
+            <Button nativeButton={false} render={<Link to="/login" search={{ redirect: `/p/${projectId}` }} />}>
+              {m.project_page_sign_in()}
+            </Button>
+          ) : (
+            <Button nativeButton={false} render={<Link to="/projects" />}>
+              {m.project_page_back_to_projects()}
+            </Button>
+          )}
         </div>
       </div>
     );

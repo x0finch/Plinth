@@ -36,8 +36,14 @@ export function VersionsPanel() {
           <AlertTitle>{m.panels_viewing_version({ version: viewing })}</AlertTitle>
           <AlertDescription>
             <div className="mt-1 flex gap-2">
-              {canEdit && <Button size="sm" onClick={() => restore(viewing)}>{m.panels_restore_this()}</Button>}
-              <Button size="sm" variant="outline" onClick={() => loadVersion(null)}>{m.panels_back_to_latest()}</Button>
+              {canEdit && (
+                <Button size="sm" onClick={() => restore(viewing)}>
+                  {m.panels_restore_this()}
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={() => loadVersion(null)}>
+                {m.panels_back_to_latest()}
+              </Button>
             </div>
           </AlertDescription>
         </Alert>
@@ -52,10 +58,15 @@ export function VersionsPanel() {
             className="cursor-pointer text-left hover:bg-muted"
             onClick={() => (v.version === version && viewing == null ? null : loadVersion(v.version === version ? null : v.version))}
           >
-            <ItemMedia variant="icon"><HistoryIcon className="text-muted-foreground" /></ItemMedia>
+            <ItemMedia variant="icon">
+              <HistoryIcon className="text-muted-foreground" />
+            </ItemMedia>
             <ItemContent className="min-w-0">
               <ItemTitle className="w-full truncate">{v.summary ?? m.panels_version_default_summary()}</ItemTitle>
-              <ItemDescription>{m.panels_version_number({ version: v.version })} · {v.author || m.panels_someone()} · {fmtTime(v.created_at)}{v.version === version ? m.panels_version_latest() : ''}</ItemDescription>
+              <ItemDescription>
+                {m.panels_version_number({ version: v.version })} · {v.author || m.panels_someone()} · {fmtTime(v.created_at)}
+                {v.version === version ? m.panels_version_latest() : ''}
+              </ItemDescription>
             </ItemContent>
           </Item>
         ))}

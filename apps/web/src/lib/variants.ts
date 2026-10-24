@@ -28,9 +28,8 @@ export function paramVariants(d: ParamDecl): { value: ParamValue; role: VariantR
 }
 
 /** Narrower, the usual and wider: the width scaled, depth and height kept */
-export const sizeVariants = (s: { w: number; d: number; h: number }) =>
-  [
-    { size: { ...s, w: Math.round(s.w * 0.7) }, role: 'narrow' as const },
-    { size: s, role: 'default' as const },
-    { size: { ...s, w: Math.round(s.w * 1.4) }, role: 'wide' as const },
-  ];
+export const sizeVariants = (s: { w: number; d: number; h: number }) => [
+  { size: { ...s, w: Math.round(s.w * 0.7) }, role: 'narrow' as const },
+  { size: s, role: 'default' as const },
+  { size: { ...s, w: Math.round(s.w * 1.4) }, role: 'wide' as const },
+];

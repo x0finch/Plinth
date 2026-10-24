@@ -22,7 +22,8 @@ export interface MaterialStyle {
 const MISSING: RGBA = [0.6, 0.6, 0.6, 1];
 
 export function materialStyle(m: Material | undefined): MaterialStyle {
-  const pbr = m?.pbrMetallicRoughness, c = pbr?.baseColorFactor ?? MISSING;
+  const pbr = m?.pbrMetallicRoughness,
+    c = pbr?.baseColorFactor ?? MISSING;
   return {
     color: cssColor(c),
     roughness: pbr?.roughnessFactor ?? 0.9,

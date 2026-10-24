@@ -18,7 +18,11 @@ export const PROVIDERS: Record<string, ProviderDef> = {
   anthropic: { name: () => 'Anthropic', models: ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5'], hint: m.server_provider_anthropic_hint },
   openai: { name: () => 'OpenAI', models: ['gpt-5.5', 'gpt-5', 'gpt-4.1'], hint: m.server_provider_openai_hint },
   gemini: { name: () => 'Google Gemini', models: ['gemini-2.5-pro', 'gemini-2.5-flash'], hint: m.server_provider_gemini_hint },
-  openrouter: { name: () => 'OpenRouter', models: ['anthropic/claude-sonnet-5.5', 'deepseek/deepseek-v4-pro', 'qwen/qwen3-max'], hint: m.server_provider_openrouter_hint },
+  openrouter: {
+    name: () => 'OpenRouter',
+    models: ['anthropic/claude-sonnet-5.5', 'deepseek/deepseek-v4-pro', 'qwen/qwen3-max'],
+    hint: m.server_provider_openrouter_hint,
+  },
   compatible: { name: m.server_provider_compatible_name, models: ['deepseek-chat', 'qwen-max'], needsBaseUrl: true, hint: m.server_provider_compatible_hint },
 };
 

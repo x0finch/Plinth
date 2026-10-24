@@ -29,17 +29,26 @@ export function hopCurve(t: number) {
   return 0.12 * Math.sin((Math.PI * (t - 0.72)) / 0.28);
 }
 
-interface Hop { id: string; at: number; weight: Weight }
+interface Hop {
+  id: string;
+  at: number;
+  weight: Weight;
+}
 
 /** Object weight, and for doors/windows their wall (in 3D they are part of the wall) */
 function describe(project: Project, id: string): { weight: Weight; wall?: string } | null {
   const e = findObject(project, id);
   switch (e?.kind) {
-    case 'wall': return { weight: e.obj.kind === 'bearing' ? 'heavy' : 'light' };
-    case 'opening': return { weight: 'light', wall: e.wall!.id };
-    case 'furniture': return { weight: 'furniture' };
-    case 'space': return { weight: 'floor' };
-    default: return null;
+    case 'wall':
+      return { weight: e.obj.kind === 'bearing' ? 'heavy' : 'light' };
+    case 'opening':
+      return { weight: 'light', wall: e.wall!.id };
+    case 'furniture':
+      return { weight: 'furniture' };
+    case 'space':
+      return { weight: 'floor' };
+    default:
+      return null;
   }
 }
 

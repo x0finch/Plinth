@@ -2,8 +2,8 @@
   "name": "@plinth/core",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "description": "Plinth core: data schema, geometry and area; no browser dependency",
+  "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },

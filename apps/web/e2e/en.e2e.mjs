@@ -29,30 +29,47 @@ check((await h1.innerText()).trim() === 'House designs you change by just talkin
 await page.getByRole('button', { name: /Try the sample design/ }).click();
 await page.waitForURL(/\/p\//);
 await page.waitForFunction(() => window.artifact?.ready);
-check(await page.evaluate(() => document.documentElement.lang) === 'en', '<html lang> is "en"');
+check((await page.evaluate(() => document.documentElement.lang)) === 'en', '<html lang> is "en"');
 const planBtn = page.getByRole('button', { name: 'Plan', exact: true });
 const threeBtn = page.getByRole('button', { name: '3D', exact: true });
 // The canvas shows the switch to the other view: "3D" in the plan, "Plan" in 3D
-check(await threeBtn.isVisible() && !(await planBtn.isVisible()), 'the plan shows a "3D" switch');
+check((await threeBtn.isVisible()) && !(await planBtn.isVisible()), 'the plan shows a "3D" switch');
 
 // 3D view, then back to the plan
 const canvas = page.frameLocator('iframe[title="Canvas"]');
 await threeBtn.click();
-const gl = await canvas.locator('canvas').first().waitFor({ timeout: 20000 }).then(() => true, () => false);
+const gl = await canvas
+  .locator('canvas')
+  .first()
+  .waitFor({ timeout: 20000 })
+  .then(
+    () => true,
+    () => false,
+  );
 check(gl, 'switching to 3D renders a WebGL canvas');
-check(await planBtn.isVisible() && await page.getByRole('button', { name: 'Fit all' }).isVisible(), '3D shows "Plan" and "Fit all"');
+check((await planBtn.isVisible()) && (await page.getByRole('button', { name: 'Fit all' }).isVisible()), '3D shows "Plan" and "Fit all"');
 await page.screenshot({ path: `${OUT}/en-3d.png` });
-const fits = await page.frames().find(f => f !== page.mainFrame()).evaluate(() => {
-  const c = document.querySelector('canvas'), r = c.getBoundingClientRect(), p = c.parentElement.getBoundingClientRect();
-  return Math.abs(r.width - p.width) < 1 && Math.abs(r.height - p.height) < 1;
-});
+const fits = await page
+  .frames()
+  .find(f => f !== page.mainFrame())
+  .evaluate(() => {
+    const c = document.querySelector('canvas'),
+      r = c.getBoundingClientRect(),
+      p = c.parentElement.getBoundingClientRect();
+    return Math.abs(r.width - p.width) < 1 && Math.abs(r.height - p.height) < 1;
+  });
 check(fits, 'the 3D canvas fits its frame on a 2x screen');
 // Clicking the model in 3D selects what is under the pointer, once the house has grown out of the plan (entering 3D first
 // waits for the floor drawings, then grows for about 1.6 s)
 await page.waitForTimeout(6000);
 const frameBox = await page.locator('iframe[title="Canvas"]').boundingBox();
 await page.mouse.click(frameBox.x + frameBox.width / 2, frameBox.y + frameBox.height / 2);
-const picked = await page.waitForFunction(() => window.artifact.call('view_get', {}).then(r => r.result?.selection?.length === 1), null, { timeout: 5000 }).then(() => true, () => false);
+const picked = await page
+  .waitForFunction(() => window.artifact.call('view_get', {}).then(r => r.result?.selection?.length === 1), null, { timeout: 5000 })
+  .then(
+    () => true,
+    () => false,
+  );
 check(picked, 'clicking the 3D model selects an object');
 await planBtn.click();
 
@@ -62,7 +79,15 @@ const room = '老人房一';
 await canvas.getByText(room, { exact: true }).first().click();
 const obj = await page.evaluate(r => window.artifact.call('get_object', { ref: r }), `一层·${room}`);
 const area = `${obj.result.netArea.toFixed(1)} m²`;
-const shown = await page.getByRole('tabpanel').getByText(area, { exact: true }).first().waitFor({ timeout: 10000 }).then(() => true, () => false);
+const shown = await page
+  .getByRole('tabpanel')
+  .getByText(area, { exact: true })
+  .first()
+  .waitFor({ timeout: 10000 })
+  .then(
+    () => true,
+    () => false,
+  );
 check(shown, `properties tab shows the room's area (${area})`);
 check(await page.getByRole('tabpanel').getByText('Room', { exact: true }).isVisible(), 'properties tab labels the selection "Room"');
 await page.screenshot({ path: `${OUT}/en-props.png` });
@@ -78,16 +103,30 @@ check(await page.getByRole('heading', { name: 'Settings', exact: true }).first()
 // controls and variants
 await page.locator('header a[href="/looks"]').click();
 await page.waitForURL(/\/looks$/);
-const visible = loc => loc.waitFor({ timeout: 15000 }).then(() => true, () => false);
+const visible = loc =>
+  loc.waitFor({ timeout: 15000 }).then(
+    () => true,
+    () => false,
+  );
 check(await visible(page.getByRole('heading', { name: 'Libraries', exact: true })), 'the top navigation opens Libraries');
 await page.getByRole('link', { name: 'Open “Default looks”' }).click();
 await page.waitForURL(/\/looks\/builtin-default/);
 check(await visible(page.getByRole('heading', { name: 'Default looks', exact: true })), 'the default library opens on its page');
-check(await visible(page.getByRole('heading', { name: /^Living room/ })) && await page.getByRole('heading', { name: /^Materials/ }).isVisible(), 'its looks are grouped, in English, and its materials listed');
+check(
+  (await visible(page.getByRole('heading', { name: /^Living room/ }))) && (await page.getByRole('heading', { name: /^Materials/ }).isVisible()),
+  'its looks are grouped, in English, and its materials listed',
+);
 await page.getByRole('link', { name: 'Open “Sofa”' }).click();
 await page.waitForURL(/\/looks\/builtin-default\/sofa$/);
-check(await visible(page.getByRole('heading', { name: 'Variants' })) && await page.getByRole('combobox', { name: 'Fabric' }).isVisible(), 'a look’s page has its controls and variants, in English');
-check(await visible(page.getByRole('img', { name: /Sofa/ }).locator('canvas')) && await page.getByRole('button', { name: 'Back to the starting view' }).isVisible(), 'a look’s page shows it in 3D to turn around');
+check(
+  (await visible(page.getByRole('heading', { name: 'Variants' }))) && (await page.getByRole('combobox', { name: 'Fabric' }).isVisible()),
+  'a look’s page has its controls and variants, in English',
+);
+check(
+  (await visible(page.getByRole('img', { name: /Sofa/ }).locator('canvas'))) &&
+    (await page.getByRole('button', { name: 'Back to the starting view' }).isVisible()),
+  'a look’s page shows it in 3D to turn around',
+);
 await page.screenshot({ path: `${OUT}/en-gallery.png` });
 
 // Blank design: project data follows the UI language

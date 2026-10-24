@@ -4,7 +4,9 @@ import { OPENING_KINDS, SPACE_KINDS, WALL_KINDS, type Point } from '../schema.js
 
 export const zRef = (what: string) => z.string().describe(`ID or name of the ${what} (names may take a level prefix, e.g. “Level 2·Bedroom” or “二层·主卧”)`);
 export const zPoint = z.tuple([z.number(), z.number()]).describe('[x, y] in mm; x points east, y points south');
-export const zRect = z.tuple([z.number(), z.number(), z.number(), z.number()]).describe('[x, y, width (east-west), depth (north-south)] in mm; x, y is the north-west corner');
+export const zRect = z
+  .tuple([z.number(), z.number(), z.number(), z.number()])
+  .describe('[x, y, width (east-west), depth (north-south)] in mm; x, y is the north-west corner');
 export const zDirection = z.enum(['north', 'south', 'east', 'west']).describe('Direction: north / south / east / west');
 export const zWallKind = z.enum(WALL_KINDS);
 export const zSpaceKind = z.enum(SPACE_KINDS);

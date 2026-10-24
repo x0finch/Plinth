@@ -20,10 +20,11 @@ export function floorTexture(doc: Document, material: Material) {
   let t = m.get(material);
   if (!t) {
     const p = materialPattern(material)!;
-    const w = Math.max(64, Math.min(512, Math.round(p.w * PX_PER_MM))), h = Math.max(64, Math.min(512, Math.round(p.h * PX_PER_MM)));
+    const w = Math.max(64, Math.min(512, Math.round(p.w * PX_PER_MM))),
+      h = Math.max(64, Math.min(512, Math.round(p.h * PX_PER_MM)));
     const svg = markup(createElement('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: `0 0 ${p.w} ${p.h}`, width: w, height: h }, p.tile), doc);
     t = (async () => {
-      const img = new (doc.defaultView!.Image)();
+      const img = new doc.defaultView!.Image();
       img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
       await img.decode();
       const c = doc.createElement('canvas');

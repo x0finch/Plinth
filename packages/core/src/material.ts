@@ -8,12 +8,12 @@ import type { ProjectLanguage } from './schema.js';
 
 /** Text in several languages; looks made by the agent may carry only the project's language */
 export type Names = Partial<Record<ProjectLanguage, string>>;
-export const namesSchema: z.ZodType<Names> = z.object({ zh: z.string().max(200).optional(), en: z.string().max(200).optional() })
+export const namesSchema: z.ZodType<Names> = z
+  .object({ zh: z.string().max(200).optional(), en: z.string().max(200).optional() })
   .refine(n => !!(n.zh || n.en), 'needs a name in at least one language');
 
 /** A name in a language, else in any language the text has */
-export const nameIn = (n: Names | string | undefined, lang: ProjectLanguage): string =>
-  typeof n === 'string' ? n : n?.[lang] ?? n?.zh ?? n?.en ?? '';
+export const nameIn = (n: Names | string | undefined, lang: ProjectLanguage): string => (typeof n === 'string' ? n : (n?.[lang] ?? n?.zh ?? n?.en ?? ''));
 
 /** Linear RGBA, 0..1 (glTF) */
 export type RGBA = [number, number, number, number];
@@ -47,16 +47,21 @@ export interface Material {
 const rgba = z.tuple([z.number().min(0).max(1), z.number().min(0).max(1), z.number().min(0).max(1), z.number().min(0).max(1)]);
 export const materialSchema: z.ZodType<Material> = z.object({
   name: namesSchema,
-  pbrMetallicRoughness: z.object({ baseColorFactor: rgba, metallicFactor: z.number().min(0).max(1).optional(), roughnessFactor: z.number().min(0).max(1).optional() }),
+  pbrMetallicRoughness: z.object({
+    baseColorFactor: rgba,
+    metallicFactor: z.number().min(0).max(1).optional(),
+    roughnessFactor: z.number().min(0).max(1).optional(),
+  }),
   alphaMode: z.enum(['OPAQUE', 'BLEND']).optional(),
-  extras: z.object({
-    pattern: z.enum(MATERIAL_PATTERNS).optional(),
-    size: z.union([z.number().positive(), z.tuple([z.number().positive(), z.number().positive()])]).optional(),
-    color2: rgba.optional(),
-    color3: rgba.optional(),
-    count: z.number().int().min(0).max(1000).optional(),
-    radius: z.tuple([z.number().positive(), z.number().positive()]).optional(),
-    seed: z.number().int().optional(),
-  }).optional(),
+  extras: z
+    .object({
+      pattern: z.enum(MATERIAL_PATTERNS).optional(),
+      size: z.union([z.number().positive(), z.tuple([z.number().positive(), z.number().positive()])]).optional(),
+      color2: rgba.optional(),
+      color3: rgba.optional(),
+      count: z.number().int().min(0).max(1000).optional(),
+      radius: z.tuple([z.number().positive(), z.number().positive()]).optional(),
+      seed: z.number().int().optional(),
+    })
+    .optional(),
 });
-

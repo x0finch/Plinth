@@ -26,7 +26,16 @@ describe('derived results', () => {
     const p = await build();
     const before = derived(p).areas;
     const next = produce(p, d => {
-      d.spaces[0].shape = [{ outer: [[0, 0], [2000, 0], [2000, 4000], [0, 4000]] }];
+      d.spaces[0].shape = [
+        {
+          outer: [
+            [0, 0],
+            [2000, 0],
+            [2000, 4000],
+            [0, 4000],
+          ],
+        },
+      ];
     });
     expect(derived(next).areas).not.toBe(before);
     expect(derived(next).areas.levels[0].spaces[0].net).toBeLessThan(before.levels[0].spaces[0].net);

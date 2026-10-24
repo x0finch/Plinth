@@ -16,7 +16,8 @@ export const BIRD = new THREE.Vector3(0.9, 1.4, 1.1).normalize();
  * sits in the middle of the screen. The aim point is where the camera then orbits, so the model stays centered while rotating.
  */
 export function framed(box: THREE.Box3, aspect: number, dir: THREE.Vector3): Pose {
-  const ty = Math.tan(THREE.MathUtils.degToRad(FOV) / 2) * FILL, tx = ty * aspect;
+  const ty = Math.tan(THREE.MathUtils.degToRad(FOV) / 2) * FILL,
+    tx = ty * aspect;
   const back = dir.clone().normalize();
   const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), back).normalize();
   const up = new THREE.Vector3().crossVectors(back, right);
@@ -30,8 +31,10 @@ export function framed(box: THREE.Box3, aspect: number, dir: THREE.Vector3): Pos
       return { x: o.dot(right), y: o.dot(up), d: o.dot(back) };
     });
     dist = Math.max(...rel.map(r => r.d + Math.max(Math.abs(r.x) / tx, Math.abs(r.y) / ty)));
-    const sx = rel.map(r => r.x / (dist - r.d)), sy = rel.map(r => r.y / (dist - r.d));
-    const mx = (Math.min(...sx) + Math.max(...sx)) / 2, my = (Math.min(...sy) + Math.max(...sy)) / 2;
+    const sx = rel.map(r => r.x / (dist - r.d)),
+      sy = rel.map(r => r.y / (dist - r.d));
+    const mx = (Math.min(...sx) + Math.max(...sx)) / 2,
+      my = (Math.min(...sy) + Math.max(...sy)) / 2;
     target.addScaledVector(right, mx * dist).addScaledVector(up, my * dist);
   }
   return { target, pos: target.clone().addScaledVector(back, dist) };

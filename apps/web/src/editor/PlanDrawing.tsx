@@ -22,7 +22,9 @@ const spaceFill = (p: Project, kind: string, material: string) =>
 export type Line = (width: number, dash?: number[]) => { strokeWidth: number; strokeDasharray?: string; vectorEffect?: 'non-scaling-stroke' };
 
 export const screenLine: Line = (width, dash) => ({ strokeWidth: width, strokeDasharray: dash?.join(' '), vectorEffect: 'non-scaling-stroke' });
-export const scaledLine = (mmPerPx: number): Line => (width, dash) => ({ strokeWidth: width * mmPerPx, strokeDasharray: dash?.map(d => d * mmPerPx).join(' ') });
+export const scaledLine =
+  (mmPerPx: number): Line =>
+  (width, dash) => ({ strokeWidth: width * mmPerPx, strokeDasharray: dash?.map(d => d * mmPerPx).join(' ') });
 
 /** Label size for a level, in millimetres */
 export const labelSize = ([x0, , x1]: LevelShapes['bounds']) => Math.max(220, Math.min(420, (x1 - x0) / 45));
@@ -58,7 +60,9 @@ export function PlanPaper({ project, level, shapes, line, pick }: { project: Pro
           <polygon points={pts(project.site.boundary)} fill="none" stroke="var(--chart-3)" {...line(0.8, [6, 4])} />
         </>
       )}
-      {shapes.spaces.map(({ s, d }) => <path key={s.id} d={d} fill={spaceFill(project, s.kind, s.floor)} {...hit(pick, s.id)} />)}
+      {shapes.spaces.map(({ s, d }) => (
+        <path key={s.id} d={d} fill={spaceFill(project, s.kind, s.floor)} {...hit(pick, s.id)} />
+      ))}
     </>
   );
 }
@@ -70,7 +74,9 @@ function PlanElements({ shapes, line, pick }: { shapes: LevelShapes; line: Line;
       {e.fills.map((f, k) => (
         <polygon key={k} points={pts(f.ring)} fill={f.kind === 'water' ? 'var(--muted)' : 'var(--card)'} stroke="var(--foreground)" {...line(0.8)} />
       ))}
-      {e.lines.map((l, k) => <polyline key={k} points={pts(l.points)} fill="none" stroke="var(--foreground)" {...line(0.8, l.dashed ? [4, 3] : undefined)} />)}
+      {e.lines.map((l, k) => (
+        <polyline key={k} points={pts(l.points)} fill="none" stroke="var(--foreground)" {...line(0.8, l.dashed ? [4, 3] : undefined)} />
+      ))}
     </g>
   ));
 }
@@ -80,16 +86,21 @@ export function PlanInk({ shapes, furniture, line, pick }: { shapes: LevelShapes
   return (
     <>
       <PlanElements shapes={shapes} line={line} pick={pick} />
-      {furniture && shapes.furniture.map(({ f, d, symbol }) => symbol ? (
-        // Its look seen from above, under a hit area the size of its footprint
-        <g key={f.id}>
-          {symbol.items.map((it, i) => <path key={i} d={it.d} fill={it.fill ? 'var(--card)' : 'none'} stroke="var(--foreground)" {...line(0.5)} />)}
-          {symbol.lines && <path d={symbol.lines} fill="none" stroke="var(--foreground)" {...line(0.5)} />}
-          <path d={d} fill="transparent" {...hit(pick, f.id)} />
-        </g>
-      ) : (
-        <path key={f.id} d={d} fill="var(--card)" stroke="var(--foreground)" {...line(0.8)} {...hit(pick, f.id)} />
-      ))}
+      {furniture &&
+        shapes.furniture.map(({ f, d, symbol }) =>
+          symbol ? (
+            // Its look seen from above, under a hit area the size of its footprint
+            <g key={f.id}>
+              {symbol.items.map((it, i) => (
+                <path key={i} d={it.d} fill={it.fill ? 'var(--card)' : 'none'} stroke="var(--foreground)" {...line(0.5)} />
+              ))}
+              {symbol.lines && <path d={symbol.lines} fill="none" stroke="var(--foreground)" {...line(0.5)} />}
+              <path d={d} fill="transparent" {...hit(pick, f.id)} />
+            </g>
+          ) : (
+            <path key={f.id} d={d} fill="var(--card)" stroke="var(--foreground)" {...line(0.8)} {...hit(pick, f.id)} />
+          ),
+        )}
       {/* Walls cut by the section: solid black with a heavy outline; fences and parapets, lower than the cut, seen from above */}
       <g pointerEvents="none">
         <path d={shapes.light} fill="var(--card)" stroke="var(--foreground)" {...line(1)} />
@@ -102,10 +113,13 @@ export function PlanInk({ shapes, furniture, line, pick }: { shapes: LevelShapes
       {pick && shapes.walls.map(({ w, d }) => <path key={w.id} d={d} fill="transparent" fillOpacity={0} {...hit(pick, w.id)} />)}
       {shapes.openings.map(o => (
         <g key={o.id} {...(pick ? { onClick: pick(o.id), className: 'cursor-pointer', 'data-id': o.id } : {})}>
-          <polygon points={pts(o.outline)} className={pick ? 'plan-hit' : undefined}
-            fill={o.glassBlock ? 'url(#glassblock)' : 'transparent'} />
-          {o.lines.map((l, i) => <polyline key={i} points={pts(l)} fill="none" stroke="var(--foreground)" {...line(1, o.dashed ? [6, 4] : undefined)} />)}
-          {o.arcs.map((a, i) => <path key={i} d={a} fill="none" stroke="var(--muted-foreground)" {...line(1, [4, 3])} />)}
+          <polygon points={pts(o.outline)} className={pick ? 'plan-hit' : undefined} fill={o.glassBlock ? 'url(#glassblock)' : 'transparent'} />
+          {o.lines.map((l, i) => (
+            <polyline key={i} points={pts(l)} fill="none" stroke="var(--foreground)" {...line(1, o.dashed ? [6, 4] : undefined)} />
+          ))}
+          {o.arcs.map((a, i) => (
+            <path key={i} d={a} fill="none" stroke="var(--muted-foreground)" {...line(1, [4, 3])} />
+          ))}
         </g>
       ))}
     </>
@@ -119,12 +133,32 @@ export function PlanLabels({ shapes, pick }: { shapes: LevelShapes; pick?: Pick 
     <>
       {shapes.spaces.map(({ s, label, area }) => (
         <g key={s.id} textAnchor="middle" fontFamily="var(--font-sans)" {...(pick ? { onClick: pick(s.id), className: 'cursor-pointer' } : {})}>
-          <text x={label[0]} y={label[1]} fontSize={font} fill="var(--foreground)" fontWeight={500}
-            paintOrder="stroke" stroke="var(--background)" strokeWidth={font / 6}>{s.name}</text>
+          <text
+            x={label[0]}
+            y={label[1]}
+            fontSize={font}
+            fill="var(--foreground)"
+            fontWeight={500}
+            paintOrder="stroke"
+            stroke="var(--background)"
+            strokeWidth={font / 6}
+          >
+            {s.name}
+          </text>
           {/* The area, except for a void */}
           {s.kind !== 'void' && (
-            <text x={label[0]} y={label[1] + font * 1.15} fontSize={font * 0.8} fill="var(--muted-foreground)" fontFamily="var(--font-mono)"
-              paintOrder="stroke" stroke="var(--background)" strokeWidth={font / 6}>{area.toFixed(1)} m²</text>
+            <text
+              x={label[0]}
+              y={label[1] + font * 1.15}
+              fontSize={font * 0.8}
+              fill="var(--muted-foreground)"
+              fontFamily="var(--font-mono)"
+              paintOrder="stroke"
+              stroke="var(--background)"
+              strokeWidth={font / 6}
+            >
+              {area.toFixed(1)} m²
+            </text>
           )}
         </g>
       ))}
