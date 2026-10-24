@@ -31,10 +31,18 @@ function Libraries() {
           <LibraryImport />
         </div>
         {libs.isLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map(i => <Skeleton key={i} className="h-60" />)}</div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map(i => (
+              <Skeleton key={i} className="h-60" />
+            ))}
+          </div>
         ) : (
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {libs.data?.map(l => <li key={l.id}><LibraryCard lib={l} /></li>)}
+            {libs.data?.map(l => (
+              <li key={l.id}>
+                <LibraryCard lib={l} />
+              </li>
+            ))}
           </ul>
         )}
       </main>
@@ -65,5 +73,9 @@ function LibraryCard({ lib }: { lib: LibrarySummary }) {
 /** A still of the library's first look, like a font's sample text, drawn like every other look */
 function Preview({ lib }: { lib: LibrarySummary }) {
   if (lib.cover) return <LookStill single bleed recipe={lib.cover.recipe} size={lib.cover.size} alt="" />;
-  return <div className="flex aspect-[4/3] items-center justify-center bg-card"><ShapesIcon className="size-8 text-muted-foreground" /></div>;
+  return (
+    <div className="flex aspect-[4/3] items-center justify-center bg-card">
+      <ShapesIcon className="size-8 text-muted-foreground" />
+    </div>
+  );
 }

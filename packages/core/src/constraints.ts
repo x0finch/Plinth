@@ -22,7 +22,6 @@ export interface ConstraintReport {
   violatedSoft: ConstraintStatus[];
 }
 
-
 const findWall = (p: Project, id: Id) => findObject(p, id, 'wall')?.obj;
 const findSpace = (p: Project, id: Id) => findObject(p, id, 'space')?.obj;
 function findOpening(p: Project, id: Id) {
@@ -52,19 +51,26 @@ export function solveAreaMove(p: Project, spaceId: Id, target: number, wallId?: 
   const out = scale(wallNormal(w), -sideOf(w, s)); // away from the space
   // Trial moves only touch this level's walls and spaces, so copy just those instead of the whole project
   const src = isDraft(p) ? current(p) : p;
-  const walls = src.walls.filter(x => x.level === s.level), spaces = src.spaces.filter(x => x.level === s.level);
+  const walls = src.walls.filter(x => x.level === s.level),
+    spaces = src.spaces.filter(x => x.level === s.level);
   const areaAt = (d: number) => {
     if (!d) return spaceNetArea(src, findSpace(src, spaceId)!);
     const q: Project = { ...src, walls: structuredClone(walls), spaces: structuredClone(spaces) };
     moveWall(q, w.id, scale(out, d));
     return spaceNetArea(q, findSpace(q, spaceId)!);
   };
-  let d0 = 0, a0 = areaAt(0), d1 = 500, a1 = areaAt(d1);
+  let d0 = 0,
+    a0 = areaAt(0),
+    d1 = 500,
+    a1 = areaAt(d1);
   if (Math.abs(a1 - a0) < 1e-6) return null;
   for (let i = 0; i < 4 && Math.abs(a1 - target) > 0.01; i++) {
     const d2 = Math.round((d1 + ((target - a1) * (d1 - d0)) / (a1 - a0)) / 10) * 10;
     if (d2 === d1) break;
-    d0 = d1; a0 = a1; d1 = d2; a1 = areaAt(d1);
+    d0 = d1;
+    a0 = a1;
+    d1 = d2;
+    a1 = areaAt(d1);
   }
   return { wall: w, vector: scale(out, d1).map(Math.round) as Point, area: a1 };
 }
@@ -82,7 +88,10 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
     check(p, c) {
       const ws = c.targets.map(id => findWall(p, id)).filter((w): w is Wall => !!w);
       const bad = ws.slice(1).filter(w => !parallel(ws[0], w) || Math.abs(offsetBetween(ws[0], w)) > TOL);
-      return { ok: ws.length === c.targets.length && !bad.length, message: text('constraint_align', '{walls} aligned', { walls: ws.map(w => w.name).join(text('list_separator', ', ')) }) };
+      return {
+        ok: ws.length === c.targets.length && !bad.length,
+        message: text('constraint_align', '{walls} aligned', { walls: ws.map(w => w.name).join(text('list_separator', ', ')) }),
+      };
     },
     fix(p, c, changed) {
       const ws = c.targets.map(id => findWall(p, id)).filter((w): w is Wall => !!w);
@@ -104,13 +113,18 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
   // Center: the opening sits at the midpoint of the segment where its wall meets the space
   center: {
     check(p, c) {
-      const hit = findOpening(p, c.targets[0]), s = findSpace(p, c.targets[1]);
+      const hit = findOpening(p, c.targets[0]),
+        s = findSpace(p, c.targets[1]);
       if (!hit || !s) return { ok: false, message: text('constraint_center_missing', 'The objects to centre no longer exist') };
       const iv = wallSpaceSpan(hit.w, s);
-      return { ok: !!iv && Math.abs(hit.o.at - (iv[0] + iv[1]) / 2) <= TOL, message: text('constraint_center', '{opening} centred on {space}', { opening: hit.o.name, space: s.name }) };
+      return {
+        ok: !!iv && Math.abs(hit.o.at - (iv[0] + iv[1]) / 2) <= TOL,
+        message: text('constraint_center', '{opening} centred on {space}', { opening: hit.o.name, space: s.name }),
+      };
     },
     fix(p, c, changed) {
-      const hit = findOpening(p, c.targets[0]), s = findSpace(p, c.targets[1]);
+      const hit = findOpening(p, c.targets[0]),
+        s = findSpace(p, c.targets[1]);
       if (!hit || !s) return false;
       const iv = wallSpaceSpan(hit.w, s);
       if (!iv) return false;
@@ -131,11 +145,17 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
       if (!other) return { ok: false, message: text('constraint_spacing_missing', 'The objects of this spacing no longer exist') };
       if (hit) {
         const g = openingGap(hit.w, hit.o, other);
-        return { ok: g != null && Math.abs(g - dist) <= TOL, message: text('constraint_opening_spacing', '{opening} {distance} mm from {wall}', { opening: hit.o.name, wall: other.name, distance: dist }) };
+        return {
+          ok: g != null && Math.abs(g - dist) <= TOL,
+          message: text('constraint_opening_spacing', '{opening} {distance} mm from {wall}', { opening: hit.o.name, wall: other.name, distance: dist }),
+        };
       }
       const a = findWall(p, c.targets[0]);
       if (!a) return { ok: false, message: text('constraint_spacing_missing', 'The objects of this spacing no longer exist') };
-      return { ok: parallel(a, other) && Math.abs(Math.abs(offsetBetween(a, other)) - dist) <= TOL, message: text('constraint_wall_spacing', '{a} and {b} {distance} mm apart', { a: a.name, b: other.name, distance: dist }) };
+      return {
+        ok: parallel(a, other) && Math.abs(Math.abs(offsetBetween(a, other)) - dist) <= TOL,
+        message: text('constraint_wall_spacing', '{a} and {b} {distance} mm apart', { a: a.name, b: other.name, distance: dist }),
+      };
     },
     fix(p, c, changed) {
       const dist = Number(c.params.distance);
@@ -153,7 +173,8 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
       }
       const a = findWall(p, c.targets[0]);
       if (!a || !parallel(a, other)) return false;
-      const off = offsetBetween(a, other), want = Math.sign(off || 1) * dist;
+      const off = offsetBetween(a, other),
+        want = Math.sign(off || 1) * dist;
       if (Math.abs(off - want) <= TOL) return false;
       // The changed one is the reference; move the other
       if (changed.has(other.id) && !changed.has(a.id)) {
@@ -172,14 +193,19 @@ const HANDLERS: Partial<Record<Constraint['type'], Handler>> = {
     check(p, c) {
       const s = findSpace(p, c.targets[0]);
       if (!s) return { ok: false, message: text('constraint_area_missing', 'The space of this area target no longer exists') };
-      const target = Number(c.params.area), tol = Number(c.params.tolerance ?? 0.3);
+      const target = Number(c.params.area),
+        tol = Number(c.params.tolerance ?? 0.3);
       const a = spaceNetArea(p, s);
-      return { ok: Math.abs(a - target) <= tol, message: text('constraint_area', '{space} about {target} m² (now {area} m²)', { space: s.name, target, area: a.toFixed(1) }) };
+      return {
+        ok: Math.abs(a - target) <= tol,
+        message: text('constraint_area', '{space} about {target} m² (now {area} m²)', { space: s.name, target, area: a.toFixed(1) }),
+      };
     },
     fix(p, c, changed) {
       const s = findSpace(p, c.targets[0]);
       if (!s) return false;
-      const target = Number(c.params.area), tol = Number(c.params.tolerance ?? 0.3);
+      const target = Number(c.params.area),
+        tol = Number(c.params.tolerance ?? 0.3);
       if (Math.abs(spaceNetArea(p, s) - target) <= tol) return false;
       const sol = solveAreaMove(p, s.id, target, c.targets[1]);
       // Don't pull back a wall the user just moved by hand: the user's action wins and the constraint is marked unsatisfied
@@ -206,8 +232,12 @@ function openingGap(w: Wall, o: Wall['openings'][number], other: Wall): number |
 export function pruneConstraints(p: Project) {
   if (!p.constraints.length) return;
   const ids = new Set<Id>([
-    ...p.levels.map(o => o.id), ...p.walls.map(o => o.id), ...p.walls.flatMap(w => w.openings.map(o => o.id)),
-    ...p.spaces.map(o => o.id), ...p.elements.map(o => o.id), ...p.furniture.map(o => o.id),
+    ...p.levels.map(o => o.id),
+    ...p.walls.map(o => o.id),
+    ...p.walls.flatMap(w => w.openings.map(o => o.id)),
+    ...p.spaces.map(o => o.id),
+    ...p.elements.map(o => o.id),
+    ...p.furniture.map(o => o.id),
   ]);
   if (p.constraints.some(c => !c.targets.every(t => ids.has(t)))) p.constraints = p.constraints.filter(c => c.targets.every(t => ids.has(t)));
 }
@@ -239,4 +269,3 @@ export function solveConstraints(p: Project, changedIds: Id[] = []): ConstraintR
   const status = checkConstraints(p).filter(s => !s.ok);
   return { rounds, violatedHard: status.filter(s => s.hard), violatedSoft: status.filter(s => !s.hard) };
 }
-

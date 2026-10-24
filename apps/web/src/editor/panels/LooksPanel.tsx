@@ -8,7 +8,16 @@ import { LibraryIcon, PlusIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { LookStill } from '@/components/looks/LookStill';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -23,7 +32,10 @@ import { useRun } from './common';
 function targetLabel(p: Project, target: string) {
   const [kind, type] = target.split(':');
   if (kind === 'furniture') return p.library.furniture[type]?.name ?? type;
-  if (kind === 'opening') return type === 'glass-block' ? names(p).glassBlock(names(p).opening.window) : names(p).opening[type as keyof ReturnType<typeof names>['opening']] ?? type;
+  if (kind === 'opening')
+    return type === 'glass-block'
+      ? names(p).glassBlock(names(p).opening.window)
+      : (names(p).opening[type as keyof ReturnType<typeof names>['opening']] ?? type);
   if (kind === 'wall') return names(p).wall[type as keyof ReturnType<typeof names>['wall']] ?? type;
   return p.library.elements[type]?.name ?? type;
 }
@@ -60,7 +72,9 @@ export function LooksPanel() {
         <p className="font-medium">{m.looks_title()}</p>
         {canEdit && <ImportDialog />}
       </div>
-      {looks.length === 0 ? <p className="text-muted-foreground">{m.looks_empty()}</p> : (
+      {looks.length === 0 ? (
+        <p className="text-muted-foreground">{m.looks_empty()}</p>
+      ) : (
         <ItemGroup className="gap-1">
           {looks.map(([id, look]) => {
             const latest = look.source && versions.data?.find(v => v.library === look.source!.library && v.look === look.source!.look);
@@ -77,14 +91,36 @@ export function LooksPanel() {
                 </ItemContent>
                 {canEdit && (
                   <ItemActions className="flex-wrap">
-                    {newer && <Button size="xs" variant="outline" onClick={() => void openUpdate(id, look)}><RefreshCwIcon /> {m.looks_update()}</Button>}
+                    {newer && (
+                      <Button size="xs" variant="outline" onClick={() => void openUpdate(id, look)}>
+                        <RefreshCwIcon /> {m.looks_update()}
+                      </Button>
+                    )}
                     {!!libs.data?.some(l => l.role !== 'viewer') && (
                       <Select value="" onValueChange={v => v && void save(id, look, v as string)}>
-                        <SelectTrigger size="sm" className="h-6 gap-1 text-xs" aria-label={m.looks_save_to({ name: look.name })}><LibraryIcon className="size-3" /><SelectValue>{m.looks_save()}</SelectValue></SelectTrigger>
-                        <SelectContent>{libs.data.filter(l => l.role !== 'viewer').map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+                        <SelectTrigger size="sm" className="h-6 gap-1 text-xs" aria-label={m.looks_save_to({ name: look.name })}>
+                          <LibraryIcon className="size-3" />
+                          <SelectValue>{m.looks_save()}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {libs.data
+                            .filter(l => l.role !== 'viewer')
+                            .map(l => (
+                              <SelectItem key={l.id} value={l.id}>
+                                {l.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
                       </Select>
                     )}
-                    <Button size="icon-xs" variant="ghost" aria-label={m.looks_remove({ name: look.name })} onClick={() => void run('look_remove', { look: id })}><Trash2Icon /></Button>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label={m.looks_remove({ name: look.name })}
+                      onClick={() => void run('look_remove', { look: id })}
+                    >
+                      <Trash2Icon />
+                    </Button>
                   </ItemActions>
                 )}
               </Item>
@@ -103,7 +139,11 @@ export function LooksPanel() {
               <p className="text-muted-foreground">{m.looks_before()}</p>
               <LookStill recipe={update.look.recipe} size={targetSize(project, update.look.for[0])} alt={m.looks_before()} />
               <p className="text-muted-foreground">{m.looks_after()}</p>
-              <LookStill recipe={update.next.recipe} size={update.next.types ? Object.values(update.next.types)[0].size : targetSize(project, update.next.for[0])} alt={m.looks_after()} />
+              <LookStill
+                recipe={update.next.recipe}
+                size={update.next.types ? Object.values(update.next.types)[0].size : targetSize(project, update.next.for[0])}
+                alt={m.looks_after()}
+              />
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel>{m.settings_cancel()}</AlertDialogCancel>
@@ -118,8 +158,6 @@ export function LooksPanel() {
 
 /** Copy a look from a library into the design, used for every object it fits */
 function ImportDialog() {
-  const project = useEditor(s => s.project);
-  const run = useRun();
   const [open, setOpen] = useState(false);
   const all = useQuery({ queryKey: ['libraries'], queryFn: listLibraries, enabled: open });
   // The default library is what the design already falls back to; to go back to it, reset a look instead
@@ -130,7 +168,9 @@ function ImportDialog() {
   const detail = useQuery({ queryKey: ['library', library], queryFn: () => getLibrary(library!), enabled: open && !!library });
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="xs" variant="outline" />}><PlusIcon /> {m.looks_import()}</DialogTrigger>
+      <DialogTrigger render={<Button size="xs" variant="outline" />}>
+        <PlusIcon /> {m.looks_import()}
+      </DialogTrigger>
       <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{m.looks_import_title()}</DialogTitle>
@@ -139,11 +179,24 @@ function ImportDialog() {
         {libs.data && !libs.data.length && <p className="text-sm text-muted-foreground">{m.looks_no_libraries()}</p>}
         {!!libs.data?.length && (
           <Select value={library ?? ''} onValueChange={v => setPicked(v as string)}>
-            <SelectTrigger className="w-full sm:w-72" aria-label={m.looks_library()}><SelectValue>{libs.data.find(l => l.id === library)?.name}</SelectValue></SelectTrigger>
-            <SelectContent>{libs.data.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+            <SelectTrigger className="w-full sm:w-72" aria-label={m.looks_library()}>
+              <SelectValue>{libs.data.find(l => l.id === library)?.name}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {libs.data.map(l => (
+                <SelectItem key={l.id} value={l.id}>
+                  {l.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         )}
-        {detail.data && (Object.keys(detail.data.library.looks).length ? <LibraryLooks lib={detail.data.library} onImported={() => setOpen(false)} /> : <p className="text-sm text-muted-foreground">{m.libraries_empty()}</p>)}
+        {detail.data &&
+          (Object.keys(detail.data.library.looks).length ? (
+            <LibraryLooks lib={detail.data.library} onImported={() => setOpen(false)} />
+          ) : (
+            <p className="text-sm text-muted-foreground">{m.libraries_empty()}</p>
+          ))}
       </DialogContent>
     </Dialog>
   );
@@ -161,11 +214,21 @@ function LibraryLooks({ lib, onImported }: { lib: LookLibrary; onImported: () =>
           <div key={id} className="space-y-1">
             <LookStill recipe={k.recipe} size={lookSizeOf(look)} alt={m.libraries_look_alt({ name: uiName(look.name) })} />
             <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="truncate">{uiName(look.name)} <span className="text-muted-foreground">v{look.version}</span></span>
-              <Button size="xs" onClick={async () => {
-                const r = await run('look_import', { ...k, use: true });
-                if (r.ok) { toast.success(m.looks_imported({ name: k.name })); onImported(); }
-              }}>{m.looks_import_use()}</Button>
+              <span className="truncate">
+                {uiName(look.name)} <span className="text-muted-foreground">v{look.version}</span>
+              </span>
+              <Button
+                size="xs"
+                onClick={async () => {
+                  const r = await run('look_import', { ...k, use: true });
+                  if (r.ok) {
+                    toast.success(m.looks_imported({ name: k.name }));
+                    onImported();
+                  }
+                }}
+              >
+                {m.looks_import_use()}
+              </Button>
             </div>
           </div>
         );

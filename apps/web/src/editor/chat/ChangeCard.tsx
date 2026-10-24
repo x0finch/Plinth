@@ -31,16 +31,27 @@ export function ChangeCard() {
         <ul className="mt-2 space-y-0.5 font-mono text-xs text-muted-foreground">
           {changes.map(c => (
             <li key={c.id}>
-              {m.chat_area_changed({ name: c.name, before: c.before!.toFixed(1) })}<span className="text-foreground">{c.after!.toFixed(1)} m²</span>{m.chat_area_delta({ delta: `${c.after! > c.before! ? '+' : ''}${(c.after! - c.before!).toFixed(1)}` })}
+              {m.chat_area_changed({ name: c.name, before: c.before!.toFixed(1) })}
+              <span className="text-foreground">{c.after!.toFixed(1)} m²</span>
+              {m.chat_area_delta({ delta: `${c.after! > c.before! ? '+' : ''}${(c.after! - c.before!).toFixed(1)}` })}
             </li>
           ))}
-          {added.map(c => <li key={c.id}>{m.chat_area_added({ name: c.name, area: c.after!.toFixed(1) })}</li>)}
-          {removed.map(c => <li key={c.id}>{m.chat_area_removed({ name: c.name })}</li>)}
+          {added.map(c => (
+            <li key={c.id}>{m.chat_area_added({ name: c.name, area: c.after!.toFixed(1) })}</li>
+          ))}
+          {removed.map(c => (
+            <li key={c.id}>{m.chat_area_removed({ name: c.name })}</li>
+          ))}
         </ul>
       )}
       {last.warnings.length > 0 && (
         <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-          {last.warnings.map((w, i) => <li key={i} className="flex gap-1"><TriangleAlertIcon className="size-3.5 shrink-0 text-chart-1" />{w.message}</li>)}
+          {last.warnings.map((w, i) => (
+            <li key={i} className="flex gap-1">
+              <TriangleAlertIcon className="size-3.5 shrink-0 text-chart-1" />
+              {w.message}
+            </li>
+          ))}
         </ul>
       )}
     </Card>

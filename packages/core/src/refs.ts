@@ -7,7 +7,15 @@ import type { Id, Level, Project } from './schema.js';
 
 export type Kind = ObjectKind;
 
-const KIND_EN: Record<Kind, string> = { level: 'level', wall: 'wall', space: 'space', opening: 'opening', furniture: 'furniture', element: 'element', constraint: 'constraint' };
+const KIND_EN: Record<Kind, string> = {
+  level: 'level',
+  wall: 'wall',
+  space: 'space',
+  opening: 'opening',
+  furniture: 'furniture',
+  element: 'element',
+  constraint: 'constraint',
+};
 export const kindText = (k: Kind) => text(`err_kind_${k}`, KIND_EN[k]);
 /** Join a list for a message: “a、b” in Chinese, "a, b" in English */
 export const listText = (items: string[]) => items.join(text('list_separator', ', '));
@@ -18,7 +26,8 @@ export function resolve<K extends Kind>(p: Project, kind: K, ref: string, level?
   const all = projectIndex(p).of(kind);
   const byId = all.find(o => o.id === ref);
   if (byId) return byId;
-  let name = ref, lv = level ? resolveLevel(p, level).id : undefined;
+  let name = ref,
+    lv = level ? resolveLevel(p, level).id : undefined;
   const m = ref.match(REF_SEPARATOR);
   if (!lv && m && p.levels.some(l => l.name === m[1] || l.id === m[1])) {
     lv = resolveLevel(p, m[1]).id;
@@ -27,18 +36,35 @@ export function resolve<K extends Kind>(p: Project, kind: K, ref: string, level?
   const hits = all.filter(o => o.name === name && (!lv || o.level === lv));
   if (hits.length === 1) return hits[0];
   if (hits.length > 1)
-    throw new TxError('ambiguous-ref', text('err_ambiguous_ref', '{count} objects of type {kind} are named “{name}”; use an ID or add a level: {hits}', {
-      count: hits.length, kind: kindText(kind), name, hits: listText(hits.map(h => refItem(h.id, h.level))),
-    }));
+    throw new TxError(
+      'ambiguous-ref',
+      text('err_ambiguous_ref', '{count} objects of type {kind} are named “{name}”; use an ID or add a level: {hits}', {
+        count: hits.length,
+        kind: kindText(kind),
+        name,
+        hits: listText(hits.map(h => refItem(h.id, h.level))),
+      }),
+    );
   const near = all.filter(o => o.name.includes(name) || name.includes(o.name)).slice(0, 8);
   if (near.length)
-    throw new TxError('not-found', text('err_not_found_similar', 'Cannot find {kind} “{ref}”; similar: {similar}', { kind: kindText(kind), ref, similar: listText(near.map(h => refItem(h.name, h.id))) }));
+    throw new TxError(
+      'not-found',
+      text('err_not_found_similar', 'Cannot find {kind} “{ref}”; similar: {similar}', {
+        kind: kindText(kind),
+        ref,
+        similar: listText(near.map(h => refItem(h.name, h.id))),
+      }),
+    );
   throw new TxError('not-found', text('err_not_found', 'Cannot find {kind} “{ref}”', { kind: kindText(kind), ref }));
 }
 
 export function resolveLevel(p: Project, ref: string): Level {
   const l = p.levels.find(x => x.id === ref || x.name === ref);
-  if (!l) throw new TxError('not-found', text('err_level_not_found', 'Cannot find level “{ref}”; existing levels: {levels}', { ref, levels: listText(p.levels.map(x => refItem(x.name, x.id))) }));
+  if (!l)
+    throw new TxError(
+      'not-found',
+      text('err_level_not_found', 'Cannot find level “{ref}”; existing levels: {levels}', { ref, levels: listText(p.levels.map(x => refItem(x.name, x.id))) }),
+    );
   return l;
 }
 

@@ -28,7 +28,8 @@ async function grab(id) {
   await frame.waitForSelector('.plan-drag');
   await page.waitForTimeout(300);
   const r = await frame.evaluate(() => {
-    const h = document.querySelector('.plan-drag'), box = h.getBoundingClientRect();
+    const h = document.querySelector('.plan-drag'),
+      box = h.getBoundingClientRect();
     const m = h.ownerSVGElement.getScreenCTM().inverse();
     return { x: box.x + box.width / 2, y: box.y + box.height / 2, mmPerPx: Math.hypot(m.a, m.b) };
   });
@@ -52,11 +53,17 @@ const log0 = (await call('history_log', {})).result.length;
 const w = await grab(wall.id);
 let liveLabel = null;
 await dragBy(w, -500 / w.mmPerPx, 0, 12, async () => {
-  liveLabel = await frame.evaluate(name => [...document.querySelectorAll('text')].find(t => t.textContent === name)?.nextElementSibling?.textContent ?? null, room.name);
+  liveLabel = await frame.evaluate(
+    name => [...document.querySelectorAll('text')].find(t => t.textContent === name)?.nextElementSibling?.textContent ?? null,
+    room.name,
+  );
   await page.screenshot({ path: `${OUT}/drag-wall.png` });
 });
 const area1 = (await call('get_object', { ref: room.id })).result.netArea;
-check(liveLabel && !liveLabel.startsWith(area0.toFixed(1)), `while dragging, the room label shows the new area live (${liveLabel}, was ${area0.toFixed(1)} m²)`);
+check(
+  liveLabel && !liveLabel.startsWith(area0.toFixed(1)),
+  `while dragging, the room label shows the new area live (${liveLabel}, was ${area0.toFixed(1)} m²)`,
+);
 check(Math.abs(area1 - area0) > 1, `dragging the wall 0.5 m west changes the room's area (${area0} → ${area1} m²)`);
 check((await call('history_log', {})).result.length === log0 + 1, 'the drag is one edit in the history');
 await call('history_undo', {});

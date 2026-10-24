@@ -55,7 +55,9 @@ export function furniturePlan(p: Project, f: Furniture): PlanSymbol | null {
   const sym = built ? builtPlan(built) : lastPlan.get(f.id);
   if (!sym) return null;
   if (built) lastPlan.set(f.id, sym);
-  const r = (f.rotation * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r);
+  const r = (f.rotation * Math.PI) / 180,
+    c = Math.cos(r),
+    s = Math.sin(r);
   const tf = ([x, z]: Point): Point => [f.position[0] + x * c - z * s, f.position[1] + x * s + z * c];
   return { items: sym.items.map(it => ({ ...it, ring: it.ring.map(tf) })), lines: sym.lines.map(l => l.map(tf)) };
 }

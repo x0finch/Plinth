@@ -53,8 +53,14 @@ export interface LookLibrary {
 export const LIBRARY_FORMAT = 'plinth-looks';
 export const LIBRARY_FORMAT_VERSION = 1;
 export const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
-const id = z.string().regex(/^[a-z0-9][a-z0-9-]*$/).max(64);
-const key = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]*$/).max(64);
+const id = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9-]*$/)
+  .max(64);
+const key = z
+  .string()
+  .regex(/^[A-Za-z][A-Za-z0-9_-]*$/)
+  .max(64);
 export const TARGET = /^(furniture|opening|element|wall):[A-Za-z0-9_-]+$/;
 const size = z.object({ w: z.number().positive(), d: z.number().positive(), h: z.number().positive() });
 
@@ -89,12 +95,19 @@ export class LibraryError extends Error {}
 /** A library file, checked (the format, and that the groups and types its looks name exist); throws a LibraryError */
 export function parseLibrary(input: unknown, fallback?: LookLibrary): LookLibrary {
   const parsed = librarySchema.safeParse(input);
-  if (!parsed.success) throw new LibraryError(parsed.error.issues.slice(0, 8).map(i => `${i.path.join('.') || 'library'}: ${i.message}`).join('; '));
+  if (!parsed.success)
+    throw new LibraryError(
+      parsed.error.issues
+        .slice(0, 8)
+        .map(i => `${i.path.join('.') || 'library'}: ${i.message}`)
+        .join('; '),
+    );
   const lib = parsed.data;
   for (const [k, look] of Object.entries(lib.looks)) {
     const group = look.newType?.group ?? look.group;
     if (group && !lib.groups?.[group] && !fallback?.groups?.[group]) throw new LibraryError(`looks.${k}: unknown group ${group}`);
-    if (look.newType && look.for.filter(t => t.startsWith('furniture:')).length !== 1) throw new LibraryError(`looks.${k}: a look with a newType draws exactly one furniture type`);
+    if (look.newType && look.for.filter(t => t.startsWith('furniture:')).length !== 1)
+      throw new LibraryError(`looks.${k}: a look with a newType draws exactly one furniture type`);
   }
   return lib;
 }
@@ -109,10 +122,12 @@ export function compareVersions(a: string | number, b: string | number): number 
 
 /** The furniture type a look brings, keyed by type */
 export function libraryTypes(lib: LookLibrary): Record<string, LookType> {
-  return Object.fromEntries(Object.values(lib.looks).flatMap(l => {
-    const t = l.newType && l.for.find(x => x.startsWith('furniture:'));
-    return t ? [[t.slice('furniture:'.length), l.newType!] as const] : [];
-  }));
+  return Object.fromEntries(
+    Object.values(lib.looks).flatMap(l => {
+      const t = l.newType && l.for.find(x => x.startsWith('furniture:'));
+      return t ? [[t.slice('furniture:'.length), l.newType!] as const] : [];
+    }),
+  );
 }
 
 /** A look of a library as a recipe; looks outside the default library carry their library's materials */

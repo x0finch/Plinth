@@ -9,10 +9,13 @@ const check = (ok, msg) => {
   if (!ok) process.exitCode = 1;
 };
 const apiOn = page => (path, init) =>
-  page.evaluate(async ([p, i]) => {
-    const r = await fetch(`/api${p}`, { ...i, headers: { 'Content-Type': 'application/json' } });
-    return { status: r.status, body: await r.json() };
-  }, [path, init]);
+  page.evaluate(
+    async ([p, i]) => {
+      const r = await fetch(`/api${p}`, { ...i, headers: { 'Content-Type': 'application/json' } });
+      return { status: r.status, body: await r.json() };
+    },
+    [path, init],
+  );
 
 // Owner
 const owner = await (await b.newContext({ viewport: { width: 1400, height: 900 } })).newPage();
@@ -46,7 +49,14 @@ await fam.evaluate(id => window.artifact.call('view_focus', { ids: [id] }), kitc
 await fam.getByRole('button', { name: '评论' }).click();
 await fam.getByPlaceholder('写评论…').fill('厨房窗户能不能再高一点？');
 await fam.getByRole('button', { name: '发表' }).click();
-const tagged = await fam.getByText('@厨房').first().waitFor({ timeout: 10000 }).then(() => true, () => false);
+const tagged = await fam
+  .getByText('@厨房')
+  .first()
+  .waitFor({ timeout: 10000 })
+  .then(
+    () => true,
+    () => false,
+  );
 check(tagged, 'comment is attached to the kitchen');
 await fam.screenshot({ path: `${OUT}/mobile-2-comment.png` });
 await fam.keyboard.press('Escape');
@@ -63,7 +73,11 @@ await fam.keyboard.press('Escape');
 // Owner: agent handles the comment (calls capabilities directly to exercise the comment tools)
 const list = await owner.evaluate(() => window.artifact.call('comments_list', {}));
 check(list.ok && list.result.length === 1 && list.result[0].target_name === '厨房', 'owner sees the comment');
-const reply = await owner.evaluate(id => window.artifact.call('comment_reply', { comment: id, body: '可以把窗台从 1.2 米降到 0.9 米，或者窗加高 0.3 米，您选哪个？', status: 'pending-confirm' }), list.result[0].id);
+const reply = await owner.evaluate(
+  id =>
+    window.artifact.call('comment_reply', { comment: id, body: '可以把窗台从 1.2 米降到 0.9 米，或者窗加高 0.3 米，您选哪个？', status: 'pending-confirm' }),
+  list.result[0].id,
+);
 check(reply.ok, 'agent replies to the comment');
 const after = await oapi(`/projects/${projectId}/comments`);
 check(after.body.find(c => !c.parent_id).status === 'pending-confirm', 'comment marked pending owner confirmation');

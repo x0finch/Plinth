@@ -23,7 +23,8 @@ const toAxis = (g: THREE.BufferGeometry, axis: 'x' | 'y' | 'z') => (axis === 'x'
 
 /** A three.js shape from a built 2D profile (mm → m); `flip` mirrors the second axis (plan profiles are drawn in x, z) */
 function profileShape(profile: Extract<BuiltPart, { kind: 'extrude' }>['profile'], flip: boolean) {
-  const s = new THREE.Shape(), k = flip ? -1 : 1;
+  const s = new THREE.Shape(),
+    k = flip ? -1 : 1;
   profile.forEach((it, i) => {
     if ('p' in it) {
       const [x, y] = it.p;
@@ -53,28 +54,42 @@ function partGeometry(p: Exclude<BuiltPart, { kind: 'base' }>): THREE.BufferGeom
     }
     case 'cylinder':
       return toAxis(new THREE.CylinderGeometry(p.r2 * M, p.r * M, p.h * M, p.seg).scale(...p.scale), p.axis).translate(p.at[0] * M, p.at[1] * M, p.at[2] * M);
-    case 'sphere': return new THREE.IcosahedronGeometry(p.r * M, 3).scale(...p.scale).translate(p.at[0] * M, p.at[1] * M, p.at[2] * M);
+    case 'sphere':
+      return new THREE.IcosahedronGeometry(p.r * M, 3).scale(...p.scale).translate(p.at[0] * M, p.at[1] * M, p.at[2] * M);
     case 'lathe':
-      return new THREE.LatheGeometry(p.profile.map(([r, y]) => new THREE.Vector2(r * M, y * M)), p.seg).scale(...p.scale).translate(p.at[0] * M, p.at[1] * M, p.at[2] * M);
+      return new THREE.LatheGeometry(
+        p.profile.map(([r, y]) => new THREE.Vector2(r * M, y * M)),
+        p.seg,
+      )
+        .scale(...p.scale)
+        .translate(p.at[0] * M, p.at[1] * M, p.at[2] * M);
     case 'rod': {
-      const a = v3(p.from), b = v3(p.to), dir = b.clone().sub(a);
+      const a = v3(p.from),
+        b = v3(p.to),
+        dir = b.clone().sub(a);
       const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
-      return new THREE.CylinderGeometry(p.r * M, p.r * M, dir.length(), p.seg).applyMatrix4(new THREE.Matrix4().compose(a.add(b).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1)));
+      return new THREE.CylinderGeometry(p.r * M, p.r * M, dir.length(), p.seg).applyMatrix4(
+        new THREE.Matrix4().compose(a.add(b).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1)),
+      );
     }
     case 'ring': {
       const g = new THREE.TorusGeometry(p.R * M, p.r * M, 10, 32);
       if (p.axis === 'y') g.rotateX(Math.PI / 2);
       return g.translate(p.at[0] * M, p.at[1] * M, p.at[2] * M);
     }
-    case 'tube': return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(p.points.map(v3)), Math.max(24, p.points.length * 12), p.r * M, 10);
+    case 'tube':
+      return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(p.points.map(v3)), Math.max(24, p.points.length * 12), p.r * M, 10);
     case 'panel': {
-      const [ax, az] = p.from, [bx, bz] = p.to;
-      return new THREE.BoxGeometry(Math.hypot(bx - ax, bz - az) * M, p.h * M, p.t * M).rotateY(-Math.atan2(bz - az, bx - ax))
+      const [ax, az] = p.from,
+        [bx, bz] = p.to;
+      return new THREE.BoxGeometry(Math.hypot(bx - ax, bz - az) * M, p.h * M, p.t * M)
+        .rotateY(-Math.atan2(bz - az, bx - ax))
         .translate(((ax + bx) / 2) * M, (p.y + p.h / 2) * M, ((az + bz) / 2) * M);
     }
     case 'extrude': {
       const opts = { depth: p.depth * M, bevelEnabled: p.bevel > 0, bevelThickness: p.bevel * M, bevelSize: p.bevel * M, bevelSegments: 5, curveSegments: 10 };
-      if (p.plane === 'side') return new THREE.ExtrudeGeometry(profileShape(p.profile, false), opts).translate(p.at[0] * M, p.at[1] * M, p.at[2] * M - (p.depth * M) / 2);
+      if (p.plane === 'side')
+        return new THREE.ExtrudeGeometry(profileShape(p.profile, false), opts).translate(p.at[0] * M, p.at[1] * M, p.at[2] * M - (p.depth * M) / 2);
       // A plan profile (x, z) extruded upwards
       return new THREE.ExtrudeGeometry(profileShape(p.profile, true), opts).rotateX(-Math.PI / 2).translate(p.at[0] * M, p.at[1] * M, p.at[2] * M);
     }

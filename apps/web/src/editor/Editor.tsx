@@ -5,8 +5,27 @@
 import { describe, type Project } from '@plinth/core';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
-  ArrowLeftIcon, BoxIcon, CloudCheckIcon, CloudIcon, DownloadIcon, EllipsisIcon, HistoryIcon, ImageIcon, LayoutPanelLeftIcon, LoaderIcon,
-  LayersIcon, MessageSquareIcon, MessagesSquareIcon, Redo2Icon, RulerIcon, ScanIcon, Share2Icon, SquareIcon, TriangleAlertIcon, Undo2Icon, InfoIcon,
+  ArrowLeftIcon,
+  BoxIcon,
+  CloudCheckIcon,
+  CloudIcon,
+  DownloadIcon,
+  EllipsisIcon,
+  HistoryIcon,
+  ImageIcon,
+  LayoutPanelLeftIcon,
+  LoaderIcon,
+  LayersIcon,
+  MessageSquareIcon,
+  MessagesSquareIcon,
+  Redo2Icon,
+  RulerIcon,
+  ScanIcon,
+  Share2Icon,
+  SquareIcon,
+  TriangleAlertIcon,
+  Undo2Icon,
+  InfoIcon,
 } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -113,8 +132,12 @@ function Conflict() {
       <AlertDescription>
         {m.editor_conflict_question()}
         <div className="mt-1 flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => resolve('theirs')}>{m.editor_conflict_theirs()}</Button>
-          <Button size="sm" onClick={() => resolve('mine')}>{m.editor_conflict_mine()}</Button>
+          <Button size="sm" variant="outline" onClick={() => resolve('theirs')}>
+            {m.editor_conflict_theirs()}
+          </Button>
+          <Button size="sm" onClick={() => resolve('mine')}>
+            {m.editor_conflict_mine()}
+          </Button>
         </div>
       </AlertDescription>
     </Alert>
@@ -131,9 +154,21 @@ function LevelSwitcher({ className }: { className?: string }) {
   const setView = useEditor(s => s.setView);
   const stacked = useMemo(() => [...levels].sort((a, b) => b.elevation - a.elevation), [levels]);
   return (
-    <ToggleGroup value={[level]} onValueChange={v => v[0] && setView({ level: v[0] as string })} orientation="vertical" variant="outline" size="sm" spacing={0}
-      aria-label={m.editor_levels_aria()} className={className}>
-      {stacked.map(l => <ToggleGroupItem key={l.id} value={l.id}>{l.name}</ToggleGroupItem>)}
+    <ToggleGroup
+      value={[level]}
+      onValueChange={v => v[0] && setView({ level: v[0] as string })}
+      orientation="vertical"
+      variant="outline"
+      size="sm"
+      spacing={0}
+      aria-label={m.editor_levels_aria()}
+      className={className}
+    >
+      {stacked.map(l => (
+        <ToggleGroupItem key={l.id} value={l.id}>
+          {l.name}
+        </ToggleGroupItem>
+      ))}
     </ToggleGroup>
   );
 }
@@ -166,19 +201,32 @@ function CanvasTools({ className }: { className?: string }) {
     <div className={cn('flex gap-1', className)}>
       {view.mode === '3d' && (
         <Tooltip>
-          <TooltipTrigger render={
-            <Toggle size="sm" variant="outline" className="bg-background aria-pressed:bg-primary aria-pressed:text-primary-foreground" pressed={cutaway}
-              onPressedChange={p => setView({ layers: { ...view.layers, cutaway: p } })} aria-label={m.model3d_cutaway()} />
-          }><LayersIcon /></TooltipTrigger>
+          <TooltipTrigger
+            render={
+              <Toggle
+                size="sm"
+                variant="outline"
+                className="bg-background aria-pressed:bg-primary aria-pressed:text-primary-foreground"
+                pressed={cutaway}
+                onPressedChange={p => setView({ layers: { ...view.layers, cutaway: p } })}
+                aria-label={m.model3d_cutaway()}
+              />
+            }
+          >
+            <LayersIcon />
+          </TooltipTrigger>
           <TooltipContent>{cutaway ? m.model3d_whole() : m.model3d_cutaway()}</TooltipContent>
         </Tooltip>
       )}
       <Tooltip>
-        <TooltipTrigger render={<Button size="icon-sm" variant="outline" className="bg-background" onClick={fitView} aria-label={m.canvas_fit()} />}><ScanIcon /></TooltipTrigger>
+        <TooltipTrigger render={<Button size="icon-sm" variant="outline" className="bg-background" onClick={fitView} aria-label={m.canvas_fit()} />}>
+          <ScanIcon />
+        </TooltipTrigger>
         <TooltipContent>{m.canvas_fit()}</TooltipContent>
       </Tooltip>
       <Button size="sm" variant="outline" className="bg-background" onClick={switchView} disabled={switching}>
-        {to === '3d' ? <BoxIcon /> : <SquareIcon />}{to === '3d' ? m.editor_view_3d() : m.editor_view_2d()}
+        {to === '3d' ? <BoxIcon /> : <SquareIcon />}
+        {to === '3d' ? m.editor_view_3d() : m.editor_view_2d()}
       </Button>
     </div>
   );
@@ -202,7 +250,9 @@ function Toolbar({ onShare, onExport }: { onShare: () => void; onExport: () => v
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2">
-      <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link to="/projects" />} aria-label={m.editor_back_to_projects()}><ArrowLeftIcon /></Button>
+      <Button variant="ghost" size="icon-sm" nativeButton={false} render={<Link to="/projects" />} aria-label={m.editor_back_to_projects()}>
+        <ArrowLeftIcon />
+      </Button>
       <div className="min-w-0 flex-1 md:flex-none">
         <p className="truncate text-sm font-medium">{project.name}</p>
       </div>
@@ -210,16 +260,35 @@ function Toolbar({ onShare, onExport }: { onShare: () => void; onExport: () => v
       <div className="flex-1 max-md:hidden" />
       {canEdit && (
         <div className="flex max-sm:hidden">
-          <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={undo} disabled={!session.canUndo} aria-label={m.editor_undo()} />}><Undo2Icon /></TooltipTrigger><TooltipContent>{m.editor_undo_shortcut()}</TooltipContent></Tooltip>
-          <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={redo} disabled={!session.canRedo} aria-label={m.editor_redo()} />}><Redo2Icon /></TooltipTrigger><TooltipContent>{m.editor_redo_shortcut()}</TooltipContent></Tooltip>
+          <Tooltip>
+            <TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={undo} disabled={!session.canUndo} aria-label={m.editor_undo()} />}>
+              <Undo2Icon />
+            </TooltipTrigger>
+            <TooltipContent>{m.editor_undo_shortcut()}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={redo} disabled={!session.canRedo} aria-label={m.editor_redo()} />}>
+              <Redo2Icon />
+            </TooltipTrigger>
+            <TooltipContent>{m.editor_redo_shortcut()}</TooltipContent>
+          </Tooltip>
         </div>
       )}
-      <Button size="sm" variant="outline" onClick={onShare}><Share2Icon /><span className="max-sm:hidden">{role === 'owner' ? m.editor_share() : roleLabel(role)}</span></Button>
+      <Button size="sm" variant="outline" onClick={onShare}>
+        <Share2Icon />
+        <span className="max-sm:hidden">{role === 'owner' ? m.editor_share() : roleLabel(role)}</span>
+      </Button>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={m.editor_more()} />}><EllipsisIcon /></DropdownMenuTrigger>
+        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={m.editor_more()} />}>
+          <EllipsisIcon />
+        </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={onExport}><ImageIcon /> {m.editor_export_image()}</DropdownMenuItem>
-          <DropdownMenuItem onClick={exportJson}><DownloadIcon /> {m.editor_download_json()}</DropdownMenuItem>
+          <DropdownMenuItem onClick={onExport}>
+            <ImageIcon /> {m.editor_export_image()}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={exportJson}>
+            <DownloadIcon /> {m.editor_download_json()}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           {(['furniture', 'labels', 'dimensions'] as const).map(k => (
             <DropdownMenuItem key={k} onClick={() => setView({ layers: { ...view.layers, [k]: !view.layers[k] } })}>
@@ -235,11 +304,21 @@ function Toolbar({ onShare, onExport }: { onShare: () => void; onExport: () => v
 function PanelBody() {
   return (
     <>
-      <TabsContent value="chat" keepMounted className="min-h-0 flex-1 data-[hidden]:hidden"><ChatPanel /></TabsContent>
-      <TabsContent value="props" className="min-h-0 flex-1 overflow-y-auto"><PropsPanel /></TabsContent>
-      <TabsContent value="areas" className="min-h-0 flex-1 overflow-y-auto"><AreasPanel /></TabsContent>
-      <TabsContent value="comments" className="min-h-0 flex-1"><CommentsPanel /></TabsContent>
-      <TabsContent value="versions" className="min-h-0 flex-1 overflow-y-auto"><VersionsPanel /></TabsContent>
+      <TabsContent value="chat" keepMounted className="min-h-0 flex-1 data-[hidden]:hidden">
+        <ChatPanel />
+      </TabsContent>
+      <TabsContent value="props" className="min-h-0 flex-1 overflow-y-auto">
+        <PropsPanel />
+      </TabsContent>
+      <TabsContent value="areas" className="min-h-0 flex-1 overflow-y-auto">
+        <AreasPanel />
+      </TabsContent>
+      <TabsContent value="comments" className="min-h-0 flex-1">
+        <CommentsPanel />
+      </TabsContent>
+      <TabsContent value="versions" className="min-h-0 flex-1 overflow-y-auto">
+        <VersionsPanel />
+      </TabsContent>
     </>
   );
 }
@@ -263,14 +342,22 @@ function Thumbnail() {
   useEffect(() => {
     const svg = ref.current?.querySelector('svg');
     if (!snap || !svg) return;
-    const put = (body: string, type: string) => body.length < 290_000 && api(`/projects/${projectId}/thumbnail`, { method: 'PUT', body, headers: { 'Content-Type': type } });
+    const put = (body: string, type: string) =>
+      body.length < 290_000 && api(`/projects/${projectId}/thumbnail`, { method: 'PUT', body, headers: { 'Content-Type': type } });
     const plan = standaloneSvg(svg);
     void import('./model3d/house-still')
       .then(({ renderHouseStill }) => renderHouseStill(snap))
-      .then(jpeg => put(jpeg, 'text/plain'), () => put(plan, 'image/svg+xml'))
+      .then(
+        jpeg => put(jpeg, 'text/plain'),
+        () => put(plan, 'image/svg+xml'),
+      )
       .catch(() => {});
   }, [snap]);
-  return snap ? <div ref={ref} className="hidden" aria-hidden><PlanPreview project={snap} /></div> : null;
+  return snap ? (
+    <div ref={ref} className="hidden" aria-hidden>
+      <PlanPreview project={snap} />
+    </div>
+  ) : null;
 }
 
 /**
@@ -289,8 +376,16 @@ export function EditorCanvas({ svgRef }: { svgRef?: React.RefObject<SVGSVGElemen
     <>
       <CanvasFrame className="absolute inset-0 size-full border-0">
         <HopDriver />
-        {view.mode === '2d' ? <Plan2D svgRef={svgRef} /> : (
-          <Suspense fallback={<div className="flex size-full items-center justify-center text-muted-foreground"><Spinner className="size-6" /></div>}>
+        {view.mode === '2d' ? (
+          <Plan2D svgRef={svgRef} />
+        ) : (
+          <Suspense
+            fallback={
+              <div className="flex size-full items-center justify-center text-muted-foreground">
+                <Spinner className="size-6" />
+              </div>
+            }
+          >
             <Model3D />
           </Suspense>
         )}
@@ -352,7 +447,11 @@ function Workspace() {
   const tabs = (
     <Tabs value={tab} onValueChange={v => setTab(v as Tab)} className="flex h-full min-h-0 flex-col gap-0">
       <TabsList variant="line" className="w-full shrink-0 justify-start border-b px-2">
-        {TABS.map(t => <TabsTrigger key={t.id} value={t.id} className="flex-none">{t.label()}</TabsTrigger>)}
+        {TABS.map(t => (
+          <TabsTrigger key={t.id} value={t.id} className="flex-none">
+            {t.label()}
+          </TabsTrigger>
+        ))}
       </TabsList>
       <PanelBody />
     </Tabs>
@@ -368,8 +467,17 @@ function Workspace() {
           {mobile && (
             <nav className="absolute inset-x-0 bottom-0 flex justify-around border-t bg-background/95 pb-[env(safe-area-inset-bottom)]">
               {TABS.slice(0, 4).map(t => (
-                <Button key={t.id} variant="ghost" className="h-auto flex-1 flex-col gap-0.5 rounded-none py-2 text-xs font-normal" onClick={() => { setTab(t.id); setSheet(true); }}>
-                  <t.icon className="size-5" />{t.label()}
+                <Button
+                  key={t.id}
+                  variant="ghost"
+                  className="h-auto flex-1 flex-col gap-0.5 rounded-none py-2 text-xs font-normal"
+                  onClick={() => {
+                    setTab(t.id);
+                    setSheet(true);
+                  }}
+                >
+                  <t.icon className="size-5" />
+                  {t.label()}
                 </Button>
               ))}
             </nav>
@@ -381,7 +489,9 @@ function Workspace() {
         <Sheet open={sheet} onOpenChange={setSheet}>
           {/* The base bottom sheet is h-auto under data-[side=bottom]; the height must use the same variant to win, or the panels grow instead of scrolling */}
           <SheetContent side="bottom" className="gap-0 p-0 data-[side=bottom]:h-[75dvh]">
-            <SheetHeader className="sr-only"><SheetTitle>{TABS.find(t => t.id === tab)?.label()}</SheetTitle></SheetHeader>
+            <SheetHeader className="sr-only">
+              <SheetTitle>{TABS.find(t => t.id === tab)?.label()}</SheetTitle>
+            </SheetHeader>
             {tabs}
           </SheetContent>
         </Sheet>

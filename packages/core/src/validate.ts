@@ -29,7 +29,8 @@ export function validate(p: Project): ValidationIssue[] {
     const len = Math.hypot(w.end[0] - w.start[0], w.end[1] - w.start[1]);
     if (len <= 0) issues.push({ path: at, message: text('validate_zero_length', 'Wall length is 0') });
     if (w.thickness <= 0) issues.push({ path: at, message: text('validate_thickness', 'Wall thickness must be greater than 0') });
-    if (w.finish && !materialOf(w.finish, null, p.library.materials)) issues.push({ path: at, message: text('validate_unknown_material', 'Material {material} is not registered', { material: w.finish }) });
+    if (w.finish && !materialOf(w.finish, null, p.library.materials))
+      issues.push({ path: at, message: text('validate_unknown_material', 'Material {material} is not registered', { material: w.finish }) });
     w.openings.forEach((o, j) => {
       claim(o.id, `${at}.openings[${j}]`);
       if (o.at - o.width / 2 < -1 || o.at + o.width / 2 > len + 1)
@@ -40,20 +41,24 @@ export function validate(p: Project): ValidationIssue[] {
     const at = `spaces[${i}] (${s.name})`;
     claim(s.id, at);
     if (!levels.has(s.level)) issues.push({ path: at, message: text('validate_missing_level', 'Level {level} does not exist', { level: s.level }) });
-    if (!materialOf(s.floor, null, lib.materials)) issues.push({ path: at, message: text('validate_unknown_material', 'Material {material} is not registered', { material: s.floor }) });
+    if (!materialOf(s.floor, null, lib.materials))
+      issues.push({ path: at, message: text('validate_unknown_material', 'Material {material} is not registered', { material: s.floor }) });
     if (area(s.shape) <= 0) issues.push({ path: at, message: text('validate_zero_area', 'Shape area is 0') });
   });
   p.elements.forEach((e, i) => {
     const at = `elements[${i}] (${e.name})`;
     claim(e.id, at);
-    if (!levels.has(e.level) || (e.topLevel && !levels.has(e.topLevel))) issues.push({ path: at, message: text('validate_level_missing', 'Level does not exist') });
-    if (!(e.type in lib.elements)) issues.push({ path: at, message: text('validate_unknown_element', 'Element type {type} is not registered', { type: e.type }) });
+    if (!levels.has(e.level) || (e.topLevel && !levels.has(e.topLevel)))
+      issues.push({ path: at, message: text('validate_level_missing', 'Level does not exist') });
+    if (!(e.type in lib.elements))
+      issues.push({ path: at, message: text('validate_unknown_element', 'Element type {type} is not registered', { type: e.type }) });
   });
   p.furniture.forEach((f, i) => {
     const at = `furniture[${i}] (${f.name})`;
     claim(f.id, at);
     if (!levels.has(f.level)) issues.push({ path: at, message: text('validate_missing_level', 'Level {level} does not exist', { level: f.level }) });
-    if (!(f.type in lib.furniture)) issues.push({ path: at, message: text('validate_unknown_furniture', 'Furniture type {type} is not registered', { type: f.type }) });
+    if (!(f.type in lib.furniture))
+      issues.push({ path: at, message: text('validate_unknown_furniture', 'Furniture type {type} is not registered', { type: f.type }) });
   });
   // Looks: references must exist (a missing look would silently fall back to the default)
   const looks = lib.looks ?? {};

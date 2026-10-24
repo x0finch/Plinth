@@ -57,7 +57,10 @@ export function ParamControls({ params, values, onChange, recipe, design, readOn
       return (
         <div key={name} className="flex justify-between gap-3 py-1 text-sm">
           <span className="text-muted-foreground">{label}</span>
-          <span className="flex items-center gap-1.5 text-right">{swatch(value)}{text(value)}</span>
+          <span className="flex items-center gap-1.5 text-right">
+            {swatch(value)}
+            {text(value)}
+          </span>
         </div>
       );
     }
@@ -67,31 +70,51 @@ export function ParamControls({ params, values, onChange, recipe, design, readOn
       <div key={name} className="space-y-1" data-param={name}>
         <div className="flex items-center justify-between gap-2 text-sm">
           <span>{label}</span>
-          {own !== undefined && <Button variant="link" size="sm" className="h-auto px-0" onClick={() => onChange(name, null)}>{m.looks_param_reset()}</Button>}
+          {own !== undefined && (
+            <Button variant="link" size="sm" className="h-auto px-0" onClick={() => onChange(name, null)}>
+              {m.looks_param_reset()}
+            </Button>
+          )}
         </div>
         {options ? (
           <Select value={JSON.stringify(value)} onValueChange={v => onChange(name, JSON.parse(v as string))}>
             <SelectTrigger className="w-full" aria-label={label}>
-              <SelectValue>{swatch(value)} {text(value)}</SelectValue>
+              <SelectValue>
+                {swatch(value)} {text(value)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {(options.includes(value) ? options : [value, ...options]).map(o => (
-                <SelectItem key={JSON.stringify(o)} value={JSON.stringify(o)}>{swatch(o)} {text(o)}</SelectItem>
+                <SelectItem key={JSON.stringify(o)} value={JSON.stringify(o)}>
+                  {swatch(o)} {text(o)}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         ) : types.includes('number') || types.includes('integer') ? (
-          <Input key={String(value)} type="number" aria-label={label} defaultValue={value === null ? '' : String(value)} placeholder={types.includes('null') ? m.looks_param_auto() : undefined}
-            min={d.minimum} max={d.maximum} step={types.includes('integer') ? 1 : undefined}
+          <Input
+            key={String(value)}
+            type="number"
+            aria-label={label}
+            defaultValue={value === null ? '' : String(value)}
+            placeholder={types.includes('null') ? m.looks_param_auto() : undefined}
+            min={d.minimum}
+            max={d.maximum}
+            step={types.includes('integer') ? 1 : undefined}
             onBlur={ev => {
               const v = ev.target.value.trim() === '' ? (types.includes('null') ? null : d.default) : Number(ev.target.value);
               if (v !== value && (v === null || Number.isFinite(v))) onChange(name, v === d.default && own === undefined ? null : v);
             }}
-            onKeyDown={ev => ev.key === 'Enter' && (ev.target as HTMLInputElement).blur()} />
+            onKeyDown={ev => ev.key === 'Enter' && (ev.target as HTMLInputElement).blur()}
+          />
         ) : (
-          <Input key={String(value)} aria-label={label} defaultValue={String(value ?? '')}
+          <Input
+            key={String(value)}
+            aria-label={label}
+            defaultValue={String(value ?? '')}
             onBlur={ev => ev.target.value !== value && onChange(name, ev.target.value)}
-            onKeyDown={ev => ev.key === 'Enter' && (ev.target as HTMLInputElement).blur()} />
+            onKeyDown={ev => ev.key === 'Enter' && (ev.target as HTMLInputElement).blur()}
+          />
         )}
       </div>
     );
@@ -99,16 +122,32 @@ export function ParamControls({ params, values, onChange, recipe, design, readOn
 }
 
 /** A material picker with swatches: the design's own materials and the default library's (a floor, a wall's finish) */
-export function MaterialSelect({ value, onChange, design, label }: { value: string; onChange: (id: string) => void; design?: Record<string, Material>; label: string }) {
+export function MaterialSelect({
+  value,
+  onChange,
+  design,
+  label,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  design?: Record<string, Material>;
+  label: string;
+}) {
   const ids = [...new Set([value, ...Object.keys(design ?? {}), ...Object.keys(DEFAULT_MATERIALS)])];
   const name = (id: string) => uiName(materialOf(id, null, design)?.name) || id;
   return (
     <Select value={value} onValueChange={v => v && onChange(v as string)}>
       <SelectTrigger className="w-full" aria-label={label}>
-        <SelectValue><Swatch material={materialOf(value, null, design)} /> {name(value)}</SelectValue>
+        <SelectValue>
+          <Swatch material={materialOf(value, null, design)} /> {name(value)}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        {ids.map(id => <SelectItem key={id} value={id}><Swatch material={materialOf(id, null, design)} /> {name(id)}</SelectItem>)}
+        {ids.map(id => (
+          <SelectItem key={id} value={id}>
+            <Swatch material={materialOf(id, null, design)} /> {name(id)}
+          </SelectItem>
+        ))}
       </SelectContent>
     </Select>
   );

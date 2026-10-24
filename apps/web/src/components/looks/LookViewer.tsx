@@ -35,22 +35,43 @@ export function LookViewer({ recipe, size, params, alt }: { recipe: Recipe; size
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = overflow; };
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = overflow;
+    };
   }, [max]);
   if (!doc || !built) return <Skeleton className="aspect-[4/3] w-full" />;
   return (
     <div className="relative aspect-[4/3] w-full">
       {/* Turning it is a drag: no text selection or long-press menu, here or (while dragging) on the rest of the page */}
-      <div className={cn('touch-none overflow-hidden select-none [-webkit-touch-callout:none]', max ? 'fixed inset-0 z-50' : 'absolute inset-0 rounded-md border')} role="img" aria-label={alt}
-        onPointerDown={noSelectWhileDragging} onContextMenu={e => e.preventDefault()}>
-        <Canvas shadows="soft" frameloop="demand" dpr={[1, 2]} gl={{ antialias: true, toneMapping: THREE.NoToneMapping }} camera={{ fov: FOV, near: 0.01, far: 200 }}>
+      <div
+        className={cn('touch-none overflow-hidden select-none [-webkit-touch-callout:none]', max ? 'fixed inset-0 z-50' : 'absolute inset-0 rounded-md border')}
+        role="img"
+        aria-label={alt}
+        onPointerDown={noSelectWhileDragging}
+        onContextMenu={e => e.preventDefault()}
+      >
+        <Canvas
+          shadows="soft"
+          frameloop="demand"
+          dpr={[1, 2]}
+          gl={{ antialias: true, toneMapping: THREE.NoToneMapping }}
+          camera={{ fov: FOV, near: 0.01, far: 200 }}
+        >
           <Stage doc={doc} recipe={recipe} parts={built.parts} size={size} view={view} />
         </Canvas>
         <div className={cn('absolute right-2 flex gap-2', max ? 'bottom-[max(0.5rem,env(safe-area-inset-bottom))]' : 'bottom-2')}>
           <Button size="icon-sm" variant="outline" className="bg-background" aria-label={m.look_viewer_reset()} onClick={() => setView(v => v + 1)}>
             <RotateCcwIcon />
           </Button>
-          <Button size="icon-sm" variant="outline" className="bg-background" aria-label={max ? m.look_viewer_restore() : m.look_viewer_maximize()} aria-pressed={max} onClick={() => setMax(v => !v)}>
+          <Button
+            size="icon-sm"
+            variant="outline"
+            className="bg-background"
+            aria-label={max ? m.look_viewer_restore() : m.look_viewer_maximize()}
+            aria-pressed={max}
+            onClick={() => setMax(v => !v)}
+          >
             {max ? <Minimize2Icon /> : <Maximize2Icon />}
           </Button>
         </div>
@@ -61,7 +82,8 @@ export function LookViewer({ recipe, size, params, alt }: { recipe: Recipe; size
 
 /** Keep the page from selecting text while a drag that started on the viewer goes on, wherever the pointer moves */
 function noSelectWhileDragging() {
-  const style = document.documentElement.style, before = style.userSelect;
+  const style = document.documentElement.style,
+    before = style.userSelect;
   style.userSelect = style.webkitUserSelect = 'none';
   const end = () => {
     style.userSelect = style.webkitUserSelect = before;
@@ -79,10 +101,24 @@ function Stage({ doc, recipe, parts, size, view }: { doc: Document; recipe: Reci
   const aspect = useThree(s => s.size.width / Math.max(1, s.size.height));
   const geometry = useMemo(() => partsGeometry(parts), [parts]);
   useEffect(() => () => geometry.forEach(([, g]) => g.dispose()), [geometry]);
-  const { center, radius } = useMemo(() => lookBounds(geometry.map(([, g]) => g), size), [geometry, size]);
+  const { center, radius } = useMemo(
+    () =>
+      lookBounds(
+        geometry.map(([, g]) => g),
+        size,
+      ),
+    [geometry, size],
+  );
   const sun = useMemo(() => stageSun(c.sun, center, radius), [c.sun, center, radius]);
   const ground = useMemo(() => stageGround(radius), [radius]);
-  useEffect(() => () => { ground.geometry.dispose(); (ground.material as THREE.Material).dispose(); sun.shadow.map?.dispose(); }, [ground, sun]);
+  useEffect(
+    () => () => {
+      ground.geometry.dispose();
+      (ground.material as THREE.Material).dispose();
+      sun.shadow.map?.dispose();
+    },
+    [ground, sun],
+  );
   // The starting view: when the look's extent changes, or on reset
   const key = `${radius.toFixed(3)}:${view}`;
   useEffect(() => {
@@ -107,11 +143,27 @@ function Stage({ doc, recipe, parts, size, view }: { doc: Document; recipe: Reci
         const { color, roughness, metalness, opacity } = lookMaterial(mat, recipe);
         return (
           <mesh key={mat} geometry={g} castShadow={opacity === 1}>
-            <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} transparent={opacity < 1} opacity={opacity} depthWrite={opacity === 1} />
+            <meshStandardMaterial
+              color={color}
+              roughness={roughness}
+              metalness={metalness}
+              transparent={opacity < 1}
+              opacity={opacity}
+              depthWrite={opacity === 1}
+            />
           </mesh>
         );
       })}
-      <OrbitControls key={key} makeDefault target={center} enableDamping dampingFactor={0.1} minDistance={radius * 0.6} maxDistance={radius * 12} maxPolarAngle={Math.PI / 2 - 0.02} />
+      <OrbitControls
+        key={key}
+        makeDefault
+        target={center}
+        enableDamping
+        dampingFactor={0.1}
+        minDistance={radius * 0.6}
+        maxDistance={radius * 12}
+        maxPolarAngle={Math.PI / 2 - 0.02}
+      />
     </>
   );
 }

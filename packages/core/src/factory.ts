@@ -17,8 +17,10 @@ export interface NewProjectOptions {
 
 export function createProject(o: NewProjectOptions): Project {
   const { width, depth } = o.site ?? { width: 20000, depth: 20000 };
-  const n = o.floors ?? 1, h = o.floorHeight ?? 3000;
-  const language = o.language ?? 'zh', vocab = names(language);
+  const n = o.floors ?? 1,
+    h = o.floorHeight ?? 3000;
+  const language = o.language ?? 'zh',
+    vocab = names(language);
   return {
     schema: SCHEMA,
     version: SCHEMA_VERSION,
@@ -27,7 +29,12 @@ export function createProject(o: NewProjectOptions): Project {
     language,
     units: 'mm',
     site: {
-      boundary: [[0, 0], [width, 0], [width, depth], [0, depth]],
+      boundary: [
+        [0, 0],
+        [width, 0],
+        [width, depth],
+        [0, depth],
+      ],
       northAngle: 0,
       location: o.location ?? { lat: 30, lon: 114, tz: 8 },
       groundLevel: -150,

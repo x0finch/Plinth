@@ -17,7 +17,12 @@ page.on('pageerror', e => errors.push(String(e)));
 // The legacy page generates IDs with Math.random; a fixed seed keeps every export identical
 await page.addInitScript(() => {
   let a = 20261022;
-  Math.random = () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  Math.random = () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 });
 await page.goto(page_url, { waitUntil: 'load' });
 await page.waitForFunction(() => typeof D !== 'undefined' && D.floors, null, { timeout: 30000 });
@@ -25,15 +30,21 @@ await page.waitForFunction(() => typeof D !== 'undefined' && D.floors, null, { t
 const data = await page.evaluate(() => {
   const clone = v => JSON.parse(JSON.stringify(v));
   let stair = null;
-  try { stair = clone(stairGeo()); } catch (e) { stair = { error: String(e) }; }
+  try {
+    stair = clone(stairGeo());
+  } catch (e) {
+    stair = { error: String(e) };
+  }
   return {
     legacy: {
-      scheme: SCH, name: SCHN,
+      scheme: SCH,
+      name: SCHN,
       design: clone(D),
       cfg: clone(CFG6),
       consts: clone({ LAT, LON, TZ, SITE, FB, FN, H1, FH, GL, STAIR, SX, POND, DRAINS, PLANTER_X, PLANTER_Y, DECK, STEPS, SLOPES, OPD }),
       stair,
-      catalog: clone(CAT), materials: clone(MATS),
+      catalog: clone(CAT),
+      materials: clone(MATS),
     },
     expected: {
       note: '旧页面算出的面积（㎡）：使用面积按墙内净尺寸，建筑面积量到外墙外皮',

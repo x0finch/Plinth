@@ -17,7 +17,9 @@ export const Route = createRootRoute({
   notFoundComponent: () => (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-2">
       <p className="text-lg font-medium">{m.root_not_found()}</p>
-      <Link to="/" className="text-sm underline">{m.root_back_home()}</Link>
+      <Link to="/" className="text-sm underline">
+        {m.root_back_home()}
+      </Link>
     </div>
   ),
 });

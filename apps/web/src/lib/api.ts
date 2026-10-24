@@ -3,7 +3,11 @@ import type { Role } from '@/shared/roles';
 import { m } from './i18n';
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string, public data?: any) {
+  constructor(
+    public status: number,
+    message: string,
+    public data?: any,
+  ) {
     super(message);
   }
 }

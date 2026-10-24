@@ -16,27 +16,32 @@ export function AreasPanel() {
         <p className="text-xs text-muted-foreground">{m.panels_total_gross()}</p>
         <p className="text-2xl font-medium">{fmtArea(report.totalGross)}</p>
       </div>
-      {report.levels.filter(l => l.spaces.length).map(l => {
-        const inner = l.spaces.filter(s => s.kind === 'indoor').reduce((a, s) => a + s.net, 0);
-        return (
-          <div key={l.id}>
-            <div className="flex items-baseline justify-between">
-              <p className="font-medium">{l.name}</p>
-              <p className="text-xs text-muted-foreground">{m.panels_level_summary({ gross: fmtArea(l.gross), inner: fmtArea(inner) })}</p>
+      {report.levels
+        .filter(l => l.spaces.length)
+        .map(l => {
+          const inner = l.spaces.filter(s => s.kind === 'indoor').reduce((a, s) => a + s.net, 0);
+          return (
+            <div key={l.id}>
+              <div className="flex items-baseline justify-between">
+                <p className="font-medium">{l.name}</p>
+                <p className="text-xs text-muted-foreground">{m.panels_level_summary({ gross: fmtArea(l.gross), inner: fmtArea(inner) })}</p>
+              </div>
+              <Table className="mt-1">
+                <TableBody>
+                  {l.spaces.map(s => (
+                    <TableRow key={s.id} className="cursor-pointer" onClick={() => focus([s.id])}>
+                      <TableCell className="py-1.5">
+                        {s.name}
+                        {s.kind !== 'indoor' && <span className="text-muted-foreground">{m.panels_area_kind_suffix({ kind: kindLabel(s.kind) })}</span>}
+                      </TableCell>
+                      <TableCell className="py-1.5 text-right font-mono">{s.net.toFixed(1)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
-            <Table className="mt-1">
-              <TableBody>
-                {l.spaces.map(s => (
-                  <TableRow key={s.id} className="cursor-pointer" onClick={() => focus([s.id])}>
-                    <TableCell className="py-1.5">{s.name}{s.kind !== 'indoor' && <span className="text-muted-foreground">{m.panels_area_kind_suffix({ kind: kindLabel(s.kind) })}</span>}</TableCell>
-                    <TableCell className="py-1.5 text-right font-mono">{s.net.toFixed(1)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        );
-      })}
+          );
+        })}
       <p className="text-xs text-muted-foreground">{m.panels_area_note()}</p>
     </div>
   );

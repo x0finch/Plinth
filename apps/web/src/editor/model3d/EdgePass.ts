@@ -89,7 +89,12 @@ export class EdgePass extends Pass {
   private normals = new THREE.MeshNormalMaterial();
   private hidden: THREE.Object3D[] = [];
 
-  constructor(private scene: THREE.Scene, private camera: THREE.Camera, width: number, height: number) {
+  constructor(
+    private scene: THREE.Scene,
+    private camera: THREE.Camera,
+    width: number,
+    height: number,
+  ) {
     super();
     this.material = new THREE.ShaderMaterial({ ...shader, uniforms: THREE.UniformsUtils.clone(shader.uniforms) });
     this.quad = new FullScreenQuad(this.material);
@@ -111,7 +116,10 @@ export class EdgePass extends Pass {
     this.scene.traverse(o => {
       const m = o as THREE.Mesh;
       const shadowOnly = (m.material as THREE.Material | undefined)?.type === 'ShadowMaterial';
-      if (o.visible && (o.userData.noEdges || shadowOnly || (o as { isLineSegments2?: boolean }).isLineSegments2 || (o as THREE.Line).isLine || (o as THREE.Points).isPoints)) {
+      if (
+        o.visible &&
+        (o.userData.noEdges || shadowOnly || (o as { isLineSegments2?: boolean }).isLineSegments2 || (o as THREE.Line).isLine || (o as THREE.Points).isPoints)
+      ) {
         o.visible = false;
         this.hidden.push(o);
       }
@@ -122,11 +130,14 @@ export class EdgePass extends Pass {
     const cam = this.camera as THREE.PerspectiveCamera;
     // Normals and depth of the model
     this.hide();
-    const background = this.scene.background, fog = this.scene.fog, override = this.scene.overrideMaterial;
+    const background = this.scene.background,
+      fog = this.scene.fog,
+      override = this.scene.overrideMaterial;
     this.scene.background = null;
     this.scene.fog = null;
     this.scene.overrideMaterial = this.normals;
-    const clear = renderer.getClearColor(new THREE.Color()), alpha = renderer.getClearAlpha();
+    const clear = renderer.getClearColor(new THREE.Color()),
+      alpha = renderer.getClearAlpha();
     renderer.setClearColor(0x8080ff, 1);
     renderer.setRenderTarget(this.target);
     renderer.clear();

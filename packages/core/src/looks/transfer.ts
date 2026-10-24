@@ -20,7 +20,9 @@ export function designLookOf(lib: LookLibrary, id: string, lang: ProjectLanguage
     name: nameIn(look.name, lang),
     for: [...look.for],
     recipe,
-    ...(type ? { types: { [type]: { name: nameIn(look.newType!.name, lang), ...(group ? { group: nameIn(group, lang) } : {}), size: { ...look.newType!.size } } } } : {}),
+    ...(type
+      ? { types: { [type]: { name: nameIn(look.newType!.name, lang), ...(group ? { group: nameIn(group, lang) } : {}), size: { ...look.newType!.size } } } }
+      : {}),
     source: { library: lib.id, look: id, version: look.version },
   };
 }

@@ -40,7 +40,7 @@ export function markup(el: React.ReactElement, doc: Document) {
 }
 
 async function rasterize(svg: string, width: number, height: number, doc: Document) {
-  const img = new (doc.defaultView!.Image)();
+  const img = new doc.defaultView!.Image();
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   await img.decode();
   const c = doc.createElement('canvas');
@@ -54,8 +54,22 @@ async function rasterize(svg: string, width: number, height: number, doc: Docume
 }
 
 /** The level's drawing, just above its floor (the parent places it at the level's elevation). Ignored by picking. */
-export function FloorDrawing({ project, level, current, furniture, labels, quality, growth }: {
-  project: Project; level: string; current: boolean; furniture: boolean; labels: boolean; quality: Quality; growth: React.RefObject<{ g: number }>;
+export function FloorDrawing({
+  project,
+  level,
+  current,
+  furniture,
+  labels,
+  quality,
+  growth,
+}: {
+  project: Project;
+  level: string;
+  current: boolean;
+  furniture: boolean;
+  labels: boolean;
+  quality: Quality;
+  growth: React.RefObject<{ g: number }>;
 }) {
   const doc = useCanvasDocument();
   const size = useThree(s => s.size);
@@ -69,7 +83,12 @@ export function FloorDrawing({ project, level, current, furniture, labels, quali
   useEffect(() => {
     const line = scaledLine(mmPerPx);
     const svg = (children: React.ReactNode, w: number, h: number) =>
-      markup(<svg xmlns="http://www.w3.org/2000/svg" viewBox={`${frame.x} ${frame.y} ${frame.w} ${frame.h}`} width={w} height={h}>{children}</svg>, doc);
+      markup(
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox={`${frame.x} ${frame.y} ${frame.w} ${frame.h}`} width={w} height={h}>
+          {children}
+        </svg>,
+        doc,
+      );
     const budget = TEXTURE_PX[quality];
     const dims = (px: number) => {
       const k = px / Math.max(frame.w, frame.h);
@@ -80,12 +99,40 @@ export function FloorDrawing({ project, level, current, furniture, labels, quali
     let live = true;
     let made: { paper: THREE.Texture; ink: THREE.Texture } | null = null;
     void Promise.all([
-      rasterize(svg(<><PlanDefs project={project} /><PlanPaper project={project} level={level} shapes={shapes} line={line} /></>, pw, ph), pw, ph, doc),
-      rasterize(svg(<><PlanDefs project={project} /><PlanInk shapes={shapes} furniture={furniture} line={line} />{labels && <PlanLabels shapes={shapes} />}</>, iw, ih), iw, ih, doc),
+      rasterize(
+        svg(
+          <>
+            <PlanDefs project={project} />
+            <PlanPaper project={project} level={level} shapes={shapes} line={line} />
+          </>,
+          pw,
+          ph,
+        ),
+        pw,
+        ph,
+        doc,
+      ),
+      rasterize(
+        svg(
+          <>
+            <PlanDefs project={project} />
+            <PlanInk shapes={shapes} furniture={furniture} line={line} />
+            {labels && <PlanLabels shapes={shapes} />}
+          </>,
+          iw,
+          ih,
+        ),
+        iw,
+        ih,
+        doc,
+      ),
     ]).then(([paper, ink]) => {
       made = { paper, ink };
       if (live) setTextures(made);
-      else (paper.dispose(), ink.dispose());
+      else {
+        paper.dispose();
+        ink.dispose();
+      }
     });
     return () => {
       live = false;
@@ -99,7 +146,8 @@ export function FloorDrawing({ project, level, current, furniture, labels, quali
   const ink = useRef<THREE.MeshBasicMaterial>(null);
   const inkMesh = useRef<THREE.Mesh>(null);
   useFrame(() => {
-    const f = paperOpacity(growth.current.g), k = inkOpacity(growth.current.g);
+    const f = paperOpacity(growth.current.g),
+      k = inkOpacity(growth.current.g);
     if (paper.current) paper.current.opacity = f;
     if (paperMesh.current) paperMesh.current.visible = f > 0;
     if (ink.current) ink.current.opacity = k;
@@ -110,11 +158,25 @@ export function FloorDrawing({ project, level, current, furniture, labels, quali
   const center: [number, number] = [(frame.x + frame.w / 2) * M, (frame.y + frame.h / 2) * M];
   return (
     <group>
-      <mesh ref={paperMesh} position={[center[0], 0.005, center[1]]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} userData={{ noEdges: true }} renderOrder={2}>
+      <mesh
+        ref={paperMesh}
+        position={[center[0], 0.005, center[1]]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        raycast={() => null}
+        userData={{ noEdges: true }}
+        renderOrder={2}
+      >
         <planeGeometry args={[frame.w * M, frame.h * M]} />
         <meshBasicMaterial ref={paper} map={textures.paper} transparent depthWrite={false} toneMapped={false} fog={false} />
       </mesh>
-      <mesh ref={inkMesh} position={[center[0], 0.006, center[1]]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} userData={{ noEdges: true }} renderOrder={3}>
+      <mesh
+        ref={inkMesh}
+        position={[center[0], 0.006, center[1]]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        raycast={() => null}
+        userData={{ noEdges: true }}
+        renderOrder={3}
+      >
         <planeGeometry args={[frame.w * M, frame.h * M]} />
         <meshBasicMaterial ref={ink} map={textures.ink} transparent depthWrite={false} toneMapped={false} fog={false} />
       </mesh>

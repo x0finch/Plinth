@@ -11,6 +11,9 @@ export async function startTrial(template: 'sample' | 'blank' = 'sample') {
     if (r.error) throw new Error(r.error.message ?? m.trial_cannot_start());
   }
   await queryClient.invalidateQueries({ queryKey: ['me'] });
-  const { id } = await api<{ id: string }>('/projects', { method: 'POST', json: { name: template === 'sample' ? m.trial_sample_name() : m.trial_blank_name(), template } });
+  const { id } = await api<{ id: string }>('/projects', {
+    method: 'POST',
+    json: { name: template === 'sample' ? m.trial_sample_name() : m.trial_blank_name(), template },
+  });
   return id;
 }

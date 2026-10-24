@@ -35,7 +35,8 @@ async function signIn(c) {
   check(r.status === 200, 'signed in');
 }
 
-const owner = client(), editor = client();
+const owner = client(),
+  editor = client();
 await signIn(owner);
 await signIn(editor);
 const id = (await owner.call('POST', '/projects', { name: 'Versions', template: 'blank' })).data.id;
@@ -69,8 +70,19 @@ list = await versions();
 check(JSON.stringify(list.map(v => v[0])) === '[7,6,5,4,1]', `a checkpoint (restore) keeps the version before it: ${JSON.stringify(list.map(v => v[0]))}`);
 
 // Past the squash window: age the head version in the local database, then save again
-execFileSync('npx', ['wrangler', 'd1', 'execute', 'plinth', '--local', '--command',
-  `update project_version set created_at = created_at - 3600000, started_at = started_at - 3600000 where project_id = '${id}' and version = ${head}`], { stdio: 'ignore' });
+execFileSync(
+  'npx',
+  [
+    'wrangler',
+    'd1',
+    'execute',
+    'plinth',
+    '--local',
+    '--command',
+    `update project_version set created_at = created_at - 3600000, started_at = started_at - 3600000 where project_id = '${id}' and version = ${head}`,
+  ],
+  { stdio: 'ignore' },
+);
 await save(owner, 'later');
 list = await versions();
 check(JSON.stringify(list.map(v => v[0])) === '[8,7,6,5,4,1]', `a save after the squash window starts a new version: ${JSON.stringify(list.map(v => v[0]))}`);

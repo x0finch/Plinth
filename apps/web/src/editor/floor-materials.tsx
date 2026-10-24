@@ -30,7 +30,8 @@ const SEAM = 10;
 /** Boards in a running bond: rows `width` wide, boards `length` long, every other row shifted half a board */
 function planks(base: string, seam: string, width: number, length: number): FloorPattern {
   return {
-    w: length, h: width * 2,
+    w: length,
+    h: width * 2,
     tile: (
       <>
         <rect width={length} height={width * 2} fill={base} />
@@ -44,7 +45,8 @@ function planks(base: string, seam: string, width: number, length: number): Floo
 /** Square tiles with grout lines */
 function tiles(base: string, grout: string, size: number): FloorPattern {
   return {
-    w: size, h: size,
+    w: size,
+    h: size,
     tile: (
       <>
         <rect width={size} height={size} fill={base} />
@@ -57,7 +59,8 @@ function tiles(base: string, grout: string, size: number): FloorPattern {
 /** Bricks in a running bond, `w` × `h` each */
 function bricks(base: string, joint: string, w: number, h: number): FloorPattern {
   return {
-    w: w, h: h * 2,
+    w: w,
+    h: h * 2,
     tile: (
       <>
         <rect width={w} height={h * 2} fill={base} />
@@ -72,7 +75,8 @@ function speckled(base: string, dots: string[], size: number, count: number, rad
   const r = scatter(seed);
   const next = () => r.next().value as number;
   return {
-    w: size, h: size,
+    w: size,
+    h: size,
     tile: (
       <>
         <rect width={size} height={size} fill={base} />
@@ -89,15 +93,19 @@ function marble(base: string, vein: string, grout: string, size: number, seed: n
   const r = scatter(seed);
   const next = () => r.next().value as number;
   const veins = Array.from({ length: 3 }, () => {
-    const y0 = next() * size, y1 = next() * size;
-    return `M0 ${y0}C${size / 3} ${y0 + (next() - 0.5) * size / 2} ${(2 * size) / 3} ${y1 + (next() - 0.5) * size / 2} ${size} ${y1}`;
+    const y0 = next() * size,
+      y1 = next() * size;
+    return `M0 ${y0}C${size / 3} ${y0 + ((next() - 0.5) * size) / 2} ${(2 * size) / 3} ${y1 + ((next() - 0.5) * size) / 2} ${size} ${y1}`;
   });
   return {
-    w: size, h: size,
+    w: size,
+    h: size,
     tile: (
       <>
         <rect width={size} height={size} fill={base} />
-        {veins.map((d, i) => <path key={i} d={d} fill="none" stroke={vein} strokeWidth={6 + i * 4} />)}
+        {veins.map((d, i) => (
+          <path key={i} d={d} fill="none" stroke={vein} strokeWidth={6 + i * 4} />
+        ))}
         <path d={`M0 0H${size}M0 0V${size}`} stroke={grout} strokeWidth={SEAM / 2} />
       </>
     ),
@@ -108,14 +116,21 @@ function marble(base: string, vein: string, grout: string, size: number, seed: n
 export function materialPattern(m: Material | undefined): FloorPattern | null {
   const x = m?.extras;
   if (!m || !x?.pattern) return null;
-  const base = cssColor(m.pbrMetallicRoughness.baseColorFactor), c2 = x.color2 ? cssColor(x.color2) : base, c3 = x.color3 ? cssColor(x.color3) : c2;
+  const base = cssColor(m.pbrMetallicRoughness.baseColorFactor),
+    c2 = x.color2 ? cssColor(x.color2) : base,
+    c3 = x.color3 ? cssColor(x.color3) : c2;
   const [a, b] = Array.isArray(x.size) ? x.size : [x.size ?? 600, x.size ?? 600];
   switch (x.pattern) {
-    case 'planks': return planks(base, c2, a, b);
-    case 'tiles': return tiles(base, c2, a);
-    case 'bricks': return bricks(base, c2, a, b);
-    case 'speckled': return speckled(base, x.color3 ? [c2, c3] : [c2], a, x.count ?? 100, x.radius ?? [a / 100, a / 40], x.seed ?? 1);
-    case 'marble': return marble(base, c2, c3, a, x.seed ?? 1);
+    case 'planks':
+      return planks(base, c2, a, b);
+    case 'tiles':
+      return tiles(base, c2, a);
+    case 'bricks':
+      return bricks(base, c2, a, b);
+    case 'speckled':
+      return speckled(base, x.color3 ? [c2, c3] : [c2], a, x.count ?? 100, x.radius ?? [a / 100, a / 40], x.seed ?? 1);
+    case 'marble':
+      return marble(base, c2, c3, a, x.seed ?? 1);
   }
 }
 
@@ -132,7 +147,13 @@ export function FloorPatternDefs({ project }: { project: Project }) {
     <>
       {used.map(k => {
         const p = materialPattern(materialOf(k, null, project.library.materials));
-        return p && <pattern key={k} id={`floor-${k}`} width={p.w} height={p.h} patternUnits="userSpaceOnUse">{p.tile}</pattern>;
+        return (
+          p && (
+            <pattern key={k} id={`floor-${k}`} width={p.w} height={p.h} patternUnits="userSpaceOnUse">
+              {p.tile}
+            </pattern>
+          )
+        );
       })}
     </>
   );

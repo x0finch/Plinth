@@ -20,7 +20,11 @@ describe('project language', () => {
     expect(validate(p)).toEqual([]);
 
     const session = new Session(p);
-    const room = await registry.call('room_add', { level: 'Level 1', name: 'Living room', rect: [0, 0, 6000, 5000], door: { side: 'south' } }, { session, actor });
+    const room = await registry.call(
+      'room_add',
+      { level: 'Level 1', name: 'Living room', rect: [0, 0, 6000, 5000], door: { side: 'south' } },
+      { session, actor },
+    );
     expect(room.ok, room.error?.message).toBe(true);
     const names = session.project.walls.map(w => w.name);
     expect(names).toContain('Living room north wall');
@@ -55,7 +59,9 @@ describe('project language', () => {
     const p = migrate(v1);
     const stairs = p.elements.filter(e => e.type === 'stair');
     expect(stairs.map(e => [e.id, e.name, e.level, e.topLevel])).toEqual([
-      ['e-stair', '楼梯·一层', 'L1', 'L2'], ['e-stair-2', '楼梯·二层', 'L2', 'L3'], ['e-stair-3', '楼梯·三层', 'L3', 'RF'],
+      ['e-stair', '楼梯·一层', 'L1', 'L2'],
+      ['e-stair-2', '楼梯·二层', 'L2', 'L3'],
+      ['e-stair-3', '楼梯·三层', 'L3', 'RF'],
     ]);
     expect(p.elements.some(e => e.type === 'legacy-stair')).toBe(false);
     expect('legacy-stair' in p.library.elements).toBe(false);

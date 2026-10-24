@@ -13,14 +13,24 @@ const OPENING_EN: Record<Opening['kind'], string> = { door: 'door', 'sliding-doo
 const openingText = (k: Opening['kind']) => text(`log_opening_${k.replace('-', '_')}`, OPENING_EN[k]);
 
 export const openingAdd = defineEdit({
-  name: 'opening_add', title: 'Add opening',
-  description: 'Add a door, window, sliding door or opening to a wall. Position it with at (distance from the opening centre to the wall start) or center_on (centred on the segment where a space meets this wall); with neither it goes at the wall midpoint.',
+  name: 'opening_add',
+  title: 'Add opening',
+  description:
+    'Add a door, window, sliding door or opening to a wall. Position it with at (distance from the opening centre to the wall start) or center_on (centred on the segment where a space meets this wall); with neither it goes at the wall midpoint.',
   input: z.object({
-    wall: zRef('wall'), kind: zOpeningKind,
-    at: z.number().optional(), center_on: z.string().optional().describe('Space ID or name'),
-    width: z.number().positive().optional(), height: z.number().positive().optional(), sill: z.number().min(0).optional().describe('Sill height (mm)'),
-    swing: z.object({ hinge: z.enum(['start', 'end']), side: z.enum(['left', 'right']) }).optional().describe('Hinge end and swing side of a swing door (looking from start → end)'),
-    glass_block: z.boolean().optional(), name: z.string().optional(),
+    wall: zRef('wall'),
+    kind: zOpeningKind,
+    at: z.number().optional(),
+    center_on: z.string().optional().describe('Space ID or name'),
+    width: z.number().positive().optional(),
+    height: z.number().positive().optional(),
+    sill: z.number().min(0).optional().describe('Sill height (mm)'),
+    swing: z
+      .object({ hinge: z.enum(['start', 'end']), side: z.enum(['left', 'right']) })
+      .optional()
+      .describe('Hinge end and swing side of a swing door (looking from start → end)'),
+    glass_block: z.boolean().optional(),
+    name: z.string().optional(),
   }),
   label: (i, p) => text('log_opening_add', 'Add a {opening} to {wall}', { wall: resolve(p, 'wall', i.wall).name, opening: openingText(i.kind) }),
   apply: (p, i) => {
@@ -38,12 +48,19 @@ export const openingAdd = defineEdit({
 });
 
 export const openingUpdate = defineEdit({
-  name: 'opening_update', title: 'Edit opening',
-  description: 'Change an opening\'s position, size, kind or swing.',
+  name: 'opening_update',
+  title: 'Edit opening',
+  description: "Change an opening's position, size, kind or swing.",
   input: z.object({
-    opening: zRef('opening'), at: z.number().optional(), move_by: z.number().optional().describe('Move along the wall (mm; positive toward the wall end)'),
-    width: z.number().positive().optional(), height: z.number().positive().optional(), sill: z.number().min(0).optional(), kind: zOpeningKind.optional(),
-    swing: z.object({ hinge: z.enum(['start', 'end']), side: z.enum(['left', 'right']) }).optional(), name: z.string().optional(),
+    opening: zRef('opening'),
+    at: z.number().optional(),
+    move_by: z.number().optional().describe('Move along the wall (mm; positive toward the wall end)'),
+    width: z.number().positive().optional(),
+    height: z.number().positive().optional(),
+    sill: z.number().min(0).optional(),
+    kind: zOpeningKind.optional(),
+    swing: z.object({ hinge: z.enum(['start', 'end']), side: z.enum(['left', 'right']) }).optional(),
+    name: z.string().optional(),
   }),
   label: (i, p) => text('log_opening_update', 'Edit {opening}', { opening: resolve(p, 'opening', i.opening).name }),
   apply: (p, i) => {
@@ -62,7 +79,8 @@ export const openingUpdate = defineEdit({
 });
 
 export const openingRemove = defineEdit({
-  name: 'opening_remove', title: 'Close opening',
+  name: 'opening_remove',
+  title: 'Close opening',
   description: 'Close up (remove) an opening.',
   input: z.object({ opening: zRef('opening') }),
   label: (i, p) => text('log_opening_remove', 'Close up {opening}', { opening: resolve(p, 'opening', i.opening).name }),

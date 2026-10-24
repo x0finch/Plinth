@@ -7,8 +7,31 @@
 import { Edges, OrbitControls, PerformanceMonitor } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import {
-  DEFAULT_FINISH, elementTarget, findObject, furnitureTarget, getBuild, lookRecipe, materialOf, openingFrames, openingTarget, projectBoxes, projectElements, rect, union, wallBoxes, wallDir,
-  wallTarget, type Element, type Material, type OpeningFrame, type Project, type Recipe, type RecipeMaterial, type Solid, type Space, type Wall,
+  DEFAULT_FINISH,
+  elementTarget,
+  findObject,
+  furnitureTarget,
+  getBuild,
+  lookRecipe,
+  materialOf,
+  openingFrames,
+  openingTarget,
+  projectBoxes,
+  projectElements,
+  rect,
+  union,
+  wallBoxes,
+  wallDir,
+  wallTarget,
+  type Element,
+  type Material,
+  type OpeningFrame,
+  type Project,
+  type Recipe,
+  type RecipeMaterial,
+  type Solid,
+  type Space,
+  type Wall,
 } from '@plinth/core';
 import { materialStyle, type MaterialStyle } from '@/lib/materials';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
@@ -38,7 +61,9 @@ const unitBox = new THREE.BoxGeometry(1, 1, 1);
 /** SketchUp's sky: a vertical gradient from the sky color at the top to the backdrop at the horizon */
 function skyTexture(sky: string, horizon: string) {
   const data = new Uint8Array(4 * 64);
-  const a = new THREE.Color(sky), b = new THREE.Color(horizon), c = new THREE.Color();
+  const a = new THREE.Color(sky),
+    b = new THREE.Color(horizon),
+    c = new THREE.Color();
   for (let i = 0; i < 64; i++) {
     // Row 0 is the bottom of the screen: the horizon color up to the middle, then the sky
     c.copy(b).lerp(a, THREE.MathUtils.smoothstep(i / 63, 0.35, 1));
@@ -53,10 +78,23 @@ function skyTexture(sky: string, horizon: string) {
 
 /** The 3D view's own colors (light, backdrop, selection) come from the theme; materials come from libraries */
 const useColors = () =>
-  useThemeColors({
-    backdrop: '--canvas-backdrop', sun: '--canvas-sun', skylight: '--canvas-skylight', wall: '--card', furn: '--muted', grate: '--muted-foreground',
-    page: '--canvas-backdrop', sky: '--canvas-sky', edge: '--foreground', shadow: '--canvas-shadow', sel: '--chart-2', changed: '--chart-1',
-  }, useCanvasDocument());
+  useThemeColors(
+    {
+      backdrop: '--canvas-backdrop',
+      sun: '--canvas-sun',
+      skylight: '--canvas-skylight',
+      wall: '--card',
+      furn: '--muted',
+      grate: '--muted-foreground',
+      page: '--canvas-backdrop',
+      sky: '--canvas-sky',
+      edge: '--foreground',
+      shadow: '--canvas-shadow',
+      sel: '--chart-2',
+      changed: '--chart-1',
+    },
+    useCanvasDocument(),
+  );
 
 /** Selected objects are tinted with the selection color and outlined; just-changed objects get a tint that fades out */
 const SELECTED_TINT = 0.45;
@@ -182,10 +220,12 @@ function WallMesh({ w, project, base, finish, ...o }: Outline & { w: Wall; proje
   const geo = useMemo(() => {
     const d = wallDir(w);
     // Each piece as a rectangle in elevation: along the wall from its start, and height
-    const rects = wallBoxes(project, w).filter(b => b.kind !== 'glass-block' && b.kind !== 'glass').map(b => {
-      const u = (b.center[0] - w.start[0]) * d[0] + (b.center[1] - w.start[1]) * d[1];
-      return { outer: rect(u - b.length / 2, b.z, u + b.length / 2, b.z + b.height).outer };
-    });
+    const rects = wallBoxes(project, w)
+      .filter(b => b.kind !== 'glass-block' && b.kind !== 'glass')
+      .map(b => {
+        const u = (b.center[0] - w.start[0]) * d[0] + (b.center[1] - w.start[1]) * d[1];
+        return { outer: rect(u - b.length / 2, b.z, u + b.length / 2, b.z + b.height).outer };
+      });
     const shapes = union(rects).map(p => {
       const sh = new THREE.Shape(p.outer.map(([u, v]) => new THREE.Vector2(u * M, v * M)));
       for (const h of p.holes ?? []) sh.holes.push(new THREE.Path(h.map(([u, v]) => new THREE.Vector2(u * M, v * M))));
@@ -194,7 +234,8 @@ function WallMesh({ w, project, base, finish, ...o }: Outline & { w: Wall; proje
     const g = new THREE.ExtrudeGeometry(shapes, { depth: w.thickness * M, bevelEnabled: false });
     g.translate(0, 0, (-w.thickness / 2) * M);
     // Elevation axes to the plan: u along the wall, v up, extruded across it
-    const x = new THREE.Vector3(d[0], 0, d[1]), y = new THREE.Vector3(0, 1, 0);
+    const x = new THREE.Vector3(d[0], 0, d[1]),
+      y = new THREE.Vector3(0, 1, 0);
     g.applyMatrix4(new THREE.Matrix4().makeBasis(x, y, new THREE.Vector3().crossVectors(x, y)));
     return g;
   }, [w, project]);
@@ -208,7 +249,14 @@ function WallMesh({ w, project, base, finish, ...o }: Outline & { w: Wall; proje
   );
 }
 
-function Slab({ s, y, thickness, color, materials, ...o }: Outline & { s: Space; y: number; thickness: number; color: string; materials: Record<string, Material> }) {
+function Slab({
+  s,
+  y,
+  thickness,
+  color,
+  materials,
+  ...o
+}: Outline & { s: Space; y: number; thickness: number; color: string; materials: Record<string, Material> }) {
   // The floor's material, as on the plan: its pattern, else its colour (white with a style that draws plain floors)
   const floor = modelStyle().floors === 'material' ? materialOf(s.floor, null, materials) : undefined;
   const map = useFloorTexture(useCanvasDocument(), s.floor, floor);
@@ -240,7 +288,13 @@ function Slab({ s, y, thickness, color, materials, ...o }: Outline & { s: Space;
  * thin dark frame and a glass-block infill is frosted white; doors stay open. Glass casts no shadow, so sunlight falls through
  * the opening. Part of its wall: picking it picks the wall.
  */
-function OpeningLook({ fr, recipe, params, base, ...o }: Outline & { fr: OpeningFrame; recipe: Recipe | null; params?: Record<string, unknown>; base: number }) {
+function OpeningLook({
+  fr,
+  recipe,
+  params,
+  base,
+  ...o
+}: Outline & { fr: OpeningFrame; recipe: Recipe | null; params?: Record<string, unknown>; base: number }) {
   const y = (base + fr.z) * M;
   const ref = useFeedback<THREE.Group>(fr.wall, null, !!o.sel);
   const parts = useLookGeometry(recipe, fr.width, fr.thickness, fr.height, params);
@@ -257,7 +311,10 @@ function SolidMesh({ s, base, color, ...o }: Outline & { s: Solid; base: number;
   const y = (base + s.z) * M;
   const ref = useFeedback<THREE.Mesh>(s.id, color, !!o.sel);
   const geo = useMemo(() => {
-    const g = new THREE.ExtrudeGeometry(new THREE.Shape(s.outline.map(([x, z]) => new THREE.Vector2(x * M, -z * M))), { depth: s.height * M, bevelEnabled: false });
+    const g = new THREE.ExtrudeGeometry(new THREE.Shape(s.outline.map(([x, z]) => new THREE.Vector2(x * M, -z * M))), {
+      depth: s.height * M,
+      bevelEnabled: false,
+    });
     g.rotateX(-Math.PI / 2);
     return g;
   }, [s.outline, s.height]);
@@ -271,13 +328,23 @@ function SolidMesh({ s, base, color, ...o }: Outline & { s: Solid; base: number;
 }
 
 function Furniture({ f, recipe, base, color, ...o }: Outline & { f: Project['furniture'][number]; recipe: Recipe | null; base: number; color: string }) {
-  if (recipe) return <FurnitureModel f={f} recipe={recipe} base={base} {...o} />;
+  return recipe ? <FurnitureModel f={f} recipe={recipe} base={base} {...o} /> : <FurnitureBox f={f} base={base} color={color} {...o} />;
+}
+
+/** Furniture without a look: a box of its size */
+function FurnitureBox({ f, base, color, ...o }: Outline & { f: Project['furniture'][number]; base: number; color: string }) {
   const y = (base + (f.elevation ?? 0) + f.size.h / 2) * M;
   const ref = useFeedback<THREE.Mesh>(f.id, color, !!o.sel);
   return (
-    <mesh ref={ref} geometry={unitBox} castShadow userData={{ id: f.id, restY: y }}
+    <mesh
+      ref={ref}
+      geometry={unitBox}
+      castShadow
+      userData={{ id: f.id, restY: y }}
       position={[f.position[0] * M, y, f.position[1] * M]}
-      rotation={[0, (-f.rotation * Math.PI) / 180, 0]} scale={[f.size.w * M, f.size.h * M, f.size.d * M]}>
+      rotation={[0, (-f.rotation * Math.PI) / 180, 0]}
+      scale={[f.size.w * M, f.size.h * M, f.size.d * M]}
+    >
       <meshStandardMaterial color={color} roughness={0.95} />
       {o.sel && <Edges threshold={20} color={o.sel} lineWidth={2} />}
     </mesh>
@@ -299,7 +366,14 @@ function LookMeshes({ parts, id, recipe }: { parts: [RecipeMaterial, THREE.Buffe
     const { color, roughness, metalness, opacity } = lookMaterial(mat, recipe, design);
     return (
       <mesh key={mat} geometry={g} castShadow={opacity === 1} receiveShadow userData={{ id, baseColor: new THREE.Color(color), noEdges: opacity < 1 }}>
-        <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} transparent={opacity < 1} opacity={opacity} depthWrite={opacity === 1} />
+        <meshStandardMaterial
+          color={color}
+          roughness={roughness}
+          metalness={metalness}
+          transparent={opacity < 1}
+          opacity={opacity}
+          depthWrite={opacity === 1}
+        />
       </mesh>
     );
   });
@@ -315,7 +389,9 @@ function RailingLook({ w, project, base, ...o }: Outline & { w: Wall; project: P
   const pieces = useMemo(() => wallBoxes(project, w).filter(b => b.kind === 'railing'), [w, project]);
   return (
     <group ref={ref} position={[0, base * M, 0]} userData={{ restY: base * M }}>
-      {pieces.map((b, i) => <RailingPiece key={i} b={b} w={w} recipe={recipe} />)}
+      {pieces.map((b, i) => (
+        <RailingPiece key={i} b={b} w={w} recipe={recipe} />
+      ))}
     </group>
   );
 }
@@ -351,7 +427,10 @@ function FurnitureModel({ f, recipe, base, ...o }: Outline & { f: Project['furni
 /** An element's look beyond its own geometry (`base`): extra parts, built at its plan extent from the centre of that extent */
 function ElementExtras({ e, solids, recipe, base, ...o }: Outline & { e: Element; solids: Solid[]; recipe: Recipe; base: number }) {
   const pts = solids.flatMap(s => s.outline);
-  const x0 = Math.min(...pts.map(p => p[0])), x1 = Math.max(...pts.map(p => p[0])), z0 = Math.min(...pts.map(p => p[1])), z1 = Math.max(...pts.map(p => p[1]));
+  const x0 = Math.min(...pts.map(p => p[0])),
+    x1 = Math.max(...pts.map(p => p[0])),
+    z0 = Math.min(...pts.map(p => p[1])),
+    z1 = Math.max(...pts.map(p => p[1]));
   const h = Math.max(...solids.map(s => s.z + s.height));
   const ref = useFeedback<THREE.Group>(e.id, null, !!o.sel);
   const parts = useLookGeometry(recipe, x1 - x0, z1 - z0, h, e.lookParams);
@@ -398,7 +477,8 @@ function floorGrowth(levels: { id: string; elevation: number }[], current: strin
   const top = levels.find(l => l.id === current)?.elevation ?? Infinity;
   const n = levels.filter(l => l.elevation > top).length;
   // The upper floors share the last stretch, staggered so the top one finishes exactly at the end
-  const each = 0.3, step = n > 1 ? (0.45 - each) / (n - 1) : 0;
+  const each = 0.3,
+    step = n > 1 ? (0.45 - each) / (n - 1) : 0;
   let above = 0;
   return levels.map(l => {
     if (l.elevation <= top) return { id: l.id, k: ease(Math.min(1, g / 0.7)), below: true };
@@ -413,17 +493,31 @@ function floorGrowth(levels: { id: string; elevation: number }[], current: strin
  * house out of it while the camera tilts; leaving runs the same in reverse before the plan comes back. Showing other floors
  * (the cutaway) and "fit all" frame the model again from the current direction.
  */
-function CameraRig({ box, levels, current, growing, drawings, growth, projectId }: {
-  box: THREE.Box3; levels: { id: string; elevation: number }[]; current: string;
-  growing: React.RefObject<Map<string, THREE.Group>>; drawings: React.RefObject<Map<string, THREE.Group>>;
-  growth: React.RefObject<{ g: number }>; projectId: string;
+function CameraRig({
+  box,
+  levels,
+  current,
+  growing,
+  drawings,
+  growth,
+  projectId,
+}: {
+  box: THREE.Box3;
+  levels: { id: string; elevation: number }[];
+  current: string;
+  growing: React.RefObject<Map<string, THREE.Group>>;
+  drawings: React.RefObject<Map<string, THREE.Group>>;
+  growth: React.RefObject<{ g: number }>;
+  projectId: string;
 }) {
   const { camera, controls, size, invalidate } = useThree();
   const project = useEditor(s => s.project);
   const setLeave3D = useEditor(s => s.setLeave3D);
   const setPlanUntil3D = useEditor(s => s.setPlanUntil3D);
   const orbit = controls as unknown as Orbit | null;
-  const anim = useRef<{ elapsed: number; frames: number; ms: number; from: Pose; to: Pose; grow?: [number, number]; done?: () => void; hold?: number } | null>(null);
+  const anim = useRef<{ elapsed: number; frames: number; ms: number; from: Pose; to: Pose; grow?: [number, number]; done?: () => void; hold?: number } | null>(
+    null,
+  );
   const leaving = useRef(false);
   const levelKey = levels.map(l => l.id).join();
   const shownLevels = useRef(levelKey);
@@ -438,7 +532,8 @@ function CameraRig({ box, levels, current, growing, drawings, growth, projectId 
   const grow = (g: number) => {
     growth.current.g = g;
     for (const { id, k, below } of floorGrowth(levels, current, g)) {
-      const group = growing.current.get(id), drawing = drawings.current.get(id);
+      const group = growing.current.get(id),
+        drawing = drawings.current.get(id);
       if (group) {
         group.scale.y = Math.max(k, 0.001);
         group.visible = below || k > 0;
@@ -472,11 +567,14 @@ function CameraRig({ box, levels, current, growing, drawings, growth, projectId 
     // Start once the floor drawings are on (they rasterize asynchronously), so the first frame looks like the plan
     if (anim.current) anim.current.hold = performance.now();
     // Leaving 3D: remember the view, then sink the house back into the plan and settle on the plan's framing
-    setLeave3D(() => new Promise<void>(resolve => {
-      leaving.current = true;
-      lastPose.set(projectId, anim.current?.to ?? { pos: camera.position.clone(), target: orbit.target.clone() });
-      run(planPose(), 1100, [1, 0], resolve);
-    }));
+    setLeave3D(
+      () =>
+        new Promise<void>(resolve => {
+          leaving.current = true;
+          lastPose.set(projectId, anim.current?.to ?? { pos: camera.position.clone(), target: orbit.target.clone() });
+          run(planPose(), 1100, [1, 0], resolve);
+        }),
+    );
     return () => {
       setLeave3D(null);
       setPlanUntil3D(false);
@@ -521,8 +619,7 @@ function CameraRig({ box, levels, current, growing, drawings, growth, projectId 
     const s0 = new THREE.Spherical().setFromVector3(a.from.pos.clone().sub(a.from.target));
     const s1 = new THREE.Spherical().setFromVector3(a.to.pos.clone().sub(a.to.target));
     const dTheta = Math.atan2(Math.sin(s1.theta - s0.theta), Math.cos(s1.theta - s0.theta));
-    const s = new THREE.Spherical(
-      THREE.MathUtils.lerp(s0.radius, s1.radius, k), THREE.MathUtils.lerp(s0.phi, s1.phi, k), s0.theta + dTheta * k);
+    const s = new THREE.Spherical(THREE.MathUtils.lerp(s0.radius, s1.radius, k), THREE.MathUtils.lerp(s0.phi, s1.phi, k), s0.theta + dTheta * k);
     orbit.target.lerpVectors(a.from.target, a.to.target, k);
     camera.position.copy(orbit.target).add(new THREE.Vector3().setFromSpherical(s));
     if (a.grow) grow(THREE.MathUtils.lerp(a.grow[0], a.grow[1], t));
@@ -623,7 +720,6 @@ function Picker() {
 export function Model3D() {
   const project = useEditor(s => s.project);
   const view = useEditor(s => s.view);
-  const select = useEditor(s => s.select);
   const projectId = useEditor(s => s.projectId);
   const c = useColors();
   const style = modelStyle();
@@ -645,22 +741,30 @@ export function Model3D() {
   const openings = useMemo(() => openingFrames(project), [project]);
   // An element's own geometry in the materials its look gives each kind of solid
   const solidColor = (s: Solid) => {
-    const e = project.elements.find(x => x.id === s.id), recipe = e && lookRecipe(project, elementTarget(e), e.look);
-    const own = recipe && getBuild(recipe, ELEMENT_SIZE, e?.lookParams)?.parts.find(p => p.kind === 'base'), mat = own?.kind === 'base' ? own.mats[s.kind] : undefined;
+    const e = project.elements.find(x => x.id === s.id),
+      recipe = e && lookRecipe(project, elementTarget(e), e.look);
+    const own = recipe && getBuild(recipe, ELEMENT_SIZE, e?.lookParams)?.parts.find(p => p.kind === 'base'),
+      mat = own?.kind === 'base' ? own.mats[s.kind] : undefined;
     return mat ? lookMaterial(mat, recipe, project.library.materials).color : s.kind === 'water' ? c.furn : s.kind === 'grate' ? c.grate : c.wall;
   };
   // A wall's faces in its finish (white paint unless it has one; plain white with a style that draws white walls)
-  const finish = (w: Wall) => (style.walls === 'finish' ? materialStyle(materialOf(w.finish ?? DEFAULT_FINISH, null, project.library.materials)) : { ...materialStyle(undefined), color: c.wall, roughness: 0.9 });
+  const finish = (w: Wall) =>
+    style.walls === 'finish'
+      ? materialStyle(materialOf(w.finish ?? DEFAULT_FINISH, null, project.library.materials))
+      : { ...materialStyle(undefined), color: c.wall, roughness: 0.9 };
   const ownerOf = (id: string) => findObject(project, id, 'opening')?.wall?.id;
   // A door or window is part of its wall in 3D, so selecting it marks the wall
   const sel = new Set(view.selection.map(id => ownerOf(id) ?? id));
   const tints = useMemo(() => ({ sel: new THREE.Color(c.sel), changed: new THREE.Color(c.changed) }), [c.sel, c.changed]);
 
   const [x0, y0, x1, y1] = useMemo(() => {
-    const xs = project.site.boundary.map(p => p[0]), ys = project.site.boundary.map(p => p[1]);
+    const xs = project.site.boundary.map(p => p[0]),
+      ys = project.site.boundary.map(p => p[1]);
     return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
   }, [project.site.boundary]);
-  const cx = ((x0 + x1) / 2) * M, cz = ((y0 + y1) / 2) * M, span = Math.max(x1 - x0, y1 - y0) * M;
+  const cx = ((x0 + x1) / 2) * M,
+    cz = ((y0 + y1) / 2) * M,
+    span = Math.max(x1 - x0, y1 - y0) * M;
 
   // The shown floors' extent, for framing the camera
   const shownIds = shown.map(l => l.id).join();
@@ -670,7 +774,8 @@ export function Model3D() {
     for (const b of boxes) {
       if (!ids.has(b.level)) continue;
       const base = elev.get(b.level) ?? 0;
-      const dx = (Math.cos(b.angle) * b.length) / 2, dz = (Math.sin(b.angle) * b.length) / 2;
+      const dx = (Math.cos(b.angle) * b.length) / 2,
+        dz = (Math.sin(b.angle) * b.length) / 2;
       box.expandByPoint(new THREE.Vector3((b.center[0] - dx) * M, (base + b.z) * M, (b.center[1] - dz) * M));
       box.expandByPoint(new THREE.Vector3((b.center[0] + dx) * M, (base + b.z + b.height) * M, (b.center[1] + dz) * M));
     }
@@ -731,11 +836,24 @@ export function Model3D() {
           {/* Remounted when the quality changes: a shadow map keeps its size once created. The normal bias is about two
               shadow-map texels: less, and large flat floors shadow themselves in a fine pattern that the soft filter blurs into an
               even darkening (one terrace darker than another of the same material) */}
-          <directionalLight key={q} color={c.sun} intensity={1.4} target={sunTarget} castShadow
+          <directionalLight
+            key={q}
+            color={c.sun}
+            intensity={1.4}
+            target={sunTarget}
+            castShadow
             position={[center.x - radius * 1.2, center.y + radius * 2, center.z + radius * 0.9]}
-            shadow-mapSize={q === 'high' ? [2048, 2048] : [1024, 1024]} shadow-radius={q === 'high' ? 6 : 3} shadow-bias={-0.0004} shadow-normalBias={(radius * 2.8 / (q === 'high' ? 2048 : 1024)) * 2}
-            shadow-camera-left={-radius * 1.4} shadow-camera-right={radius * 1.4} shadow-camera-top={radius * 1.4} shadow-camera-bottom={-radius * 1.4}
-            shadow-camera-near={0.5} shadow-camera-far={radius * 6} />
+            shadow-mapSize={q === 'high' ? [2048, 2048] : [1024, 1024]}
+            shadow-radius={q === 'high' ? 6 : 3}
+            shadow-bias={-0.0004}
+            shadow-normalBias={((radius * 2.8) / (q === 'high' ? 2048 : 1024)) * 2}
+            shadow-camera-left={-radius * 1.4}
+            shadow-camera-right={radius * 1.4}
+            shadow-camera-top={radius * 1.4}
+            shadow-camera-bottom={-radius * 1.4}
+            shadow-camera-near={0.5}
+            shadow-camera-far={radius * 6}
+          />
           {/* The ground only catches shadows: lit, it would read as a lighter board under the plinth; this way the backdrop shows */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, ground - PLINTH - 0.001, cz]} receiveShadow>
             <planeGeometry args={[Math.max(span, radius) * 40, Math.max(span, radius) * 40]} />
@@ -756,39 +874,92 @@ export function Model3D() {
               <group key={l.id} position={[0, l.elevation * M, 0]}>
                 <group ref={g => void (g ? growing.current.set(l.id, g) : growing.current.delete(l.id))}>
                   <group position={[0, -l.elevation * M, 0]}>
-                    {project.spaces.filter(s => s.level === l.id && s.kind !== 'void' && !s.slabOpening).map(s => (
-                      <Slab key={s.id} s={s} y={s.kind === 'outdoor' && l.elevation === 0 ? project.site.groundLevel + 20 : l.elevation} thickness={s.kind === 'outdoor' ? 20 : 120}
-                        color={c.wall} materials={project.library.materials} sel={sel.has(s.id) ? c.sel : undefined} />
-                    ))}
-                    {project.walls.filter(w => w.level === l.id).map(w => w.kind === 'railing'
-                      ? <RailingLook key={w.id} w={w} project={project} base={elev.get(l.id) ?? 0} sel={sel.has(w.id) ? c.sel : undefined} />
-                      : <WallMesh key={w.id} w={w} project={project} base={elev.get(l.id) ?? 0} sel={sel.has(w.id) ? c.sel : undefined} finish={finish(w)} />)}
-                    {openings.filter(fr => fr.level === l.id).map(fr => (
-                      <OpeningLook key={fr.id} fr={fr} recipe={lookRecipe(project, openingTarget(fr.opening), fr.opening.look)} params={fr.opening.lookParams} base={elev.get(l.id) ?? 0} sel={sel.has(fr.wall) ? c.sel : undefined} />
-                    ))}
-                    {solids.filter(s => s.level === l.id).map((s, i) => (
-                      <SolidMesh key={`${s.id}-${i}`} s={s} base={elev.get(l.id) ?? 0} sel={sel.has(s.id) ? c.sel : undefined} color={solidColor(s)} />
-                    ))}
-                    {project.elements.filter(e => e.level === l.id).map(e => {
-                      const recipe = lookRecipe(project, elementTarget(e), e.look), own = solids.filter(s => s.id === e.id);
-                      return recipe && own.length && getBuild(recipe, ELEMENT_SIZE, e.lookParams)?.parts.some(p => p.kind !== 'base')
-                        ? <ElementExtras key={e.id} e={e} solids={own} recipe={recipe} base={elev.get(l.id) ?? 0} sel={sel.has(e.id) ? c.sel : undefined} />
-                        : null;
-                    })}
-                    {view.layers.furniture && project.furniture.filter(f => f.level === l.id).map(f => (
-                      <Furniture key={f.id} f={f} recipe={lookRecipe(project, furnitureTarget(f), f.look)} base={elev.get(l.id) ?? 0} color={c.furn} sel={sel.has(f.id) ? c.sel : undefined} />
-                    ))}
+                    {project.spaces
+                      .filter(s => s.level === l.id && s.kind !== 'void' && !s.slabOpening)
+                      .map(s => (
+                        <Slab
+                          key={s.id}
+                          s={s}
+                          y={s.kind === 'outdoor' && l.elevation === 0 ? project.site.groundLevel + 20 : l.elevation}
+                          thickness={s.kind === 'outdoor' ? 20 : 120}
+                          color={c.wall}
+                          materials={project.library.materials}
+                          sel={sel.has(s.id) ? c.sel : undefined}
+                        />
+                      ))}
+                    {project.walls
+                      .filter(w => w.level === l.id)
+                      .map(w =>
+                        w.kind === 'railing' ? (
+                          <RailingLook key={w.id} w={w} project={project} base={elev.get(l.id) ?? 0} sel={sel.has(w.id) ? c.sel : undefined} />
+                        ) : (
+                          <WallMesh key={w.id} w={w} project={project} base={elev.get(l.id) ?? 0} sel={sel.has(w.id) ? c.sel : undefined} finish={finish(w)} />
+                        ),
+                      )}
+                    {openings
+                      .filter(fr => fr.level === l.id)
+                      .map(fr => (
+                        <OpeningLook
+                          key={fr.id}
+                          fr={fr}
+                          recipe={lookRecipe(project, openingTarget(fr.opening), fr.opening.look)}
+                          params={fr.opening.lookParams}
+                          base={elev.get(l.id) ?? 0}
+                          sel={sel.has(fr.wall) ? c.sel : undefined}
+                        />
+                      ))}
+                    {solids
+                      .filter(s => s.level === l.id)
+                      .map((s, i) => (
+                        <SolidMesh key={`${s.id}-${i}`} s={s} base={elev.get(l.id) ?? 0} sel={sel.has(s.id) ? c.sel : undefined} color={solidColor(s)} />
+                      ))}
+                    {project.elements
+                      .filter(e => e.level === l.id)
+                      .map(e => {
+                        const recipe = lookRecipe(project, elementTarget(e), e.look),
+                          own = solids.filter(s => s.id === e.id);
+                        return recipe && own.length && getBuild(recipe, ELEMENT_SIZE, e.lookParams)?.parts.some(p => p.kind !== 'base') ? (
+                          <ElementExtras key={e.id} e={e} solids={own} recipe={recipe} base={elev.get(l.id) ?? 0} sel={sel.has(e.id) ? c.sel : undefined} />
+                        ) : null;
+                      })}
+                    {view.layers.furniture &&
+                      project.furniture
+                        .filter(f => f.level === l.id)
+                        .map(f => (
+                          <Furniture
+                            key={f.id}
+                            f={f}
+                            recipe={lookRecipe(project, furnitureTarget(f), f.look)}
+                            base={elev.get(l.id) ?? 0}
+                            color={c.furn}
+                            sel={sel.has(f.id) ? c.sel : undefined}
+                          />
+                        ))}
                   </group>
                 </group>
                 {/* Outside the growing group, so the drawing stays just above the floor while the floor is flat; shown with its floor */}
                 <group ref={g => void (g ? drawings.current.set(l.id, g) : drawings.current.delete(l.id))}>
-                  <FloorDrawing project={project} level={l.id} current={l.id === current?.id} furniture={view.layers.furniture} labels={view.layers.labels} quality={q} growth={growth} />
+                  <FloorDrawing
+                    project={project}
+                    level={l.id}
+                    current={l.id === current?.id}
+                    furniture={view.layers.furniture}
+                    labels={view.layers.labels}
+                    quality={q}
+                    growth={growth}
+                  />
                 </group>
               </group>
             ))}
           </group>
-          <OrbitControls makeDefault enableDamping dampingFactor={0.09} maxPolarAngle={Math.PI / 2 - 0.05}
-            minDistance={Math.max(1.5, radius * 0.15)} maxDistance={radius * 6} />
+          <OrbitControls
+            makeDefault
+            enableDamping
+            dampingFactor={0.09}
+            maxPolarAngle={Math.PI / 2 - 0.05}
+            minDistance={Math.max(1.5, radius * 0.15)}
+            maxDistance={radius * 6}
+          />
           <CameraRig box={box} levels={levels} current={current?.id ?? ''} growing={growing} drawings={drawings} growth={growth} projectId={projectId} />
           <SafariPinch />
           <Picker />

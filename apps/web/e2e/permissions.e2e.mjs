@@ -15,7 +15,11 @@ function client() {
   const call = async (method, path, body, type = 'application/json', retried = false) => {
     const headers = { Origin: BASE, Cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; ') };
     if (body !== undefined) headers['Content-Type'] = type;
-    const res = await fetch(`${BASE}/api${path}`, { method, headers, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body) });
+    const res = await fetch(`${BASE}/api${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
+    });
     // The local dev server now and then fails to reach the Worker ("fetch failed") and answers with a non-JSON 500.
     // The API's own errors are always JSON, so only that infrastructure error is retried, once.
     if (res.status >= 500 && !res.headers.get('content-type')?.includes('application/json') && !retried) {
@@ -29,7 +33,11 @@ function client() {
     }
     const text = await res.text();
     let data = null;
-    try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = text;
+    }
     return { status: res.status, data };
   };
   return { call, signIn: () => call('POST', '/auth/sign-in/anonymous', {}) };
@@ -60,7 +68,11 @@ const otherUser = await me('stranger');
 const svg = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
 // A look library: its roles are viewer, editor and owner, so the commenter joins it as a viewer
 const lib = (await owner.call('POST', '/libraries', { name: 'Permissions' })).data.id;
-for (const [who, role] of [['viewer', 'viewer'], ['commenter', 'viewer'], ['editor', 'editor']]) {
+for (const [who, role] of [
+  ['viewer', 'viewer'],
+  ['commenter', 'viewer'],
+  ['editor', 'editor'],
+]) {
   const email = (await actors[who].call('GET', '/me')).data.user.email;
   const r = await owner.call('POST', `/libraries/${lib}/members`, { email, role });
   check(r.status === 200, `${who} joined the library (${role})`);
@@ -127,14 +139,30 @@ for (const [method, path, min, body, type] of ROUTES) {
     results.push({ who, status, ok: allowed === expected });
   }
   const label = path.replace(id, ':id').replace(lib, ':lib').replace(comment, ':comment').replace(otherUser, ':user');
-  check(results.every(r => r.ok), `${method} ${label} (${min}): ${results.map(r => `${r.who} ${r.status}${r.ok ? '' : '!'}`).join(', ')}`);
+  check(
+    results.every(r => r.ok),
+    `${method} ${label} (${min}): ${results.map(r => `${r.who} ${r.status}${r.ok ? '' : '!'}`).join(', ')}`,
+  );
 }
 
 // Every route the API registers is in the matrix (share links are checked in setup and below)
-const registered = [...readFileSync(new URL('../src/server/api.ts', import.meta.url), 'utf8').matchAll(/(api|project)\.(get|post|put|patch|delete)\('([^']+)'/g)]
+const registered = [
+  ...readFileSync(new URL('../src/server/api.ts', import.meta.url), 'utf8').matchAll(/(api|project)\.(get|post|put|patch|delete)\('([^']+)'/g),
+]
   .map(([, app, m, p]) => `${m.toUpperCase()} ${(app === 'project' ? `/projects/:id${p === '/' ? '' : p}` : p).replace(/:\w+/g, ':_')}`)
   .filter(r => !r.includes('/share/'));
-const covered = new Set([...ROUTES, ['DELETE', `/projects/${id}`], ['DELETE', `/libraries/${lib}`]].map(([m, p]) => `${m} ${p.replace(id, ':_').replace(lib, ':_').replace(comment, ':_').replace(otherUser, ':_').replace(/\/(links|invites|models|keys|looks)\/nope/, '/$1/:_').replace(/\/versions\/1$/, '/versions/:_')}`));
+const covered = new Set(
+  [...ROUTES, ['DELETE', `/projects/${id}`], ['DELETE', `/libraries/${lib}`]].map(
+    ([m, p]) =>
+      `${m} ${p
+        .replace(id, ':_')
+        .replace(lib, ':_')
+        .replace(comment, ':_')
+        .replace(otherUser, ':_')
+        .replace(/\/(links|invites|models|keys|looks)\/nope/, '/$1/:_')
+        .replace(/\/versions\/1$/, '/versions/:_')}`,
+  ),
+);
 const missing = registered.filter(r => !covered.has(r));
 check(!missing.length, `every API route is in the matrix${missing.length ? `; missing: ${missing.join(', ')}` : ''}`);
 check((await actors.anon.call('POST', '/share/nope/accept')).status === 401, 'accepting a share link needs sign-in');

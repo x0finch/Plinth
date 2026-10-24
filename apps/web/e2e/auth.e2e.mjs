@@ -26,7 +26,10 @@ const p = await (await b.newContext()).newPage();
 const SECRET = 'correct horse battery 9';
 const NEW_SECRET = 'another horse staple 7';
 const leaked = [];
-p.on('request', r => { const body = r.postData() ?? ''; if (body.includes(SECRET) || body.includes(NEW_SECRET)) leaked.push(r.url()); });
+p.on('request', r => {
+  const body = r.postData() ?? '';
+  if (body.includes(SECRET) || body.includes(NEW_SECRET)) leaked.push(r.url());
+});
 const me = () => p.evaluate(async () => (await (await fetch('/api/me')).json()).user);
 const signOut = () => p.evaluate(() => fetch('/api/auth/sign-out', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }));
 
@@ -64,7 +67,17 @@ await p.getByRole('tab', { name: '密码' }).click();
 await p.getByLabel('邮箱').fill(email);
 await p.locator('input#password').fill('wrong password 1');
 await p.getByRole('button', { name: '登录', exact: true }).click();
-check(await p.getByRole('alert').filter({ hasText: '邮箱或密码不对' }).waitFor({ timeout: 20000 }).then(() => true, () => false), 'wrong password: shows the invalid-credentials alert');
+check(
+  await p
+    .getByRole('alert')
+    .filter({ hasText: '邮箱或密码不对' })
+    .waitFor({ timeout: 20000 })
+    .then(
+      () => true,
+      () => false,
+    ),
+  'wrong password: shows the invalid-credentials alert',
+);
 await p.locator('input#password').fill(SECRET);
 await p.getByRole('button', { name: '登录', exact: true }).click();
 await p.waitForURL(/\/projects/);
@@ -84,11 +97,18 @@ await p.getByRole('button', { name: '重设并登录' }).click();
 await p.waitForURL(/\/projects/);
 check((await me()).email === email, 'signed in automatically after password reset');
 await signOut();
-const old = await p.evaluate(async ([e, pw]) => {
-  const { derivePassword } = await import('/src/lib/password.ts');
-  const r = await fetch('/api/auth/sign-in/email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: e, password: await derivePassword(e, pw) }) });
-  return r.status;
-}, [email, SECRET]);
+const old = await p.evaluate(
+  async ([e, pw]) => {
+    const { derivePassword } = await import('/src/lib/password.ts');
+    const r = await fetch('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: e, password: await derivePassword(e, pw) }),
+    });
+    return r.status;
+  },
+  [email, SECRET],
+);
 check(old === 401, `old password rejected (${old})`);
 
 // An account that only ever signed in with an OTP can also set a password via "forgot password"

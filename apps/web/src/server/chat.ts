@@ -34,12 +34,18 @@ export function agentTools(autonomy: Autonomy) {
 function adapter(cfg: ModelWithKey, apiKey: string) {
   const model = cfg.model as never;
   switch (cfg.provider) {
-    case 'anthropic': return createAnthropicChat(model, apiKey);
-    case 'openai': return createOpenaiChat(model, apiKey);
-    case 'gemini': return createGeminiChat(model, apiKey);
-    case 'openrouter': return createOpenRouterText(model, apiKey);
-    case 'compatible': return openaiCompatibleText(cfg.model, { baseURL: cfg.base_url!, apiKey });
-    default: throw new Error(m.server_err_unsupported_provider({ provider: cfg.provider }));
+    case 'anthropic':
+      return createAnthropicChat(model, apiKey);
+    case 'openai':
+      return createOpenaiChat(model, apiKey);
+    case 'gemini':
+      return createGeminiChat(model, apiKey);
+    case 'openrouter':
+      return createOpenRouterText(model, apiKey);
+    case 'compatible':
+      return openaiCompatibleText(cfg.model, { baseURL: cfg.base_url!, apiKey });
+    default:
+      throw new Error(m.server_err_unsupported_provider({ provider: cfg.provider }));
   }
 }
 
@@ -61,7 +67,8 @@ export async function handleChat(request: Request, resolve: (modelId: string | u
   const autonomy: Autonomy = isAutonomy(props.autonomy) ? props.autonomy : 'balanced';
   const o = await resolve(typeof props.modelId === 'string' ? props.modelId : undefined);
 
-  let input = 0, output = 0;
+  let input = 0,
+    output = 0;
   const usage: ChatMiddleware = {
     name: 'usage',
     onUsage(_ctx, u) {

@@ -8,7 +8,10 @@ export const getLibrary = (id: string) => api<LibraryDetail>(`/libraries/${id}`)
 
 /** Save a look to a library: a new one, or a new version of `lookId` */
 export const saveToLibrary = (library: string, look: LibraryLookInput, lookId?: string) =>
-  api<{ look: string; version: string }>(lookId ? `/libraries/${library}/looks/${lookId}` : `/libraries/${library}/looks`, { method: lookId ? 'PUT' : 'POST', json: look });
+  api<{ look: string; version: string }>(lookId ? `/libraries/${library}/looks/${lookId}` : `/libraries/${library}/looks`, {
+    method: lookId ? 'PUT' : 'POST',
+    json: look,
+  });
 
 /** Current versions of looks copied from libraries (only the libraries the user can see) */
 export const lookVersions = (refs: { library: string; look: string }[]) =>

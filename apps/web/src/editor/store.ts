@@ -131,7 +131,6 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
       saveTimer = setTimeout(() => void get().save(), 1500);
     };
 
-
     const view: ViewState = {
       mode: opts.mode ?? '2d',
       level: opts.level && init.content.levels.some(l => l.id === opts.level) ? opts.level : firstLevel(init.content),
@@ -175,7 +174,11 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
           return { ok: false, error: { code: 'forbidden', message: get().readOnlyVersion != null ? m.store_readonly_history() : m.store_readonly_viewer() } };
         }
         const before = session.project;
-        const r = await registry.call(name, input, { session, actor, host: { view: get().viewHost(), comments: commentsHost(get().projectId), looks: looksHost, libraries: librariesHost } });
+        const r = await registry.call(name, input, {
+          session,
+          actor,
+          host: { view: get().viewHost(), comments: commentsHost(get().projectId), looks: looksHost, libraries: librariesHost },
+        });
         if (r.ok && LOOK_EDITS.has(name)) {
           const res = r.result as { id?: string; look?: string };
           const id = name === 'furniture_type_add' ? res.look : res.id;
@@ -185,8 +188,13 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
           set(s => ({
             pendingLabels: [...s.pendingLabels, session.log.at(-1)?.label ?? capabilityTitle(cap)],
             lastChange: {
-              label: session.log.at(-1)?.label ?? capabilityTitle(cap), actor: actor.kind, before, changed: r.changed!,
-              areaChanges: r.areaChanges ?? [], warnings: r.warnings ?? [], at: Date.now(),
+              label: session.log.at(-1)?.label ?? capabilityTitle(cap),
+              actor: actor.kind,
+              before,
+              changed: r.changed!,
+              areaChanges: r.areaChanges ?? [],
+              warnings: r.warnings ?? [],
+              at: Date.now(),
             },
             view: { ...s.view, highlight: r.changed! },
           }));
@@ -199,7 +207,11 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
 
       async preview(name, input) {
         const scratch = new Session(session.project);
-        const r = await registry.call(name, input, { session: scratch, actor: { kind: 'user' }, host: { view: get().viewHost(), comments: commentsHost(get().projectId), looks: looksHost, libraries: librariesHost } });
+        const r = await registry.call(name, input, {
+          session: scratch,
+          actor: { kind: 'user' },
+          host: { view: get().viewHost(), comments: commentsHost(get().projectId), looks: looksHost, libraries: librariesHost },
+        });
         return r.ok ? scratch.project : null;
       },
 
@@ -236,7 +248,12 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
 
       undo() {
         const e = session.undo();
-        if (e) set(s => ({ pendingLabels: [...s.pendingLabels, m.store_undo_label({ label: e.label })], view: { ...s.view, highlight: e.changed }, lastChange: null }));
+        if (e)
+          set(s => ({
+            pendingLabels: [...s.pendingLabels, m.store_undo_label({ label: e.label })],
+            view: { ...s.view, highlight: e.changed },
+            lastChange: null,
+          }));
       },
 
       redo() {
@@ -249,7 +266,10 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
         if (!s.dirty || s.saving || s.conflict || !s.canEdit()) return;
         set({ saving: true });
         const labels = s.pendingLabels;
-        const summary = (labels.length > 3 ? [...labels.slice(0, 3), m.store_summary_more({ count: labels.length })] : labels).join(m.store_summary_separator()).slice(0, 200) || m.store_summary_default();
+        const summary =
+          (labels.length > 3 ? [...labels.slice(0, 3), m.store_summary_more({ count: labels.length })] : labels)
+            .join(m.store_summary_separator())
+            .slice(0, 200) || m.store_summary_default();
         const snapshot = session.project;
         try {
           const r = await api<{ version: number }>(`/projects/${s.projectId}`, {
@@ -257,7 +277,9 @@ export function createEditorStore(init: InitialProject, opts: { level?: string; 
             json: { base: s.version, summary, content: snapshot, ...(checkpoint ? { checkpoint } : {}) },
           });
           set(cur => ({
-            version: r.version, saving: false, savedAt: Date.now(),
+            version: r.version,
+            saving: false,
+            savedAt: Date.now(),
             // New changes during save: stay dirty and save again later
             dirty: session.project !== snapshot,
             pendingLabels: cur.pendingLabels.slice(labels.length),

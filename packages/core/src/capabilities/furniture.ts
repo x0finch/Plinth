@@ -10,15 +10,20 @@ import type { Furniture } from '../schema.js';
 import { getFurniture, getSpace, resolve, resolveLevel } from '../refs.js';
 import { zPoint, zRef } from './inputs.js';
 
-
 export const furnitureAdd = defineEdit({
-  name: 'furniture_add', title: 'Place furniture',
-  description: 'Place a piece of furniture. type is a furniture category (see furnitureTypes in project_summary; a new category is allowed if size is given). Without position it goes at the centre of space.',
+  name: 'furniture_add',
+  title: 'Place furniture',
+  description:
+    'Place a piece of furniture. type is a furniture category (see furnitureTypes in project_summary; a new category is allowed if size is given). Without position it goes at the centre of space.',
   input: z.object({
-    level: zRef('level').optional(), type: z.string(), position: zPoint.optional(), space: z.string().optional(),
+    level: zRef('level').optional(),
+    type: z.string(),
+    position: zPoint.optional(),
+    space: z.string().optional(),
     rotation: z.number().default(0).describe('Clockwise rotation (degrees)'),
     size: z.object({ w: z.number().positive(), d: z.number().positive(), h: z.number().positive() }).optional(),
-    elevation: z.number().optional(), label: z.string().optional().describe('Display name of a new category, in the language the project data uses'),
+    elevation: z.number().optional(),
+    label: z.string().optional().describe('Display name of a new category, in the language the project data uses'),
   }),
   label: (i, p) => text('log_furniture_add', 'Place {type}', { type: p.library.furniture[i.type]?.name ?? i.label ?? i.type }),
   apply: (p, i) => {
@@ -33,15 +38,29 @@ export const furnitureAdd = defineEdit({
     if (!pos) throw new TxError('invalid-input', text('err_position_or_space', 'Needs position or space'));
     const def = p.library.furniture[i.type];
     if (!def) {
-      if (!i.size) throw new TxError('invalid-input', text('err_unknown_furniture', 'Furniture category {type} is not registered; give size (and label)', { type: i.type }));
+      if (!i.size)
+        throw new TxError(
+          'invalid-input',
+          text('err_unknown_furniture', 'Furniture category {type} is not registered; give size (and label)', { type: i.type }),
+        );
       p.library.furniture[i.type] = { name: i.label ?? i.type, size: i.size };
     }
     const size = i.size ?? def.size;
     const host = p.spaces.find(x => x.level === level && x.shape.some(q => pointInPolygon(pos!, q)));
     const label = p.library.furniture[i.type].name;
     const f: Furniture = {
-      id: nextId(p, `${level}-f`), name: uniqueName(p.furniture.filter(x => x.level === level).map(x => x.name), host ? `${host.name}${NAME_SEPARATOR}${label}` : label, p.language),
-      type: i.type, level, position: round(pos), rotation: i.rotation, size: { ...size }, ...(i.elevation ? { elevation: i.elevation } : {}),
+      id: nextId(p, `${level}-f`),
+      name: uniqueName(
+        p.furniture.filter(x => x.level === level).map(x => x.name),
+        host ? `${host.name}${NAME_SEPARATOR}${label}` : label,
+        p.language,
+      ),
+      type: i.type,
+      level,
+      position: round(pos),
+      rotation: i.rotation,
+      size: { ...size },
+      ...(i.elevation ? { elevation: i.elevation } : {}),
     };
     p.furniture.push(f);
     return { id: f.id, name: f.name };
@@ -49,7 +68,8 @@ export const furnitureAdd = defineEdit({
 });
 
 export const furnitureMove = defineEdit({
-  name: 'furniture_move', title: 'Move furniture',
+  name: 'furniture_move',
+  title: 'Move furniture',
   description: 'Move or rotate furniture: position for an absolute location or by for a relative offset; rotation for the new angle.',
   input: z.object({ furniture: zRef('furniture'), position: zPoint.optional(), by: zPoint.optional(), rotation: z.number().optional() }),
   label: (i, p) => text('log_furniture_move', 'Move {furniture}', { furniture: resolve(p, 'furniture', i.furniture).name }),
@@ -63,7 +83,8 @@ export const furnitureMove = defineEdit({
 });
 
 export const furnitureRemove = defineEdit({
-  name: 'furniture_remove', title: 'Remove furniture',
+  name: 'furniture_remove',
+  title: 'Remove furniture',
   description: 'Remove a piece of furniture.',
   input: z.object({ furniture: zRef('furniture') }),
   label: (i, p) => text('log_furniture_remove', 'Remove {furniture}', { furniture: resolve(p, 'furniture', i.furniture).name }),

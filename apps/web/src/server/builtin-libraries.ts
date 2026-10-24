@@ -8,14 +8,21 @@ import type { LibraryDetail, LibrarySummary } from '@/shared/looks';
 
 export const isBuiltinLibrary = (id: string) => !!builtinLibrary(id);
 
-export const builtinSummaries = (): LibrarySummary[] => BUILTIN_LIBRARIES.map(l => {
-  const first = Object.values(l.looks)[0];
-  return {
-    id: l.id, name: uiName(l.name), role: 'viewer', owner_name: l.author ?? 'Plinth', looks: Object.keys(l.looks).length, updated_at: 0, builtin: true,
-    ...(l.id === DEFAULT_LIBRARY_ID ? { default: true } : {}),
-    ...(first ? { cover: { recipe: libraryRecipe(l, first), size: lookSizeOf(first) } } : {}),
-  };
-});
+export const builtinSummaries = (): LibrarySummary[] =>
+  BUILTIN_LIBRARIES.map(l => {
+    const first = Object.values(l.looks)[0];
+    return {
+      id: l.id,
+      name: uiName(l.name),
+      role: 'viewer',
+      owner_name: l.author ?? 'Plinth',
+      looks: Object.keys(l.looks).length,
+      updated_at: 0,
+      builtin: true,
+      ...(l.id === DEFAULT_LIBRARY_ID ? { default: true } : {}),
+      ...(first ? { cover: { recipe: libraryRecipe(l, first), size: lookSizeOf(first) } } : {}),
+    };
+  });
 
 export function builtinDetail(id: string): LibraryDetail | null {
   const l = builtinLibrary(id);
@@ -25,7 +32,8 @@ export function builtinDetail(id: string): LibraryDetail | null {
 /** Current versions of built-in looks among `refs` */
 export function builtinVersions(refs: { library: string; look: string }[]) {
   return refs.flatMap(r => {
-    const l = builtinLibrary(r.library), k = l?.looks[r.look];
+    const l = builtinLibrary(r.library),
+      k = l?.looks[r.look];
     return l && k ? [{ library: l.id, look: r.look, version: k.version, name: uiName(k.name), library_name: uiName(l.name) }] : [];
   });
 }

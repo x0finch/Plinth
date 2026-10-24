@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { defineRead, defineSession } from '../capability.js';
 
 export const historyUndo = defineSession({
-  name: 'history_undo', title: 'Undo',
+  name: 'history_undo',
+  title: 'Undo',
   description: 'Undo the last change.',
   input: z.object({}),
   run: (_, { session }) => {
@@ -13,7 +14,8 @@ export const historyUndo = defineSession({
 });
 
 export const historyRedo = defineSession({
-  name: 'history_redo', title: 'Redo',
+  name: 'history_redo',
+  title: 'Redo',
   description: 'Redo the change just undone.',
   input: z.object({}),
   run: (_, { session }) => {
@@ -23,7 +25,8 @@ export const historyRedo = defineSession({
 });
 
 export const historyLog = defineRead({
-  name: 'history_log', title: 'Operation log',
+  name: 'history_log',
+  title: 'Operation log',
   description: 'Operation log for this session: who, when, what and why.',
   input: z.object({ limit: z.number().int().positive().default(20) }),
   run: ({ limit }, { session }) => session.log.slice(-limit),

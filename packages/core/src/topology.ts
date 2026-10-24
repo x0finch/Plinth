@@ -2,8 +2,27 @@
 import pc from 'polygon-clipping';
 import { netArea } from './area.js';
 import {
-  add, area, bbox, cross, dot, MIN_SHARED_EDGE, onWall, openingCenter, PARALLEL_EPS, pointAt, pointInPolygon, project, round, scale, sub, toPc, TOL,
-  union, wallDir, wallLength, wallNormal,
+  add,
+  area,
+  bbox,
+  cross,
+  dot,
+  MIN_SHARED_EDGE,
+  onWall,
+  openingCenter,
+  PARALLEL_EPS,
+  pointAt,
+  pointInPolygon,
+  project,
+  round,
+  scale,
+  sub,
+  toPc,
+  TOL,
+  union,
+  wallDir,
+  wallLength,
+  wallNormal,
 } from './geometry.js';
 import { directionOf, names } from './names.js';
 import type { Id, Opening, Point, Polygon, Project, ProjectLanguage, Space, Wall } from './schema.js';
@@ -16,20 +35,23 @@ export function intersectLines(p1: Point, d1: Point, p2: Point, d2: Point): Poin
   return add(p1, scale(d1, t));
 }
 
-const edges = (p: Polygon): [Point, Point][] =>
-  [p.outer, ...(p.holes ?? [])].flatMap(r => r.map((a, i) => [a, r[(i + 1) % r.length]] as [Point, Point]));
+const edges = (p: Polygon): [Point, Point][] => [p.outer, ...(p.holes ?? [])].flatMap(r => r.map((a, i) => [a, r[(i + 1) % r.length]] as [Point, Point]));
 
 /** Intervals (distance along the wall, clamped to it) where the wall centreline runs along the space boundary */
 export function wallSpaceSegments(w: Wall, s: Space, tol = TOL): [number, number][] {
-  const d = wallDir(w), L = wallLength(w);
+  const d = wallDir(w),
+    L = wallLength(w);
   const out: [number, number][] = [];
-  for (const poly of s.shape) for (const [a, b] of edges(poly)) {
-    const pa = project(w, a), pb = project(w, b);
-    if (pa.dist > tol || pb.dist > tol) continue;
-    if (Math.abs(cross(d, sub(b, a))) > tol * 2) continue;
-    const lo = Math.max(0, Math.min(pa.at, pb.at)), hi = Math.min(L, Math.max(pa.at, pb.at));
-    if (hi > lo) out.push([lo, hi]);
-  }
+  for (const poly of s.shape)
+    for (const [a, b] of edges(poly)) {
+      const pa = project(w, a),
+        pb = project(w, b);
+      if (pa.dist > tol || pb.dist > tol) continue;
+      if (Math.abs(cross(d, sub(b, a))) > tol * 2) continue;
+      const lo = Math.max(0, Math.min(pa.at, pb.at)),
+        hi = Math.min(L, Math.max(pa.at, pb.at));
+      if (hi > lo) out.push([lo, hi]);
+    }
   return out;
 }
 
@@ -43,21 +65,33 @@ export function wallSpaceSpan(w: Wall, s: Space): [number, number] | null {
 }
 
 export const centroid = (s: Space): Point => {
-  let x = 0, y = 0, n = 0;
-  for (const p of s.shape) for (const [px, py] of p.outer) { x += px; y += py; n++; }
+  let x = 0,
+    y = 0,
+    n = 0;
+  for (const p of s.shape)
+    for (const [px, py] of p.outer) {
+      x += px;
+      y += py;
+      n++;
+    }
   return [x / n, y / n];
 };
 
 /** Which side of the wall the space is on: 1 along the normal, -1 opposite */
 export function sideOf(w: Wall, s: Space): 1 | -1 {
   // Probe a small step to each side of the wall midpoint along the normal and see which falls inside the space
-  const L = wallLength(w), n = wallNormal(w);
+  const L = wallLength(w),
+    n = wallNormal(w);
   const samples = [0.25, 0.5, 0.75].map(t => pointAt(w, L * t));
   const probe = (k: number) => samples.filter(m => s.shape.some(p => pointInPolygon(add(m, scale(n, k * 50)), p))).length;
   return probe(1) >= probe(-1) ? 1 : -1;
 }
 
-export interface SpaceBoundary { wall: Wall; length: number; side: 1 | -1 }
+export interface SpaceBoundary {
+  wall: Wall;
+  length: number;
+  side: 1 | -1;
+}
 
 /** Walls enclosing a space */
 export function spaceWalls(p: Project, s: Space): SpaceBoundary[] {
@@ -82,8 +116,11 @@ export function spaceNeighbors(p: Project, s: Space): { space: Space; via: Wall[
 
 /** The spaces on either side connected by an opening */
 export function openingSpaces(p: Project, w: Wall, o: Opening): Space[] {
-  const c = openingCenter(w, o), n = wallNormal(w), off = w.thickness / 2 + 100;
-  return [1, -1].map(k => p.spaces.find(s => s.level === w.level && s.shape.some(poly => pointInPolygon(add(c, scale(n, k * off)), poly))))
+  const c = openingCenter(w, o),
+    n = wallNormal(w),
+    off = w.thickness / 2 + 100;
+  return [1, -1]
+    .map(k => p.spaces.find(s => s.level === w.level && s.shape.some(poly => pointInPolygon(add(c, scale(n, k * off)), poly))))
     .filter((s): s is Space => !!s);
 }
 
@@ -128,8 +165,13 @@ export function uniqueName(existing: Iterable<string>, base: string, language: P
 /** Generate a new ID: prefix + incrementing number */
 export function nextId(p: Project, prefix: string): Id {
   const all = new Set<string>([
-    ...p.levels.map(o => o.id), ...p.walls.map(o => o.id), ...p.walls.flatMap(w => w.openings.map(o => o.id)),
-    ...p.spaces.map(o => o.id), ...p.elements.map(o => o.id), ...p.furniture.map(o => o.id), ...p.constraints.map(o => o.id),
+    ...p.levels.map(o => o.id),
+    ...p.walls.map(o => o.id),
+    ...p.walls.flatMap(w => w.openings.map(o => o.id)),
+    ...p.spaces.map(o => o.id),
+    ...p.elements.map(o => o.id),
+    ...p.furniture.map(o => o.id),
+    ...p.constraints.map(o => o.id),
     ...p.decisions.map(o => o.id),
   ]);
   for (let i = 1; ; i++) {
@@ -181,15 +223,16 @@ export function moveWall(p: Project, wallId: Id, v: Point) {
   for (const s of p.spaces) {
     if (s.level !== w.level) continue;
     let moved = false;
-    for (const poly of s.shape) for (const ring of [poly.outer, ...(poly.holes ?? [])]) {
-      for (let i = 0; i < ring.length; i++) {
-        const pr = project(oldWall, ring[i]);
-        if (pr.dist <= TOL && pr.at >= -ext && pr.at <= wallLength(oldWall) + ext) {
-          ring[i] = round(add(ring[i], v));
-          moved = true;
+    for (const poly of s.shape)
+      for (const ring of [poly.outer, ...(poly.holes ?? [])]) {
+        for (let i = 0; i < ring.length; i++) {
+          const pr = project(oldWall, ring[i]);
+          if (pr.dist <= TOL && pr.at >= -ext && pr.at <= wallLength(oldWall) + ext) {
+            ring[i] = round(add(ring[i], v));
+            moved = true;
+          }
         }
       }
-    }
     // Only tidy spaces that moved, so the whole level isn't recorded as "changed"
     if (moved) s.shape = union(s.shape);
   }
@@ -208,4 +251,3 @@ export function overlapArea(a: Polygon[], b: Polygon[]) {
     })),
   );
 }
-

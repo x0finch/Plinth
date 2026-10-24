@@ -10,9 +10,10 @@ import { schemaPlugins } from './auth-schema';
 import { transferOwnership } from './repo';
 
 function create() {
-  const google = env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
-    ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET, prompt: 'select_account' as const } }
-    : undefined;
+  const google =
+    env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+      ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET, prompt: 'select_account' as const } }
+      : undefined;
   return betterAuth({
     appName: 'Plinth',
     // Without APP_URL the base URL is inferred from the request (the default workers.dev URL works); set it once a custom domain is bound

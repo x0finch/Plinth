@@ -15,13 +15,30 @@ const check = (step, ok, msg) => {
 };
 
 // UTF-8 locale: with the container's empty default locale, Chromium degrades Chinese download filenames to "download"
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'], slowMo: 60, env: { ...process.env, LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8' } });
-const ownerCtx = await b.newContext({ viewport: { width: 1280, height: 800 }, recordVideo: { dir: `${OUT}/raw-owner`, size: { width: 1280, height: 800 } }, permissions: ['clipboard-read', 'clipboard-write'] });
-const famCtx = await b.newContext({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true, recordVideo: { dir: `${OUT}/raw-family`, size: { width: 390, height: 800 } } });
+const b = await chromium.launch({
+  executablePath: '/opt/pw-browsers/chromium',
+  args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
+  slowMo: 60,
+  env: { ...process.env, LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8' },
+});
+const ownerCtx = await b.newContext({
+  viewport: { width: 1280, height: 800 },
+  recordVideo: { dir: `${OUT}/raw-owner`, size: { width: 1280, height: 800 } },
+  permissions: ['clipboard-read', 'clipboard-write'],
+});
+const famCtx = await b.newContext({
+  viewport: { width: 390, height: 800 },
+  isMobile: true,
+  hasTouch: true,
+  recordVideo: { dir: `${OUT}/raw-family`, size: { width: 390, height: 800 } },
+});
 const owner = await ownerCtx.newPage();
 const fam = await famCtx.newPage();
 const errors = [];
-for (const [who, p] of [['owner', owner], ['family', fam]]) {
+for (const [who, p] of [
+  ['owner', owner],
+  ['family', fam],
+]) {
   p.on('pageerror', e => errors.push(`${who}: ${e.message}`));
   p.on('console', m => m.type() === 'error' && !/GPU stall/.test(m.text()) && errors.push(`${who}: ${m.text()}`));
 }
@@ -33,7 +50,8 @@ async function caption(page, text) {
     if (!el) {
       el = document.createElement('div');
       el.id = '__walk';
-      el.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:99999;background:rgba(0,0,0,.82);color:#fff;font:500 15px/1.5 system-ui,sans-serif;padding:8px 14px;border-radius:8px;max-width:92%;text-align:center;pointer-events:none';
+      el.style.cssText =
+        'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:99999;background:rgba(0,0,0,.82);color:#fff;font:500 15px/1.5 system-ui,sans-serif;padding:8px 14px;border-radius:8px;max-width:92%;text-align:center;pointer-events:none';
       document.body.appendChild(el);
     }
     el.textContent = t;
@@ -41,7 +59,7 @@ async function caption(page, text) {
 }
 const pause = (ms = 1200) => new Promise(r => setTimeout(r, ms));
 const ready = p => p.waitForFunction(() => window.artifact?.ready, null, { timeout: 30000 });
-const say = async (text) => {
+const say = async text => {
   const box = owner.getByPlaceholder('说说想怎么改…');
   await box.click();
   await box.pressSequentially(text, { delay: 60 });
@@ -50,7 +68,10 @@ const say = async (text) => {
 };
 /** Select a room on the floor plan by clicking its name */
 async function tapRoom(page, name) {
-  const label = page.frameLocator('iframe[title="画布"]').locator('svg text', { hasText: new RegExp(`^${name}$`) }).first();
+  const label = page
+    .frameLocator('iframe[title="画布"]')
+    .locator('svg text', { hasText: new RegExp(`^${name}$`) })
+    .first();
   const box = await label.boundingBox();
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
@@ -72,7 +93,11 @@ await owner.waitForURL(/\/p\//);
 await ready(owner);
 await pause(1500);
 const blankId = owner.url().match(/\/p\/([^/?]+)/)[1];
-check('Start from scratch', (await owner.evaluate(() => window.artifact.project().walls.length)) === 0, 'blank project opened; chat prompts the user to describe the house');
+check(
+  'Start from scratch',
+  (await owner.evaluate(() => window.artifact.project().walls.length)) === 0,
+  'blank project opened; chat prompts the user to describe the house',
+);
 
 // ---------- 3. Configure the LLM ----------
 await caption(owner, '③ 大模型由用户自带：设置里保存密钥并选模型（这里用演示用的脚本模型）');
@@ -103,9 +128,17 @@ await say('一家四口，一层，要两间卧室，卧室朝南');
 await owner.getByText(/^好了。按你的需求/).waitFor({ timeout: 40000 });
 await pause(2500);
 const built = await owner.evaluate(() => window.artifact.project());
-check('Build from brief', built.spaces.length === 5 && built.brief.household?.length === 2, `built ${built.spaces.length} rooms, ${built.walls.length} walls; brief recorded: ${built.brief.household?.join(', ')}`);
+check(
+  'Build from brief',
+  built.spaces.length === 5 && built.brief.household?.length === 2,
+  `built ${built.spaces.length} rooms, ${built.walls.length} walls; brief recorded: ${built.brief.household?.join(', ')}`,
+);
 const rules = await owner.evaluate(() => window.artifact.call('check_rules', {}));
-check('Rule check', rules.result.issues.every(i => i.severity !== 'error'), `no errors (${rules.result.issues.length} warnings)`);
+check(
+  'Rule check',
+  rules.result.issues.every(i => i.severity !== 'error'),
+  `no errors (${rules.result.issues.length} warnings)`,
+);
 await caption(owner, '⑥ 切到三维白模；点一面墙，选中的东西会往上跳一下，不变色');
 await owner.getByRole('button', { name: '三维', exact: true }).click();
 await pause(3000);
@@ -133,7 +166,11 @@ await caption(owner, '⑧ 在图上点选“老人房一”：它会跳一下；
 await tapRoom(owner, '老人房一');
 await owner.getByRole('tab', { name: '属性' }).click();
 await pause(2500);
-check('Select', (await owner.getByText('四周').count()) > 0 && (await owner.getByText('12.0 m²').count()) > 0, 'room 老人房一 is 12.0 m², surrounding walls listed');
+check(
+  'Select',
+  (await owner.getByText('四周').count()) > 0 && (await owner.getByText('12.0 m²').count()) > 0,
+  'room 老人房一 is 12.0 m², surrounding walls listed',
+);
 
 // ---------- 6. Edit the plan via chat ----------
 await owner.getByRole('tab', { name: '对话' }).click();
@@ -153,13 +190,20 @@ const undone = await owner.evaluate(() => window.artifact.call('get_object', { r
 await owner.getByLabel('重做').click();
 await pause(1500);
 const redone = await owner.evaluate(() => window.artifact.call('get_object', { ref: '一层·老人房一' }));
-check('Undo / redo', undone.result.netArea === 12 && Math.abs(redone.result.netArea - 12.5) < 0.15, `after undo ${undone.result.netArea}, after redo ${redone.result.netArea} m²`);
+check(
+  'Undo / redo',
+  undone.result.netArea === 12 && Math.abs(redone.result.netArea - 12.5) < 0.15,
+  `after undo ${undone.result.netArea}, after redo ${redone.result.netArea} m²`,
+);
 
 // ---------- Dark page, canvas unchanged ----------
 await caption(owner, '⑪+ 网页跟随系统切到深色，画布始终是亮色');
 await owner.emulateMedia({ colorScheme: 'dark' });
 await pause(3000);
-const canvasBg = await owner.frameLocator('iframe[title="画布"]').locator('svg').evaluate(el => getComputedStyle(el).backgroundColor);
+const canvasBg = await owner
+  .frameLocator('iframe[title="画布"]')
+  .locator('svg')
+  .evaluate(el => getComputedStyle(el).backgroundColor);
 const pageBg = await owner.evaluate(() => getComputedStyle(document.body).backgroundColor);
 check('Canvas theme independent', canvasBg !== pageBg, `page background ${pageBg}, canvas background ${canvasBg}`);
 await owner.emulateMedia({ colorScheme: 'light' });
@@ -213,11 +257,14 @@ check('Comment', true, 'comment is attached to the kitchen');
 
 await caption(owner, '⑰ 业主看到家人的评论，处理后标为已解决');
 await owner.getByRole('tab', { name: '评论' }).click();
-await owner.getByText('厨房窗户能不能再高一点？').waitFor({ timeout: 35000 }).catch(async () => {
-  await owner.reload();
-  await ready(owner);
-  await owner.getByRole('tab', { name: '评论' }).click();
-});
+await owner
+  .getByText('厨房窗户能不能再高一点？')
+  .waitFor({ timeout: 35000 })
+  .catch(async () => {
+    await owner.reload();
+    await ready(owner);
+    await owner.getByRole('tab', { name: '评论' }).click();
+  });
 await pause(1500);
 await owner.getByRole('button', { name: '解决' }).first().click();
 await pause(1500);
@@ -227,7 +274,10 @@ check('Resolve comment', (await owner.getByText('已解决（1）').count()) > 0
 await caption(owner, '⑱ 每次修改自动存版本：查看第 1 版，再回退');
 await owner.getByRole('tab', { name: '版本' }).click();
 await pause(1200);
-await owner.getByText(/第 1 版/).first().click();
+await owner
+  .getByText(/第 1 版/)
+  .first()
+  .click();
 await owner.getByText('正在查看第 1 版（只读）').waitFor();
 await pause(1500);
 await owner.getByRole('button', { name: '回退到这一版' }).click();
@@ -241,7 +291,11 @@ await owner.getByLabel('更多').click();
 const [dl] = await Promise.all([owner.waitForEvent('download'), owner.getByRole('menuitem', { name: '导出图片' }).click()]);
 await pause(1000);
 const png = readFileSync(await dl.path());
-check('Export image', /\.png$/.test(dl.suggestedFilename()) && png.subarray(1, 4).toString() === 'PNG', `${dl.suggestedFilename()} (${(png.length / 1024).toFixed(0)} KB)`);
+check(
+  'Export image',
+  dl.suggestedFilename().endsWith('.png') && png.subarray(1, 4).toString() === 'PNG',
+  `${dl.suggestedFilename()} (${(png.length / 1024).toFixed(0)} KB)`,
+);
 
 // ---------- 11. Sign in ----------
 await caption(owner, '⑳ 登录：输入邮箱收验证码；试用期间的方案自动转到正式账号');

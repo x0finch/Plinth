@@ -25,13 +25,46 @@ export { resolve, resolveLevel } from './refs.js';
 export { objectInfo, type ObjectInfo } from './info.js';
 
 export const BUILTIN: Capability[] = [
-  projectSummary, findObjects, getObject, areaReportCap, checkRulesCap, listConstraints,
-  wallAdd, wallMove, wallUpdate, wallRemove, openingAdd, openingUpdate, openingRemove,
-  roomAdd, spaceAdd, spaceUpdate, spaceRemove, spaceMerge, spaceSetArea,
-  furnitureAdd, furnitureMove, furnitureRemove, levelAdd, levelRemove,
-  constraintAdd, constraintRemove, briefUpdate, decisionAdd,
-  historyUndo, historyRedo, historyLog,
-  lookGet, lookAdd, lookUpdate, lookRemove, lookUse, lookSet, lookImport, paramsSet, furnitureTypeAdd,
+  projectSummary,
+  findObjects,
+  getObject,
+  areaReportCap,
+  checkRulesCap,
+  listConstraints,
+  wallAdd,
+  wallMove,
+  wallUpdate,
+  wallRemove,
+  openingAdd,
+  openingUpdate,
+  openingRemove,
+  roomAdd,
+  spaceAdd,
+  spaceUpdate,
+  spaceRemove,
+  spaceMerge,
+  spaceSetArea,
+  furnitureAdd,
+  furnitureMove,
+  furnitureRemove,
+  levelAdd,
+  levelRemove,
+  constraintAdd,
+  constraintRemove,
+  briefUpdate,
+  decisionAdd,
+  historyUndo,
+  historyRedo,
+  historyLog,
+  lookGet,
+  lookAdd,
+  lookUpdate,
+  lookRemove,
+  lookUse,
+  lookSet,
+  lookImport,
+  paramsSet,
+  furnitureTypeAdd,
 ];
 
 /** Built-in capability registry (including batch and search_capabilities) */
@@ -41,4 +74,3 @@ export function createRegistry(extra: Capability[] = []): Registry {
   r.register(searchCapabilitiesFor(r));
   return r;
 }
-

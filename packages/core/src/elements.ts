@@ -37,7 +37,12 @@ export interface ElementGeometry {
 type Rect = [number, number, number, number];
 
 const isRect = (v: unknown): v is Rect => Array.isArray(v) && v.length === 4 && v.every(n => typeof n === 'number');
-const rectRing = ([x, y, w, h]: Rect): Point[] => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+const rectRing = ([x, y, w, h]: Rect): Point[] => [
+  [x, y],
+  [x + w, y],
+  [x + w, y + h],
+  [x, y + h],
+];
 
 /**
  * A U-shaped stair from one level to the next: two flights side by side and a landing at the far end.
@@ -70,8 +75,7 @@ function storeyHeight(p: Project, e: Element) {
   return { from, to, height: to.elevation - from.elevation };
 }
 
-const nextLevel = (levels: Level[], l: Level | undefined) =>
-  l && [...levels].sort((a, b) => a.elevation - b.elevation).find(x => x.elevation > l.elevation);
+const nextLevel = (levels: Level[], l: Level | undefined) => l && [...levels].sort((a, b) => a.elevation - b.elevation).find(x => x.elevation > l.elevation);
 
 function stair(p: Project, e: Element): ElementGeometry {
   const s = e.params as unknown as StairParams;
@@ -81,10 +85,11 @@ function stair(p: Project, e: Element): ElementGeometry {
   const a = DIRS[s.up];
   // Across, toward the side it turns to (x east, y south: right of travel (dx, dy) is (-dy, dx))
   const c: Point = s.turn === 'left' ? [a[1], -a[0]] : [-a[1], a[0]];
-  const along = a[0] ? w : h, across = a[0] ? h : w;
+  const along = a[0] ? w : h,
+    across = a[0] ? h : w;
   // Origin: the start end's corner on the first flight's side
   const mid: Point = [x + w / 2, y + h / 2];
-  const o: Point = [mid[0] - a[0] * along / 2 - c[0] * across / 2, mid[1] - a[1] * along / 2 - c[1] * across / 2];
+  const o: Point = [mid[0] - (a[0] * along) / 2 - (c[0] * across) / 2, mid[1] - (a[1] * along) / 2 - (c[1] * across) / 2];
   const at = (u: number, v: number): Point => [o[0] + a[0] * u + c[0] * v, o[1] + a[1] * u + c[1] * v];
   const quad = (u0: number, u1: number, v0: number, v1: number) => [at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1)];
 
@@ -93,7 +98,8 @@ function stair(p: Project, e: Element): ElementGeometry {
   const edge = along - fw; // where the landing starts
   const n = Math.ceil(storey.height / (s.riser ?? 175));
   const r = storey.height / n;
-  const n1 = Math.ceil(n / 2), n2 = n - n1;
+  const n1 = Math.ceil(n / 2),
+    n2 = n - n1;
   const t = Math.min(s.tread ?? 280, edge / Math.max(1, n1 - 1));
 
   const solids: Solid[] = [];
@@ -105,7 +111,8 @@ function stair(p: Project, e: Element): ElementGeometry {
   // Second flight, back toward the start end; its last riser steps onto the upper floor
   for (let j = 1; j < n2; j++) add(quad(edge - j * t, edge - (j - 1) * t, across - fw, across), (n1 + j) * r);
 
-  const start1 = edge - (n1 - 1) * t, end2 = edge - (n2 - 1) * t;
+  const start1 = edge - (n1 - 1) * t,
+    end2 = edge - (n2 - 1) * t;
   const treads: ElementPlan['lines'] = [];
   for (let k = 0; k < n1; k++) treads.push({ points: [at(start1 + k * t, 0), at(start1 + k * t, fw)] });
   for (let j = 0; j < n2; j++) treads.push({ points: [at(end2 + j * t, across - fw), at(end2 + j * t, across)] });
@@ -115,14 +122,16 @@ function stair(p: Project, e: Element): ElementGeometry {
     { ring: quad(end2, edge, across - fw, across), kind: 'structure' },
   ];
   // Walking line up the first flight, around the landing and down the second, with an arrow at its end
-  const v1 = fw / 2, v2 = across - fw / 2, turnAt = edge + fw / 2;
+  const v1 = fw / 2,
+    v2 = across - fw / 2,
+    turnAt = edge + fw / 2;
   const tip = at(end2 + ARROW / 2, v2);
   const back: Point = [-a[0], -a[1]];
   const side: Point = [c[0], c[1]];
   const arrow = [
-    [tip[0] - back[0] * ARROW + side[0] * ARROW / 2, tip[1] - back[1] * ARROW + side[1] * ARROW / 2],
+    [tip[0] - back[0] * ARROW + (side[0] * ARROW) / 2, tip[1] - back[1] * ARROW + (side[1] * ARROW) / 2],
     tip,
-    [tip[0] - back[0] * ARROW - side[0] * ARROW / 2, tip[1] - back[1] * ARROW - side[1] * ARROW / 2],
+    [tip[0] - back[0] * ARROW - (side[0] * ARROW) / 2, tip[1] - back[1] * ARROW - (side[1] * ARROW) / 2],
   ] as Point[];
   const walk = [at(start1 + ARROW / 2, v1), at(turnAt, v1), at(turnAt, v2), tip];
   const base: ElementPlan = { id: e.id, level: e.level, fills, lines: [...treads, { points: walk }, { points: arrow }] };
@@ -141,8 +150,10 @@ const arc = ([cx, cy]: Point, radius: number, a0: number, a1: number, steps = 24
 /** Start and end angles of a pond's sweep; north is -y */
 const SWEEPS: Record<string, [number, number]> = {
   full: [0, 2 * Math.PI],
-  'quarter-ne': [-Math.PI / 2, 0], 'quarter-nw': [-Math.PI, -Math.PI / 2],
-  'quarter-se': [0, Math.PI / 2], 'quarter-sw': [Math.PI / 2, Math.PI],
+  'quarter-ne': [-Math.PI / 2, 0],
+  'quarter-nw': [-Math.PI, -Math.PI / 2],
+  'quarter-se': [0, Math.PI / 2],
+  'quarter-sw': [Math.PI / 2, Math.PI],
 };
 const RIM = { width: 120, height: 150 };
 
@@ -163,19 +174,23 @@ function pond(p: Project, e: Element): ElementGeometry {
   const water = full ? inner : [center, ...inner];
   const z = grade(p, e);
   // The rim: the band between the two arcs, plus the straight edges of a quarter
-  const rim: Point[][] = full
-    ? outer.slice(0, -1).map((q, i) => [q, outer[i + 1], inner[i + 1], inner[i]])
-    : [[...outer, ...[...inner].reverse()]];
+  const rim: Point[][] = full ? outer.slice(0, -1).map((q, i) => [q, outer[i + 1], inner[i + 1], inner[i]]) : [[...outer, ...[...inner].reverse()]];
   return {
     solids: [
       ...rim.map(ring => ({ id: e.id, level: e.level, kind: 'structure' as const, outline: ring, z, height: RIM.height })),
       { id: e.id, level: e.level, kind: 'water', outline: water, z, height: RIM.height / 3 },
     ],
-    plans: [{
-      id: e.id, level: e.level,
-      fills: [{ ring: full ? outer : [center, ...outer], kind: 'structure' }, { ring: water, kind: 'water' }],
-      lines: [],
-    }],
+    plans: [
+      {
+        id: e.id,
+        level: e.level,
+        fills: [
+          { ring: full ? outer : [center, ...outer], kind: 'structure' },
+          { ring: water, kind: 'water' },
+        ],
+        lines: [],
+      },
+    ],
   };
 }
 
@@ -187,8 +202,20 @@ function drain(p: Project, e: Element): ElementGeometry {
   const ring = rectRing(rect);
   // Bars across the channel every 50 mm
   const bars: ElementPlan['lines'] = [];
-  const long = w >= h, len = long ? w : h;
-  for (let d = 50; d < len; d += 50) bars.push({ points: long ? [[x + d, y], [x + d, y + h]] : [[x, y + d], [x + w, y + d]] });
+  const long = w >= h,
+    len = long ? w : h;
+  for (let d = 50; d < len; d += 50)
+    bars.push({
+      points: long
+        ? [
+            [x + d, y],
+            [x + d, y + h],
+          ]
+        : [
+            [x, y + d],
+            [x + w, y + d],
+          ],
+    });
   return {
     solids: [{ id: e.id, level: e.level, kind: 'grate', outline: ring, z: grade(p, e), height: 10 }],
     plans: [{ id: e.id, level: e.level, fills: [{ ring, kind: 'structure' }], lines: bars }],

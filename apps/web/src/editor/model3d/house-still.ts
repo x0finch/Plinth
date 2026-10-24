@@ -5,8 +5,21 @@
  * share (look-preview.ts), as a JPEG data URL.
  */
 import {
-  DEFAULT_FINISH, elementTarget, furnitureTarget, lookRecipe, materialOf, openingFrames, openingTarget, projectElements, requestBuild, wallBoxes,
-  wallTarget, type Material, type Project, type Recipe, type RecipeSize,
+  DEFAULT_FINISH,
+  elementTarget,
+  furnitureTarget,
+  lookRecipe,
+  materialOf,
+  openingFrames,
+  openingTarget,
+  projectElements,
+  requestBuild,
+  wallBoxes,
+  wallTarget,
+  type Material,
+  type Project,
+  type Recipe,
+  type RecipeSize,
 } from '@plinth/core';
 import * as THREE from 'three';
 import { lightDocument } from '@/canvas/CanvasFrame';
@@ -35,7 +48,16 @@ async function draw(renderer: THREE.WebGLRenderer, p: Project, W: number, H: num
   const keep = <T extends { dispose(): void }>(x: T) => (disposables.push(x), x);
   const standard = (m: Material | undefined, fallback?: THREE.Color) => {
     const s = materialStyle(m);
-    return keep(new THREE.MeshStandardMaterial({ color: m ? new THREE.Color(s.color) : fallback, roughness: s.roughness, metalness: s.metalness, transparent: s.opacity < 1, opacity: s.opacity, depthWrite: s.opacity === 1 }));
+    return keep(
+      new THREE.MeshStandardMaterial({
+        color: m ? new THREE.Color(s.color) : fallback,
+        roughness: s.roughness,
+        metalness: s.metalness,
+        transparent: s.opacity < 1,
+        opacity: s.opacity,
+        depthWrite: s.opacity === 1,
+      }),
+    );
   };
   const house = new THREE.Group();
   const elev = new Map(p.levels.map(l => [l.id, l.elevation]));
@@ -49,7 +71,19 @@ async function draw(renderer: THREE.WebGLRenderer, p: Project, W: number, H: num
     for (const [mat, geo] of partsGeometry(built.parts)) {
       keep(geo);
       const s = lookMaterial(mat, recipe, p.library.materials);
-      const mesh = new THREE.Mesh(geo, keep(new THREE.MeshStandardMaterial({ color: new THREE.Color(s.color), roughness: s.roughness, metalness: s.metalness, transparent: s.opacity < 1, opacity: s.opacity, depthWrite: s.opacity === 1 })));
+      const mesh = new THREE.Mesh(
+        geo,
+        keep(
+          new THREE.MeshStandardMaterial({
+            color: new THREE.Color(s.color),
+            roughness: s.roughness,
+            metalness: s.metalness,
+            transparent: s.opacity < 1,
+            opacity: s.opacity,
+            depthWrite: s.opacity === 1,
+          }),
+        ),
+      );
       mesh.castShadow = s.opacity === 1;
       mesh.receiveShadow = true;
       g.add(mesh);
@@ -61,7 +95,9 @@ async function draw(renderer: THREE.WebGLRenderer, p: Project, W: number, H: num
   // Floors, in their material (its pattern, else its colour)
   for (const s of p.spaces) {
     if (s.kind === 'void' || s.slabOpening) continue;
-    const base = elev.get(s.level) ?? 0, y = s.kind === 'outdoor' && base === 0 ? p.site.groundLevel + 20 : base, t = s.kind === 'outdoor' ? 20 : 120;
+    const base = elev.get(s.level) ?? 0,
+      y = s.kind === 'outdoor' && base === 0 ? p.site.groundLevel + 20 : base,
+      t = s.kind === 'outdoor' ? 20 : 120;
     const shapes = s.shape.map(poly => {
       const sh = new THREE.Shape(poly.outer.map(([x, z]) => new THREE.Vector2(x * M, -z * M)));
       for (const h of poly.holes ?? []) sh.holes.push(new THREE.Path(h.map(([x, z]) => new THREE.Vector2(x * M, -z * M))));
@@ -86,14 +122,19 @@ async function draw(renderer: THREE.WebGLRenderer, p: Project, W: number, H: num
     for (const b of wallBoxes(p, w)) {
       if (b.kind === 'glass' || b.kind === 'glass-block') continue;
       if (b.kind === 'railing') {
-        jobs.push(look(lookRecipe(p, wallTarget(w), w.look), { w: b.length, d: b.thickness, h: b.height }, w.lookParams).then(g => {
-          g.position.set(b.center[0] * M, (base + b.z) * M, b.center[1] * M);
-          g.rotation.y = -b.angle;
-          house.add(g);
-        }));
+        jobs.push(
+          look(lookRecipe(p, wallTarget(w), w.look), { w: b.length, d: b.thickness, h: b.height }, w.lookParams).then(g => {
+            g.position.set(b.center[0] * M, (base + b.z) * M, b.center[1] * M);
+            g.rotation.y = -b.angle;
+            house.add(g);
+          }),
+        );
         continue;
       }
-      const mesh = new THREE.Mesh(keep(new THREE.BoxGeometry(b.length * M, b.height * M, b.thickness * M)), standard(materialOf(w.finish ?? DEFAULT_FINISH, null, p.library.materials), wall));
+      const mesh = new THREE.Mesh(
+        keep(new THREE.BoxGeometry(b.length * M, b.height * M, b.thickness * M)),
+        standard(materialOf(w.finish ?? DEFAULT_FINISH, null, p.library.materials), wall),
+      );
       mesh.position.set(b.center[0] * M, (base + b.z + b.height / 2) * M, b.center[1] * M);
       mesh.rotation.y = -b.angle;
       mesh.castShadow = mesh.receiveShadow = true;
@@ -103,20 +144,28 @@ async function draw(renderer: THREE.WebGLRenderer, p: Project, W: number, H: num
 
   // Doors and windows
   for (const fr of openingFrames(p)) {
-    jobs.push(look(lookRecipe(p, openingTarget(fr.opening), fr.opening.look), { w: fr.width, d: fr.thickness, h: fr.height }, fr.opening.lookParams).then(g => {
-      g.position.set(fr.center[0] * M, ((elev.get(fr.level) ?? 0) + fr.z) * M, fr.center[1] * M);
-      g.rotation.y = -fr.angle;
-      house.add(g);
-    }));
+    jobs.push(
+      look(lookRecipe(p, openingTarget(fr.opening), fr.opening.look), { w: fr.width, d: fr.thickness, h: fr.height }, fr.opening.lookParams).then(g => {
+        g.position.set(fr.center[0] * M, ((elev.get(fr.level) ?? 0) + fr.z) * M, fr.center[1] * M);
+        g.rotation.y = -fr.angle;
+        house.add(g);
+      }),
+    );
   }
 
   // Elements' own geometry, in the materials their look gives each kind of solid
   for (const s of projectElements(p).flatMap(g => g.solids)) {
-    const e = p.elements.find(x => x.id === s.id), recipe = e && lookRecipe(p, elementTarget(e), e.look);
+    const e = p.elements.find(x => x.id === s.id),
+      recipe = e && lookRecipe(p, elementTarget(e), e.look);
     const own = recipe && (await requestBuild(recipe, ELEMENT_SIZE, e?.lookParams))?.parts.find(x => x.kind === 'base');
     const mat = own?.kind === 'base' ? own.mats[s.kind] : undefined;
-    const geo = keep(new THREE.ExtrudeGeometry(new THREE.Shape(s.outline.map(([x, z]) => new THREE.Vector2(x * M, -z * M))), { depth: s.height * M, bevelEnabled: false })).rotateX(-Math.PI / 2);
-    const material = standard(mat ? materialOf(mat, recipe, p.library.materials) : undefined, s.kind === 'water' ? color('--muted') : s.kind === 'grate' ? color('--muted-foreground') : wall);
+    const geo = keep(
+      new THREE.ExtrudeGeometry(new THREE.Shape(s.outline.map(([x, z]) => new THREE.Vector2(x * M, -z * M))), { depth: s.height * M, bevelEnabled: false }),
+    ).rotateX(-Math.PI / 2);
+    const material = standard(
+      mat ? materialOf(mat, recipe, p.library.materials) : undefined,
+      s.kind === 'water' ? color('--muted') : s.kind === 'grate' ? color('--muted-foreground') : wall,
+    );
     const mesh = new THREE.Mesh(geo, material);
     mesh.position.y = ((elev.get(s.level) ?? 0) + s.z) * M;
     mesh.castShadow = s.kind === 'structure';
@@ -126,11 +175,13 @@ async function draw(renderer: THREE.WebGLRenderer, p: Project, W: number, H: num
 
   // Furniture
   for (const f of p.furniture) {
-    jobs.push(look(lookRecipe(p, furnitureTarget(f), f.look), f.size, f.lookParams).then(g => {
-      g.position.set(f.position[0] * M, ((elev.get(f.level) ?? 0) + (f.elevation ?? 0)) * M, f.position[1] * M);
-      g.rotation.y = (-f.rotation * Math.PI) / 180;
-      house.add(g);
-    }));
+    jobs.push(
+      look(lookRecipe(p, furnitureTarget(f), f.look), f.size, f.lookParams).then(g => {
+        g.position.set(f.position[0] * M, ((elev.get(f.level) ?? 0) + (f.elevation ?? 0)) * M, f.position[1] * M);
+        g.rotation.y = (-f.rotation * Math.PI) / 180;
+        house.add(g);
+      }),
+    );
   }
   await Promise.all(jobs);
 
@@ -139,14 +190,22 @@ async function draw(renderer: THREE.WebGLRenderer, p: Project, W: number, H: num
   scene.add(house);
   const box = new THREE.Box3().setFromObject(house);
   if (box.isEmpty()) box.set(new THREE.Vector3(-5, 0, -5), new THREE.Vector3(5, 3, 5));
-  const center = box.getCenter(new THREE.Vector3()), radius = Math.max(2, box.getSize(new THREE.Vector3()).length() / 2);
+  const center = box.getCenter(new THREE.Vector3()),
+    radius = Math.max(2, box.getSize(new THREE.Vector3()).length() / 2);
 
   // The plinth, a white board a little larger than the site, and a ground that only catches shadows
-  const [x0, y0, x1, y1] = plinthRect(p), ground = p.site.groundLevel * M;
-  const plinth = new THREE.Mesh(keep(new THREE.BoxGeometry((x1 - x0) * M, PLINTH, (y1 - y0) * M)), keep(new THREE.MeshStandardMaterial({ color: wall, roughness: 1 })));
+  const [x0, y0, x1, y1] = plinthRect(p),
+    ground = p.site.groundLevel * M;
+  const plinth = new THREE.Mesh(
+    keep(new THREE.BoxGeometry((x1 - x0) * M, PLINTH, (y1 - y0) * M)),
+    keep(new THREE.MeshStandardMaterial({ color: wall, roughness: 1 })),
+  );
   plinth.position.set(((x0 + x1) / 2) * M, ground - PLINTH / 2 - 0.002, ((y0 + y1) / 2) * M);
   plinth.receiveShadow = plinth.castShadow = true;
-  const shadowGround = new THREE.Mesh(keep(new THREE.PlaneGeometry(radius * 40, radius * 40)).rotateX(-Math.PI / 2), keep(new THREE.ShadowMaterial({ color: color('--canvas-shadow'), opacity: 0.35 })));
+  const shadowGround = new THREE.Mesh(
+    keep(new THREE.PlaneGeometry(radius * 40, radius * 40)).rotateX(-Math.PI / 2),
+    keep(new THREE.ShadowMaterial({ color: color('--canvas-shadow'), opacity: 0.35 })),
+  );
   shadowGround.position.set(center.x, ground - PLINTH - 0.001, center.z);
   shadowGround.receiveShadow = true;
   scene.add(plinth, shadowGround);

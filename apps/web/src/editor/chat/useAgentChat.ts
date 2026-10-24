@@ -24,10 +24,13 @@ function forModel(r: CallResult) {
 /** Keep only the last few images of a thread when saving it (the server caps a thread's size); older ones become a note */
 function lighten(messages: UIMessage[], keep = 3) {
   let seen = 0;
-  return [...messages].reverse().map(msg => ({
-    ...msg,
-    parts: msg.parts.map(p => (p.type === 'image' && ++seen > keep ? { type: 'text' as const, content: '(image)' } : p)),
-  })).reverse();
+  return [...messages]
+    .reverse()
+    .map(msg => ({
+      ...msg,
+      parts: msg.parts.map(p => (p.type === 'image' && ++seen > keep ? { type: 'text' as const, content: '(image)' } : p)),
+    }))
+    .reverse();
 }
 
 export function useAgentChat({ autonomy, editable, modelId }: { autonomy: Autonomy; editable: boolean; modelId?: string }) {
@@ -41,12 +44,14 @@ export function useAgentChat({ autonomy, editable, modelId }: { autonomy: Autono
     () =>
       clientTools(
         ...registry.list().map(c =>
-          toolDefinition({ name: c.name, description: c.title, inputSchema: c.input, needsApproval: needsApproval(c, autonomy) }).client(async (args: unknown) => {
-            const r = await store.getState().call(c.name, args, { kind: 'agent' });
-            const img = (r.result as { image?: unknown } | undefined)?.image;
-            if (typeof img === 'string') setShots(s => [...s, img]);
-            return forModel(r);
-          }),
+          toolDefinition({ name: c.name, description: c.title, inputSchema: c.input, needsApproval: needsApproval(c, autonomy) }).client(
+            async (args: unknown) => {
+              const r = await store.getState().call(c.name, args, { kind: 'agent' });
+              const img = (r.result as { image?: unknown } | undefined)?.image;
+              if (typeof img === 'string') setShots(s => [...s, img]);
+              return forModel(r);
+            },
+          ),
         ),
       ),
     [store, autonomy],

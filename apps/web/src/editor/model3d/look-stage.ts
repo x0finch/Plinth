@@ -16,7 +16,10 @@ export const SHADOW_OPACITY = 0.22;
 
 /** The centre and radius of what a look built (in metres), at least its footprint and height */
 export function lookBounds(geometries: THREE.BufferGeometry[], size: { w: number; d: number; h: number }) {
-  const box = new THREE.Box3(new THREE.Vector3(-size.w / 2, 0, -size.d / 2).multiplyScalar(M), new THREE.Vector3(size.w / 2, size.h, size.d / 2).multiplyScalar(M));
+  const box = new THREE.Box3(
+    new THREE.Vector3(-size.w / 2, 0, -size.d / 2).multiplyScalar(M),
+    new THREE.Vector3(size.w / 2, size.h, size.d / 2).multiplyScalar(M),
+  );
   for (const g of geometries) {
     g.computeBoundingBox();
     box.union(g.boundingBox!);
@@ -26,7 +29,8 @@ export function lookBounds(geometries: THREE.BufferGeometry[], size: { w: number
 
 /** How far the camera is from a look of this radius so it fills a view of this aspect (width / height) without being cut off */
 export function fitDistance(radius: number, aspect = 4 / 3) {
-  const v = ((FOV / 2) * Math.PI) / 180, h = Math.atan(Math.tan(v) * aspect);
+  const v = ((FOV / 2) * Math.PI) / 180,
+    h = Math.atan(Math.tan(v) * aspect);
   return (radius / Math.sin(Math.min(v, h))) * 1.05;
 }
 

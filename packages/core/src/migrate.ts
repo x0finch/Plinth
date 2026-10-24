@@ -17,10 +17,16 @@ const MIGRATIONS: Record<number, (doc: any) => any> = {
   // v4 adds looks (library.looks, library.use, an object's own look); all optional, nothing to convert
   3: doc => doc,
   // v5: recipes are JSONata scripts; looks stored as part lists become scripts that build the same parts
-  4: doc => !doc.library?.looks ? doc : {
-    ...doc,
-    library: { ...doc.library, looks: Object.fromEntries(Object.entries(doc.library.looks).map(([id, l]: [string, any]) => [id, { ...l, recipe: normalizeRecipe(l.recipe) }])) },
-  },
+  4: doc =>
+    !doc.library?.looks
+      ? doc
+      : {
+          ...doc,
+          library: {
+            ...doc.library,
+            looks: Object.fromEntries(Object.entries(doc.library.looks).map(([id, l]: [string, any]) => [id, { ...l, recipe: normalizeRecipe(l.recipe) }])),
+          },
+        },
   // v6 adds look parameter values on furniture, openings and elements (lookParams); optional, nothing to convert
   5: doc => doc,
   // v7: look libraries as files (#93)
@@ -56,19 +62,26 @@ function toV7(doc: any) {
     if (DEFAULT_MATERIALS[id] || materials[id]) continue;
     materials[id] = { name: { [lang]: v?.name ?? id }, pbrMetallicRoughness: { baseColorFactor: [0.8, 0.8, 0.8, 1], metallicFactor: 0, roughnessFactor: 0.9 } };
   }
-  const looks = lib.looks && Object.fromEntries(Object.entries<any>(lib.looks).map(([id, l]) => [id, {
-    ...l,
-    for: [...new Set<string>(l.for.map(target))],
-    recipe: normalizeRecipe(l.recipe),
-    ...(l.source ? { source: { ...l.source, version: typeof l.source.version === 'number' ? `${l.source.version}.0.0` : l.source.version } } : {}),
-  }]));
+  const looks =
+    lib.looks &&
+    Object.fromEntries(
+      Object.entries<any>(lib.looks).map(([id, l]) => [
+        id,
+        {
+          ...l,
+          for: [...new Set<string>(l.for.map(target))],
+          recipe: normalizeRecipe(l.recipe),
+          ...(l.source ? { source: { ...l.source, version: typeof l.source.version === 'number' ? `${l.source.version}.0.0` : l.source.version } } : {}),
+        },
+      ]),
+    );
   return {
     ...doc,
     furniture: (doc.furniture ?? []).map((f: any) => {
       const to = type(f.type);
       if (to === f.type) return f;
       // The diamond shower is the shower's diamond shape, unless the piece has a look of its own
-      const params = f.type === 'shower5' && !f.look ? { ...(f.lookParams ?? {}), shape: 'diamond' } : f.lookParams;
+      const params = f.type === 'shower5' && !f.look ? { ...f.lookParams, shape: 'diamond' } : f.lookParams;
       return { ...f, type: to, ...(params ? { lookParams: params } : {}) };
     }),
     spaces: (doc.spaces ?? []).map((s: any) => (RENAMED_FLOORS[s.floor] ? { ...s, floor: RENAMED_FLOORS[s.floor] } : s)),
@@ -83,7 +96,12 @@ export function migrate(doc: unknown): Project {
   if (!d || d.schema !== SCHEMA) throw new SchemaError(text('schema_not_plinth', 'Not a Plinth project file (schema should be {schema})', { schema: SCHEMA }));
   if (typeof d.version !== 'number') throw new SchemaError(text('schema_no_version', 'Missing version'));
   if (d.version > SCHEMA_VERSION)
-    throw new SchemaError(text('schema_too_new', 'File version {version} is newer than this app supports ({current}); please upgrade', { version: d.version, current: SCHEMA_VERSION }));
+    throw new SchemaError(
+      text('schema_too_new', 'File version {version} is newer than this app supports ({current}); please upgrade', {
+        version: d.version,
+        current: SCHEMA_VERSION,
+      }),
+    );
   let cur = d;
   for (let v = d.version; v < SCHEMA_VERSION; v++) {
     const step = MIGRATIONS[v];

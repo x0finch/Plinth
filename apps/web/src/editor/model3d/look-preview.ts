@@ -11,7 +11,6 @@ import { themeColor } from '@/lib/theme';
 import { cameraPosition, FOV, lookBounds, M, stageGround, stageSun } from './look-stage';
 import { lookMaterial, partsGeometry } from './looks';
 
-
 type Opts = { width?: number; height?: number; single?: boolean; params?: Record<string, unknown>; materials?: Record<string, Material> };
 
 let shared: THREE.WebGLRenderer | null = null;
@@ -19,7 +18,9 @@ let queue: Promise<unknown> = Promise.resolve();
 
 /** Draw with the one offscreen renderer, after the stills queued before (also used for house stills, house-still.ts) */
 export function withStillRenderer<T>(draw: (renderer: THREE.WebGLRenderer) => Promise<T>): Promise<T> {
-  const run = queue.then(() => draw((shared ??= new THREE.WebGLRenderer({ canvas: document.createElement('canvas'), antialias: true, preserveDrawingBuffer: true }))));
+  const run = queue.then(() =>
+    draw((shared ??= new THREE.WebGLRenderer({ canvas: document.createElement('canvas'), antialias: true, preserveDrawingBuffer: true }))),
+  );
   queue = run.catch(() => {});
   return run;
 }
@@ -43,7 +44,9 @@ export function renderLookPreview(recipe: Recipe, size: { w: number; d: number; 
 }
 
 async function draw(renderer: THREE.WebGLRenderer, recipe: Recipe, size: { w: number; d: number; h: number }, opts: Opts): Promise<string> {
-  const W = opts.width ?? 960, H = opts.height ?? 320, doc = await lightDocument();
+  const W = opts.width ?? 960,
+    H = opts.height ?? 320,
+    doc = await lightDocument();
   const canvas = renderer.domElement;
   renderer.setPixelRatio(1);
   renderer.setSize(W, H, false);
@@ -59,24 +62,39 @@ async function draw(renderer: THREE.WebGLRenderer, recipe: Recipe, size: { w: nu
   const materials: THREE.Material[] = [];
   for (const [mat, g] of parts) {
     const { color: c, roughness, metalness, opacity } = lookMaterial(mat, recipe, opts.materials);
-    const material = new THREE.MeshStandardMaterial({ color: new THREE.Color(c), roughness, metalness, transparent: opacity < 1, opacity, depthWrite: opacity === 1 });
+    const material = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(c),
+      roughness,
+      metalness,
+      transparent: opacity < 1,
+      opacity,
+      depthWrite: opacity === 1,
+    });
     materials.push(material);
     const mesh = new THREE.Mesh(g, material);
     mesh.castShadow = opacity === 1;
     scene.add(mesh);
   }
-  const { center, radius } = lookBounds(parts.map(([, g]) => g), size);
+  const { center, radius } = lookBounds(
+    parts.map(([, g]) => g),
+    size,
+  );
   const sun = stageSun(color('--canvas-sun'), center, radius);
   scene.add(sun, sun.target);
   // On show, it stands on the ground in its soft shadow; for checking (three views), the outline of its footprint shows where
   // parts stray outside it
   const floor = opts.single
     ? stageGround(radius)
-    : new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(size.w * M, size.d * M).rotateX(-Math.PI / 2)), new THREE.LineBasicMaterial({ color: color('--muted-foreground') }));
+    : new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.PlaneGeometry(size.w * M, size.d * M).rotateX(-Math.PI / 2)),
+        new THREE.LineBasicMaterial({ color: color('--muted-foreground') }),
+      );
   scene.add(floor);
-  const vw = opts.single ? W : W / 3, aspect = vw / H;
+  const vw = opts.single ? W : W / 3,
+    aspect = vw / H;
   const ortho = (dir: THREE.Vector3, up: THREE.Vector3) => {
-    const r = radius * 1.1, cam = new THREE.OrthographicCamera(-r * aspect, r * aspect, r, -r, 0.01, radius * 10);
+    const r = radius * 1.1,
+      cam = new THREE.OrthographicCamera(-r * aspect, r * aspect, r, -r, 0.01, radius * 10);
     cam.up.copy(up);
     cam.position.copy(center).addScaledVector(dir, radius * 4);
     cam.lookAt(center);
@@ -85,7 +103,9 @@ async function draw(renderer: THREE.WebGLRenderer, recipe: Recipe, size: { w: nu
   const persp = new THREE.PerspectiveCamera(FOV, aspect, 0.01, radius * 20);
   persp.position.copy(cameraPosition(center, radius));
   persp.lookAt(center);
-  const views: THREE.Camera[] = opts.single ? [persp] : [persp, ortho(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0)), ortho(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1))];
+  const views: THREE.Camera[] = opts.single
+    ? [persp]
+    : [persp, ortho(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0)), ortho(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1))];
   views.forEach((cam, i) => {
     renderer.setViewport(i * vw, 0, vw, H);
     renderer.setScissor(i * vw, 0, vw, H);

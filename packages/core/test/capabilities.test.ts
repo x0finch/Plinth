@@ -4,14 +4,29 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createProject, createRegistry, migrate, mutates, openingCenter, Session, setTranslator, spaceNetArea, type CallResult, type Project, type Translator } from '../src/index.js';
+import {
+  createProject,
+  createRegistry,
+  migrate,
+  mutates,
+  openingCenter,
+  Session,
+  setTranslator,
+  spaceNetArea,
+  type CallResult,
+  type Project,
+  type Translator,
+} from '../src/index.js';
 
 /** Core messages of the web app: the core_* keys in apps/web/messages/<locale>.json */
 const readMessages = (locale: string): Record<string, string> =>
-  Object.fromEntries(Object.entries(JSON.parse(readFileSync(join(import.meta.dirname, `../../../apps/web/messages/${locale}.json`), 'utf8')) as Record<string, string>).filter(([k]) => k.startsWith('core_')));
+  Object.fromEntries(
+    Object.entries(JSON.parse(readFileSync(join(import.meta.dirname, `../../../apps/web/messages/${locale}.json`), 'utf8')) as Record<string, string>).filter(
+      ([k]) => k.startsWith('core_'),
+    ),
+  );
 const zhMessages = readMessages('zh');
-const zhTranslator: Translator = (key, params) =>
-  zhMessages[`core_${key}`]?.replace(/\{(\w+)\}/g, (_, k: string) => String(params[k]));
+const zhTranslator: Translator = (key, params) => zhMessages[`core_${key}`]?.replace(/\{(\w+)\}/g, (_, k: string) => String(params[k]));
 
 const registry = createRegistry();
 const actor = { kind: 'agent' as const };
@@ -39,7 +54,14 @@ describe('building a house from scratch', () => {
     const living = await h.ok('room_add', { level: '一层', name: '客厅', rect: [0, 0, 6000, 5000], wall_thickness: 240, wall_kind: 'bearing' });
     expect((living.result as any).walls).toHaveLength(4);
     // The bedroom abuts the living room's east wall: the shared wall is not built twice
-    const bed = await h.ok('room_add', { level: 'L1', name: '主卧', rect: [6000, 0, 4000, 5000], wall_thickness: 240, wall_kind: 'bearing', door: { side: 'west' } });
+    const bed = await h.ok('room_add', {
+      level: 'L1',
+      name: '主卧',
+      rect: [6000, 0, 4000, 5000],
+      wall_thickness: 240,
+      wall_kind: 'bearing',
+      door: { side: 'west' },
+    });
     expect((bed.result as any).walls).toHaveLength(3);
     expect((bed.result as any).door).toBeTruthy();
     await h.ok('opening_add', { wall: '主卧北墙', kind: 'window', center_on: '主卧' });
@@ -182,7 +204,8 @@ describe('capability registry', () => {
   });
 
   it('every capability title has a Chinese and an English translation', () => {
-    const zh = readMessages('zh'), en = readMessages('en');
+    const zh = readMessages('zh'),
+      en = readMessages('en');
     for (const c of registry.list()) {
       expect(zh[`core_cap_${c.name}`], c.name).toBeTruthy();
       expect(en[`core_cap_${c.name}`], c.name).toBe(c.title);
@@ -228,7 +251,12 @@ describe('capability modes', () => {
   });
 
   it('has no read-mode capability of kind edit', () => {
-    expect(registry.list().filter(c => c.mode === 'read' && c.kind === 'edit').map(c => c.name)).toEqual([]);
+    expect(
+      registry
+        .list()
+        .filter(c => c.mode === 'read' && c.kind === 'edit')
+        .map(c => c.name),
+    ).toEqual([]);
   });
 
   it('still undoes and redoes through the registry', async () => {

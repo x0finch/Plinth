@@ -91,7 +91,12 @@ export function ChatPanel() {
     sendText(text, images);
   };
   const attach = async (files: FileList | null) => {
-    const picked = await Promise.all([...(files ?? [])].filter(f => f.type.startsWith('image/')).slice(0, 4).map(downscale));
+    const picked = await Promise.all(
+      [...(files ?? [])]
+        .filter(f => f.type.startsWith('image/'))
+        .slice(0, 4)
+        .map(downscale),
+    );
     setImages(s => [...s, ...picked].slice(0, 4));
     if (fileRef.current) fileRef.current.value = '';
   };
@@ -121,9 +126,19 @@ export function ChatPanel() {
                 ))}
               </SelectContent>
             </Select>
-          ) : model ? <span className="truncate">{m.chat_model({ label: model.label })}</span> : <span>{m.chat_no_model()}</span>}
+          ) : model ? (
+            <span className="truncate">{m.chat_model({ label: model.label })}</span>
+          ) : (
+            <span>{m.chat_no_model()}</span>
+          )}
         </div>
-        <Select value={autonomy} onValueChange={v => { setAuto(v as Autonomy); setAutonomy(v as Autonomy); }}>
+        <Select
+          value={autonomy}
+          onValueChange={v => {
+            setAuto(v as Autonomy);
+            setAutonomy(v as Autonomy);
+          }}
+        >
           <SelectTrigger size="sm" className="h-7 w-auto gap-1 text-xs" aria-label={m.chat_autonomy_aria()}>
             <SelectValue>{autonomyLabel(autonomy)}</SelectValue>
           </SelectTrigger>
@@ -146,7 +161,13 @@ export function ChatPanel() {
           <AlertTitle>{m.chat_setup_model_title()}</AlertTitle>
           <AlertDescription>
             {role === 'owner' ? (
-              <span>{m.chat_setup_model_owner_before()}<Button variant="link" className="h-auto p-0" nativeButton={false} render={<Link to="/settings" />}>{m.chat_setup_model_owner_link()}</Button>{m.chat_setup_model_owner_after()}</span>
+              <span>
+                {m.chat_setup_model_owner_before()}
+                <Button variant="link" className="h-auto p-0" nativeButton={false} render={<Link to="/settings" />}>
+                  {m.chat_setup_model_owner_link()}
+                </Button>
+                {m.chat_setup_model_owner_after()}
+              </span>
             ) : (
               <span>{m.chat_setup_model_member()}</span>
             )}
@@ -163,11 +184,20 @@ export function ChatPanel() {
               description={blank ? m.chat_empty_description_blank() : m.chat_empty_description()}
             >
               <div className="mt-3 flex flex-col gap-2">
-                {(blank ? SUGGESTIONS_BLANK : SUGGESTIONS).map(suggestion => suggestion()).map(s => (
-                  <Button key={s} variant="outline" size="sm" className="h-auto justify-start whitespace-normal py-1.5 text-left" disabled={!editable || !model} onClick={() => send(s)}>
-                    {s}
-                  </Button>
-                ))}
+                {(blank ? SUGGESTIONS_BLANK : SUGGESTIONS)
+                  .map(suggestion => suggestion())
+                  .map(s => (
+                    <Button
+                      key={s}
+                      variant="outline"
+                      size="sm"
+                      className="h-auto justify-start whitespace-normal py-1.5 text-left"
+                      disabled={!editable || !model}
+                      onClick={() => send(s)}
+                    >
+                      {s}
+                    </Button>
+                  ))}
               </div>
             </ConversationEmptyState>
           ) : (
@@ -193,8 +223,12 @@ export function ChatPanel() {
           <AlertDescription>
             <p>{describeCall(it.toolName, it.originalArgs, project)}</p>
             <div className="mt-2 flex gap-2">
-              <Button size="sm" onClick={() => it.resolveInterrupt(true)}>{m.chat_approve()}</Button>
-              <Button size="sm" variant="outline" onClick={() => it.resolveInterrupt(false)}>{m.chat_deny()}</Button>
+              <Button size="sm" onClick={() => it.resolveInterrupt(true)}>
+                {m.chat_approve()}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => it.resolveInterrupt(false)}>
+                {m.chat_deny()}
+              </Button>
             </div>
           </AlertDescription>
         </Alert>
@@ -212,7 +246,11 @@ export function ChatPanel() {
       >
         {selection.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1">
-            {selection.slice(0, 4).map(n => <Badge key={n} variant="secondary">{m.chat_selected({ name: n ?? '' })}</Badge>)}
+            {selection.slice(0, 4).map(n => (
+              <Badge key={n} variant="secondary">
+                {m.chat_selected({ name: n ?? '' })}
+              </Badge>
+            ))}
           </div>
         )}
         {images.length > 0 && (
@@ -220,7 +258,14 @@ export function ChatPanel() {
             {images.map((src, i) => (
               <div key={i} className="relative">
                 <img src={src} alt={m.chat_attachment_alt()} className="size-16 rounded-md border object-cover" />
-                <Button type="button" size="icon-xs" variant="secondary" className="absolute -top-2 -right-2 rounded-full" onClick={() => setImages(s => s.filter((_, k) => k !== i))} aria-label={m.chat_attachment_remove()}>
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="secondary"
+                  className="absolute -top-2 -right-2 rounded-full"
+                  onClick={() => setImages(s => s.filter((_, k) => k !== i))}
+                  aria-label={m.chat_attachment_remove()}
+                >
                   <XIcon />
                 </Button>
               </div>
@@ -238,13 +283,27 @@ export function ChatPanel() {
                 send(input);
               }
             }}
-            placeholder={!editable ? (readOnly ? m.chat_placeholder_history() : m.chat_placeholder_viewer()) : !model ? m.chat_placeholder_no_model() : m.chat_placeholder()}
+            placeholder={
+              !editable
+                ? readOnly
+                  ? m.chat_placeholder_history()
+                  : m.chat_placeholder_viewer()
+                : !model
+                  ? m.chat_placeholder_no_model()
+                  : m.chat_placeholder()
+            }
             disabled={!editable || !model}
             rows={2}
             className="max-h-40"
           />
           <InputGroupAddon align="block-end" className="justify-between">
-            <InputGroupButton size="icon-sm" variant="ghost" disabled={!editable || !model} onClick={() => fileRef.current?.click()} aria-label={m.chat_attach()}>
+            <InputGroupButton
+              size="icon-sm"
+              variant="ghost"
+              disabled={!editable || !model}
+              onClick={() => fileRef.current?.click()}
+              aria-label={m.chat_attach()}
+            >
               <ImagePlusIcon />
             </InputGroupButton>
             {isLoading ? (
@@ -252,7 +311,13 @@ export function ChatPanel() {
                 <CircleStopIcon />
               </InputGroupButton>
             ) : (
-              <InputGroupButton type="submit" size="icon-sm" variant="default" disabled={(!input.trim() && !images.length) || !editable || !model} aria-label={m.chat_send()}>
+              <InputGroupButton
+                type="submit"
+                size="icon-sm"
+                variant="default"
+                disabled={(!input.trim() && !images.length) || !editable || !model}
+                aria-label={m.chat_send()}
+              >
                 <ArrowUpIcon />
               </InputGroupButton>
             )}

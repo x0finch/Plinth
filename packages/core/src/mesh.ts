@@ -36,22 +36,32 @@ export function wallHeight(p: Project, w: Wall) {
 }
 
 export function wallBoxes(p: Project, w: Wall): Box[] {
-  const L = wallLength(w), d = wallDir(w), H = wallHeight(p, w);
+  const L = wallLength(w),
+    d = wallDir(w),
+    H = wallHeight(p, w);
   const angle = Math.atan2(d[1], d[0]);
   const kind: Box['kind'] = w.kind === 'railing' ? 'railing' : w.kind === 'parapet' ? 'parapet' : w.kind === 'fence' ? 'fence' : 'wall';
   const ext = w.kind === 'bearing' || w.kind === 'partition' ? w.thickness / 2 : 0;
   const box = (a: number, b: number, z: number, h: number, k: Box['kind']): Box => {
     const mid = (a + b) / 2;
     return {
-      id: w.id, level: w.level, kind: k, angle, thickness: k === 'glass-block' ? Math.min(GLASS_BLOCK, w.thickness) : k === 'glass' ? Math.min(PANE, w.thickness) : w.thickness,
-      center: [w.start[0] + d[0] * mid, w.start[1] + d[1] * mid], z, length: b - a, height: h,
+      id: w.id,
+      level: w.level,
+      kind: k,
+      angle,
+      thickness: k === 'glass-block' ? Math.min(GLASS_BLOCK, w.thickness) : k === 'glass' ? Math.min(PANE, w.thickness) : w.thickness,
+      center: [w.start[0] + d[0] * mid, w.start[1] + d[1] * mid],
+      z,
+      length: b - a,
+      height: h,
     };
   };
   const out: Box[] = [];
   const ops = [...w.openings].sort((a, b) => a.at - b.at);
   let t = -ext;
   for (const o of ops) {
-    const a = Math.max(-ext, o.at - o.width / 2), b = Math.min(L + ext, o.at + o.width / 2);
+    const a = Math.max(-ext, o.at - o.width / 2),
+      b = Math.min(L + ext, o.at + o.width / 2);
     if (a > t) out.push(box(t, a, 0, H, kind));
     const top = Math.min(H, o.sill + o.height);
     if (o.sill > 0) out.push(box(a, b, 0, o.sill, kind === 'wall' ? 'sill' : kind));
@@ -85,14 +95,28 @@ export interface OpeningFrame {
 /** Every opening's frame (clipped to its wall, like the boxes above) */
 export function openingFrames(p: Project): (OpeningFrame & { opening: Wall['openings'][number] })[] {
   return p.walls.flatMap(w => {
-    const L = wallLength(w), d = wallDir(w), H = wallHeight(p, w);
+    const L = wallLength(w),
+      d = wallDir(w),
+      H = wallHeight(p, w);
     const ext = w.kind === 'bearing' || w.kind === 'partition' ? w.thickness / 2 : 0;
-    return w.openings.map(o => {
-      const a = Math.max(-ext, o.at - o.width / 2), b = Math.min(L + ext, o.at + o.width / 2), mid = (a + b) / 2;
-      return {
-        id: o.id, wall: w.id, level: w.level, opening: o, center: [w.start[0] + d[0] * mid, w.start[1] + d[1] * mid] as [number, number],
-        z: o.sill, width: b - a, height: Math.min(H, o.sill + o.height) - o.sill, thickness: w.thickness, angle: Math.atan2(d[1], d[0]),
-      };
-    }).filter(f => f.width > 1 && f.height > 1);
+    return w.openings
+      .map(o => {
+        const a = Math.max(-ext, o.at - o.width / 2),
+          b = Math.min(L + ext, o.at + o.width / 2),
+          mid = (a + b) / 2;
+        return {
+          id: o.id,
+          wall: w.id,
+          level: w.level,
+          opening: o,
+          center: [w.start[0] + d[0] * mid, w.start[1] + d[1] * mid] as [number, number],
+          z: o.sill,
+          width: b - a,
+          height: Math.min(H, o.sill + o.height) - o.sill,
+          thickness: w.thickness,
+          angle: Math.atan2(d[1], d[0]),
+        };
+      })
+      .filter(f => f.width > 1 && f.height > 1);
   });
 }
