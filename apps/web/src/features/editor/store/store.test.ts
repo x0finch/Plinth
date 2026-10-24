@@ -2,7 +2,7 @@ import { createProject, type Project } from '@plinth/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, ApiError } from '@/lib/api';
 import type { Role } from '@/shared/roles';
-import { createEditorStore } from './store';
+import { createEditorStore } from '.';
 
 vi.mock('@/lib/api', async orig => ({ ...(await orig<typeof import('@/lib/api')>()), api: vi.fn() }));
 const mockApi = vi.mocked(api);
