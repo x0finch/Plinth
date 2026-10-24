@@ -3,7 +3,9 @@
  * parts are merged into one geometry per material (one draw call each). Materials get a theme color (--furn-*, --canvas-*,
  * see light.css) and a finish here; recipes only name them.
  */
-import { buildRecipe, type BuiltPart, type Recipe, type RecipeMaterial, type RecipeSize } from '@plinth/core';
+import { getBuild, type Built, type BuiltPart, type Recipe, type RecipeMaterial, type RecipeSize } from '@plinth/core';
+import { useRef } from 'react';
+import { useBuildsVersion } from '@/lib/builds';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -156,12 +158,14 @@ export function partsGeometry(parts: BuiltPart[]): [RecipeMaterial, THREE.Buffer
   });
 }
 
-/** Built parts of a recipe at a size, or none if it doesn't build (a broken recipe never breaks the canvas) */
-export function safeBuild(recipe: Recipe, size: RecipeSize): BuiltPart[] {
-  try {
-    return buildRecipe(recipe, size);
-  } catch (e) {
-    console.warn('Recipe failed to build', e);
-    return [];
-  }
+/**
+ * What a recipe builds at a size with parameters: ready from the cache, or the last build this component showed while the new
+ * one is under way; undefined before the first one, or when it doesn't build (a broken recipe never breaks the canvas)
+ */
+export function useBuild(recipe: Recipe | null | undefined, size: RecipeSize, params?: Record<string, unknown>): Built | undefined {
+  useBuildsVersion();
+  const last = useRef<Built | undefined>(undefined);
+  const built = recipe ? getBuild(recipe, size, params) : undefined;
+  if (built || !recipe) last.current = built;
+  return last.current;
 }

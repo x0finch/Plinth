@@ -10,11 +10,13 @@ const check = (ok, msg) => {
   console.log(`${ok ? '✓' : '✗'} ${msg}`);
   if (!ok) process.exitCode = 1;
 };
-const ROUND = { let: { r: 'min(w, d) / 2' }, parts: [
-  { kind: 'cylinder', mat: 'wood', r: 'r', h: 40, at: [0, 'h - 20', 0], seg: 40 },
-  { kind: 'cylinder', mat: 'woodDark', r: 50, h: 'h - 40', at: [0, '(h - 40) / 2', 0] },
-  { kind: 'cylinder', mat: 'woodDark', r: 'r * 0.5', h: 20, at: [0, 10, 0] },
-] };
+const ROUND = {
+  params: { top: 'wood' },
+  script: `(
+    $r := $min([$w, $d]) / 2;
+    [$cylinder($r, 40, [0, $h - 20, 0], $top, {"seg": 40}), $cylinder(50, $h - 40, [0, ($h - 40) / 2, 0], 'woodDark'), $cylinder($r * 0.5, 20, [0, 10, 0], 'woodDark')]
+  )`,
+};
 
 /** A guest with the sample design open */
 async function person() {
@@ -108,7 +110,7 @@ check((await a.page.evaluate(async () => (await fetch('/api/libraries/builtin-ch
 await a.page.goto(a.url);
 await a.page.waitForFunction(() => window.artifact?.ready);
 const id = Object.keys((await project(a.page)).library.looks)[0];
-await a.page.evaluate(([id, r]) => window.artifact.call('look_update', { look: id, recipe: { ...r, parts: r.parts.map(p => ({ ...p, mat: 'woodDark' })) } }), [id, ROUND]);
+await a.page.evaluate(([id, r]) => window.artifact.call('look_update', { look: id, recipe: { ...r, params: { top: 'woodDark' } } }), [id, ROUND]);
 await openLooks(a.page);
 await a.page.getByRole('combobox', { name: '把“圆餐桌”存入物件库' }).click();
 await a.page.getByRole('option', { name: '家具库' }).click();
@@ -127,7 +129,7 @@ await bob.page.screenshot({ path: `${OUT}/libraries-4-update.png` });
 await bob.page.getByRole('alertdialog').getByRole('button', { name: '更新' }).click();
 await bob.page.waitForTimeout(500);
 pb = await project(bob.page);
-check(pb.library.looks[bId].source.version === 2 && pb.library.looks[bId].recipe.parts.every(p => p.mat === 'woodDark'), 'updating brings that design to v2');
+check(pb.library.looks[bId].source.version === 2 && pb.library.looks[bId].recipe.params?.top === 'woodDark', 'updating brings that design to v2');
 
 // Deleting the library leaves designs that copied from it unchanged
 const libs = await a.page.evaluate(async () => (await fetch('/api/libraries')).json());

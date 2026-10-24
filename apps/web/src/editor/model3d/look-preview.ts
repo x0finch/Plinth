@@ -2,16 +2,16 @@
  * A still of a look, for the chat and the agent's self-check: the recipe built at a size and drawn from three sides in one
  * image (three-quarter view, front, top), in the canvas's light theme and the default model style's light.
  */
-import type { Recipe } from '@plinth/core';
+import { buildRecipe, type Recipe } from '@plinth/core';
 import * as THREE from 'three';
 import { lightDocument } from '@/canvas/CanvasFrame';
 import { themeColor } from '@/lib/theme';
-import { LOOK_MATERIALS, LOOK_TOKENS, partsGeometry, safeBuild } from './looks';
+import { LOOK_MATERIALS, LOOK_TOKENS, partsGeometry } from './looks';
 
 const M = 0.001;
 
 /** `single`: only the three-quarter view, filling the image */
-export async function renderLookPreview(recipe: Recipe, size: { w: number; d: number; h: number }, opts: { width?: number; height?: number; single?: boolean } = {}): Promise<string> {
+export async function renderLookPreview(recipe: Recipe, size: { w: number; d: number; h: number }, opts: { width?: number; height?: number; single?: boolean; params?: Record<string, unknown> } = {}): Promise<string> {
   const W = opts.width ?? 960, H = opts.height ?? 320, doc = await lightDocument();
   const canvas = document.createElement('canvas');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
@@ -26,7 +26,7 @@ export async function renderLookPreview(recipe: Recipe, size: { w: number; d: nu
   const sun = new THREE.DirectionalLight(color('--canvas-sun'), 1.4);
   sun.position.set(1.5, 3, 2);
   scene.add(sun);
-  const parts = partsGeometry(safeBuild(recipe, size));
+  const parts = partsGeometry((await buildRecipe(recipe, size, opts.params).catch(() => ({ parts: [] }))).parts);
   const materials: THREE.Material[] = [];
   for (const [mat, g] of parts) {
     const { roughness, metalness, opacity = 1 } = LOOK_MATERIALS[mat];

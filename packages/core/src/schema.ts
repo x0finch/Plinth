@@ -9,10 +9,10 @@
  *   and is promoted to a proper field on its second use. Fields are added, removed or changed via `version` + a migration function (see migrate.ts).
  */
 
-import type { Recipe } from './recipe.js';
+import type { Recipe } from './script.js';
 
 export const SCHEMA = 'plinth/project' as const;
-export const SCHEMA_VERSION = 4 as const;
+export const SCHEMA_VERSION = 5 as const;
 
 /** Language of the names written into project data (levels, walls, openings, catalog); independent of the UI language */
 export type ProjectLanguage = 'zh' | 'en';

@@ -2,7 +2,7 @@
  * Looking at a look before (or after) adding it: the agent's self-check. Runs in the browser, which draws the still; the server
  * only uses the definition to describe the tool.
  */
-import { checkRecipe, defineRead, inspectRecipe, targetSize, type CapabilityContext, type Recipe } from '@plinth/core';
+import { checkRecipe, defineRead, inspectRecipe, normalizeRecipe, targetSize, type CapabilityContext, type Recipe } from '@plinth/core';
 import { z } from 'zod';
 import { m } from '@/lib/i18n';
 
@@ -29,14 +29,14 @@ export const lookPreview = defineRead({
     const looks = p.library.looks ?? {};
     const look = i.look ? looks[i.look] ?? Object.values(looks).find(l => l.name === i.look) : undefined;
     if (i.look && !look) throw new Error(m.agent_err_look_not_found({ look: i.look }));
-    const recipe = (i.recipe ?? look?.recipe) as Recipe | undefined;
+    const recipe = normalizeRecipe(i.recipe ?? look?.recipe) as Recipe | undefined;
     if (!recipe) throw new Error(m.agent_err_look_preview_input());
     const size = i.size ?? targetSize(p, i.target ?? look?.for[0] ?? 'furniture:');
-    const problems = checkRecipe(recipe, size);
+    const problems = await checkRecipe(recipe, size);
     if (problems.length) return { ok: false, problems };
     const host = ctx.host?.looks as LooksHost | undefined;
     if (!host) throw new Error(m.server_err_view_needs_browser());
-    return { size, report: inspectRecipe(recipe, size), image: await host.preview(recipe, size) };
+    return { size, report: await inspectRecipe(recipe, size), image: await host.preview(recipe, size) };
   },
 });
 

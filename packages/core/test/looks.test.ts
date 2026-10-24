@@ -15,17 +15,17 @@ function harness(p: Project) {
 
 /** A round table: a top on one stem */
 const roundTable: Recipe = {
-  let: { r: 'min(w, d) / 2' },
-  parts: [
-    { kind: 'cylinder', mat: 'wood', r: 'r', h: 40, at: [0, 'h - 20', 0] },
-    { kind: 'cylinder', mat: 'woodDark', r: 40, h: 'h - 40', at: [0, '(h - 40) / 2', 0] },
-  ],
+  params: { top: 'wood' },
+  script: `(
+    $r := $min([$w, $d]) / 2;
+    [$cylinder($r, 40, [0, $h - 20, 0], $top), $cylinder(40, $h - 40, [0, ($h - 40) / 2, 0], 'woodDark')]
+  )`,
 };
 
 describe('looks', () => {
-  it('an old project migrates to v4 unchanged and valid', () => {
+  it('an old project migrates to v5 unchanged and valid', () => {
     const p = sample();
-    expect(p.version).toBe(4);
+    expect(p.version).toBe(5);
     expect(p.library.looks).toBeUndefined();
     expect(validate(p)).toEqual([]);
   });
@@ -59,7 +59,7 @@ describe('looks', () => {
     const h = harness(sample());
     const bad = await h.call('look_add', { name: 'x', for: ['furniture:dining'], recipe: { parts: [{ kind: 'box', mat: 'wood', size: ['w', 'h', 'q'], at: [0, 0, 0] }] } });
     expect(bad.ok).toBe(false);
-    expect(bad.error?.message).toMatch(/unknown name "q"/);
+    expect(bad.error?.message).toMatch(/unknown variable \$q/);
     await h.call('look_add', { name: 'Round', for: ['furniture:dining'], recipe: roundTable });
     const sofa = h.session.project.furniture.find(f => f.type === 'sofa3')!;
     const misfit = await h.call('look_set', { object: sofa.id, look: 'Round' });
@@ -77,10 +77,21 @@ describe('looks', () => {
     expect(lookRecipe(h.session.project, furnitureTarget(f))).toEqual(roundTable);
   });
 
+  it('a part list from before scripts is accepted and stored as a script; old designs migrate their looks', async () => {
+    const h = harness(sample());
+    const old = { parts: [{ kind: 'box', mat: 'wood', size: ['w', 'h', 'd'], at: [0, 'h / 2', 0] }] };
+    const r = await h.call('look_add', { name: 'Block', for: ['furniture:dining'], recipe: old });
+    expect(r.ok, r.error?.message).toBe(true);
+    const stored = h.session.project.library.looks![(r.result as { id: string }).id].recipe;
+    expect(stored.script).toContain('$box');
+    const v4 = { ...sample(), version: 4, library: { ...sample().library, looks: { 'look-1': { name: 'Block', for: ['furniture:dining'], recipe: old, version: 1 } } } };
+    expect(migrate(v4).library.looks!['look-1'].recipe).toEqual(stored);
+  });
+
   it('a window can get its own look', async () => {
     const h = harness(sample());
     const win = h.session.project.walls.flatMap(w => w.openings).find(o => o.kind === 'window' && !o.glazing)!;
-    const shutter: Recipe = { parts: [{ kind: 'box', mat: 'wood', size: ['w', 'h', 40], at: [0, 'h / 2', 0] }] };
+    const shutter: Recipe = { script: `[$box([$w, $h, 40], [0, $h / 2, 0], 'wood')]` };
     await h.call('look_add', { name: 'Shutter', for: ['opening:window'], recipe: shutter });
     const r = await h.call('look_set', { object: win.id, look: 'Shutter' });
     expect(r.ok, r.error?.message).toBe(true);

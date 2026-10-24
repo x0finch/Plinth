@@ -1,5 +1,6 @@
 import { text } from './i18n.js';
 import { upgradeLegacyStairs } from './legacy/stairs.js';
+import { normalizeRecipe } from './recipe-convert.js';
 import { SCHEMA, SCHEMA_VERSION, type Project } from './schema.js';
 
 /**
@@ -13,6 +14,11 @@ const MIGRATIONS: Record<number, (doc: any) => any> = {
   2: doc => upgradeLegacyStairs(doc),
   // v4 adds looks (library.looks, library.use, an object's own look); all optional, nothing to convert
   3: doc => doc,
+  // v5: recipes are JSONata scripts; looks stored as part lists become scripts that build the same parts
+  4: doc => !doc.library?.looks ? doc : {
+    ...doc,
+    library: { ...doc.library, looks: Object.fromEntries(Object.entries(doc.library.looks).map(([id, l]: [string, any]) => [id, { ...l, recipe: normalizeRecipe(l.recipe) }])) },
+  },
 };
 
 export class SchemaError extends Error {}

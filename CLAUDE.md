@@ -20,7 +20,7 @@ Overall design and requirements: GitHub issue #1 (epic) and its sub-issues. Read
 - Every mutation goes through the capability registry (`packages/core/src/builtins.ts`) inside a transaction; the UI, the agent and `window.artifact.call` all share it.
 - When unsure about a schema field, put it in `extras`; schema changes bump `version` and add a migration in `migrate.ts`.
 - User-facing text produced by the core package goes through `text(key, englishFallback, params)` (`packages/core/src/i18n.ts`); add the key as `core_<key>` to both `apps/web/messages/zh.json` and `en.json`. Capability titles are shown via `capabilityTitle(c)`.
-- What an object looks like (furniture, doors and windows, elements) is a recipe: data in `packages/core/src/recipe.ts`, with the default set in `packages/core/src/looks/` and the built-in libraries (looks anyone can add, like the Chinese pieces) in `looks/builtin.ts`. Don't hand-code models in the renderer; the plan symbol comes from the same recipe.
+- What an object looks like (furniture, doors and windows, elements) is a recipe: a JSONata script with parameters (`packages/core/src/script.ts`; the part format it returns is in `recipe.ts`), with the default set in `packages/core/src/looks/` and the built-in libraries (looks anyone can add, like the Chinese pieces) in `looks/builtin.ts`. Scripts build asynchronously; the renderer and the plan read built results from `looks/cache.ts`. Don't hand-code models in the renderer; the plan symbol comes from the same recipe.
 - Names written into project data (levels, walls, openings, catalog items) follow the project's `language` (`'zh' | 'en'`), not the UI language: use the vocabulary in `packages/core/src/names.ts`.
 
 ## Verification

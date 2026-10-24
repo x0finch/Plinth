@@ -14,6 +14,7 @@ import { useCanvasDocument } from '@/canvas/CanvasFrame';
 import { levelShapes, planFrame } from '../plan-geometry';
 import { PlanDefs, PlanInk, PlanLabels, PlanPaper, scaledLine } from '../PlanDrawing';
 import type { Quality } from './Renderer';
+import { useBuildsVersion } from '@/lib/builds';
 
 const M = 0.001;
 /**
@@ -58,7 +59,8 @@ export function FloorDrawing({ project, level, current, furniture, labels, quali
 }) {
   const doc = useCanvasDocument();
   const size = useThree(s => s.size);
-  const shapes = useMemo(() => levelShapes(project, level), [project, level]);
+  const builds = useBuildsVersion();
+  const shapes = useMemo(() => levelShapes(project, level), [project, level, builds]);
   const frame = planFrame(project, level);
   // The plan's scale on screen (it fits the framing to the view), for line widths
   const mmPerPx = Math.max(frame.w / size.width, frame.h / size.height);

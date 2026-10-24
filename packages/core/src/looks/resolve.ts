@@ -1,5 +1,7 @@
 /** Which recipe draws an object, and its plan symbol in plan coordinates */
-import { buildRecipe, planSymbol, type PlanSymbol, type Recipe } from '../recipe.js';
+import type { PlanSymbol } from '../recipe.js';
+import { builtPlan, type Recipe } from '../script.js';
+import { getBuild } from './cache.js';
 import type { Element, Furniture, Opening, Point, Project } from '../schema.js';
 import { DEFAULT_LOOKS, type LookTarget } from './index.js';
 
@@ -39,16 +41,20 @@ export function targetSize(p: Project, target: string): { w: number; d: number; 
   return { w: 2000, d: 2000, h: 3000 };
 }
 
-/** A piece of furniture's plan symbol (outlines seen from above, lowest first), in plan coordinates; null if it has no look */
+/** The last plan symbol drawn for each piece, shown while a changed one builds */
+const lastPlan = new Map<string, PlanSymbol>();
+
+/**
+ * A piece of furniture's plan symbol (outlines seen from above, lowest first), in plan coordinates; null if it has no look or
+ * it fails to build. While its build is under way (looks/cache.ts) the last symbol drawn for it is used.
+ */
 export function furniturePlan(p: Project, f: Furniture): PlanSymbol | null {
   const recipe = lookRecipe(p, furnitureTarget(f), f.look);
   if (!recipe) return null;
-  let sym: PlanSymbol;
-  try {
-    sym = planSymbol(recipe, buildRecipe(recipe, f.size), f.size);
-  } catch {
-    return null;
-  }
+  const built = getBuild(recipe, f.size);
+  const sym = built ? builtPlan(built) : lastPlan.get(f.id);
+  if (!sym) return null;
+  if (built) lastPlan.set(f.id, sym);
   const r = (f.rotation * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r);
   const tf = ([x, z]: Point): Point => [f.position[0] + x * c - z * s, f.position[1] + x * s + z * c];
   return { items: sym.items.map(it => ({ ...it, ring: it.ring.map(tf) })), lines: sym.lines.map(l => l.map(tf)) };

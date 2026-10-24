@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BUILTIN_LIBRARIES, buildRecipe, checkRecipe, DEFAULT_LOOKS, evalExpr, FURNITURE_TYPES, inspectRecipe, parseExpr, planSymbol, type Recipe } from '../src/index.js';
+import { BUILTIN_LIBRARIES, buildRecipe, builtPlan, checkRecipe, DEFAULT_LOOKS, normalizeRecipe, toScript, type PartRecipe, evalExpr, FURNITURE_TYPES, inspectRecipe, parseExpr, type Recipe } from '../src/index.js';
 
 describe('expressions', () => {
   it('evaluates arithmetic, comparisons, ternaries and functions', () => {
@@ -32,24 +32,24 @@ describe('recipes', () => {
     if (kind === 'opening') return { w: 1200, d: 180, h: 1500 };
     return { w: 2000, d: 2000, h: 3000 };
   };
-  it('every default look builds at its size, half and twice that size', () => {
+  it('every default look builds at its size, half and twice that size', async () => {
     for (const [target, recipe] of Object.entries(DEFAULT_LOOKS)) {
-      expect(checkRecipe(recipe, size(target)), target).toEqual([]);
+      expect(await checkRecipe(recipe, size(target)), target).toEqual([]);
     }
   });
-  it('every built-in library look builds for each of its targets', () => {
+  it('every built-in library look builds for each of its targets', async () => {
     for (const lib of BUILTIN_LIBRARIES) for (const look of lib.looks) {
       expect(look.for.length, look.id).toBeGreaterThan(0);
-      for (const t of look.for) expect(checkRecipe(look.recipe, size(t)), `${lib.id}/${look.id} ${t}`).toEqual([]);
+      for (const t of look.for) expect(await checkRecipe(look.recipe, size(t)), `${lib.id}/${look.id} ${t}`).toEqual([]);
     }
   });
   it('every catalog furniture type has a default look', () => {
     for (const type of Object.keys(FURNITURE_TYPES)) expect(DEFAULT_LOOKS[`furniture:${type}`], type).toBeTruthy();
   });
-  it('every furniture look has a plan symbol inside its footprint', () => {
+  it('every furniture look has a plan symbol inside its footprint', async () => {
     for (const type of Object.keys(FURNITURE_TYPES)) {
       const r = DEFAULT_LOOKS[`furniture:${type}`], s = FURNITURE_TYPES[type].size;
-      const sym = planSymbol(r, buildRecipe(r, s), s);
+      const sym = builtPlan(await buildRecipe(r, s));
       expect(sym.items.length, type).toBeGreaterThan(0);
       for (const it of sym.items) for (const [x, z] of it.ring) {
         expect(Math.abs(x), `${type} x`).toBeLessThanOrEqual(s.w / 2 + 200);
@@ -57,37 +57,70 @@ describe('recipes', () => {
       }
     }
   });
-  it('a longer sofa gets more cushions', () => {
-    const count = (w: number) => buildRecipe(DEFAULT_LOOKS['furniture:sofa3'], { w, d: 900, h: 800 }).filter(p => p.kind === 'box' && p.mat === 'cushion').length;
-    expect(count(3000)).toBeGreaterThan(count(2100));
+  it('a longer sofa gets more cushions', async () => {
+    const count = async (w: number) => (await buildRecipe(DEFAULT_LOOKS['furniture:sofa3'], { w, d: 900, h: 800 })).parts.filter(p => p.kind === 'box' && p.mat === 'cushion').length;
+    expect(await count(3000)).toBeGreaterThan(await count(2100));
   });
-  it('rejects bad recipes with readable problems', () => {
-    expect(checkRecipe({ parts: [{ kind: 'box', mat: 'wood', size: ['w', 'h', 'd'] }] }, { w: 1, d: 1, h: 1 })[0]).toMatch(/at/);
-    expect(checkRecipe({ parts: [{ kind: 'box', mat: 'gold-ish', size: [1, 1, 1], at: [0, 0, 0] }] }, { w: 1, d: 1, h: 1 })[0]).toMatch(/mat/);
-    const negative: Recipe = { parts: [{ kind: 'box', mat: 'wood', size: ['w - 2000', 10, 10], at: [0, 0, 0] }] };
-    expect(checkRecipe(negative, { w: 1000, d: 1, h: 1 })[0]).toMatch(/width must be positive/);
-    const runaway: Recipe = { parts: [{ kind: 'repeat', count: 1000, parts: [{ kind: 'box', mat: 'wood', size: [1, 1, 1], at: [0, 0, 0] }] }] };
-    expect(checkRecipe(runaway, { w: 1, d: 1, h: 1 })[0]).toMatch(/limit/);
+  it('rejects bad recipes with readable problems', async () => {
+    const at = (script: string) => checkRecipe({ script }, { w: 1000, d: 1, h: 1 }).then(p => p[0]);
+    expect(await at(`[{"kind": "box", "mat": "wood", "size": [$w, $h, $d]}]`)).toMatch(/at/);
+    expect(await at(`[$box([1, 1, 1], [0, 0, 0], 'gold-ish')]`)).toMatch(/mat/);
+    expect(await at(`[$box([$w - 2000, 10, 10], [0, 0, 0], 'wood')]`)).toMatch(/width must be positive/);
+    expect(await at(`[$box([1, 1, 1], [0, 0, 0]`)).toMatch(/script/);
+    expect(await checkRecipe({ parts: [] }, { w: 1, d: 1, h: 1 })).not.toEqual([]);
+  });
+  it('guardrails stop runaway scripts', async () => {
+    const at = (script: string) => checkRecipe({ script }, { w: 1000, d: 500, h: 500 }).then(p => p[0] ?? '');
+    expect(await at(`( $f := function($n) { $f($n + 1) }; $f(0) )`)).toMatch(/D1011|D1012/);
+    expect(await at(`[1..100000].$box([10, 10, 10], [0, 0, 0], 'wood')`)).toMatch(/D2015|parts/);
+    expect(await at(`[1..4000].$box([10, 10, 10], [0, 0, 0], 'wood')`)).toMatch(/parts/);
+  });
+  it('scripts cannot reach the host', async () => {
+    // Each either fails or builds nothing: no way to the host's functions or globals
+    for (const script of [`$eval("constructor")`, `constructor.constructor("return process")()`, `$box.constructor("return globalThis")()`, `$lookup($, "__proto__")`, `$string($box)`]) {
+      const built = await buildRecipe({ script }, { w: 1000, d: 500, h: 500 }).then(b => b.parts, () => []);
+      expect(built, script).toEqual([]);
+    }
+    expect((globalThis as Record<string, unknown>).process).toBeDefined();
+  });
+  it('parameters reach the script, with their defaults', async () => {
+    const r: Recipe = { params: { mat: 'wood', top: { default: 50, label: '厚度' } }, script: `[$box([$w, $top, $d], [0, $h - $top / 2, 0], $mat)]` };
+    const a = (await buildRecipe(r, { w: 1000, d: 500, h: 700 })).parts[0];
+    const b = (await buildRecipe(r, { w: 1000, d: 500, h: 700 }, { mat: 'birch', top: 30 })).parts[0];
+    expect(a).toMatchObject({ mat: 'wood', size: [1000, 50, 500] });
+    expect(b).toMatchObject({ mat: 'birch', size: [1000, 30, 500] });
+    expect(await checkRecipe({ params: { box: 1 }, script: '[]' }, { w: 1, d: 1, h: 1 })).not.toEqual([]);
+  });
+  it('part lists from before scripts convert to scripts that build the same parts', async () => {
+    const old: PartRecipe = { let: { r: 'min(w, d) / 2', ring: 'r * 0.9' }, parts: [
+      { kind: 'cylinder', mat: 'wood', r: 'ring', h: 40, at: [0, 'h - 20', 0], seg: 40 },
+      { kind: 'repeat', count: 'w > 500 ? 4 : 3', as: 'k', let: { a: 'k * 90' }, parts: [{ kind: 'rod', mat: 'metal', from: ['cos(a) * r', 0, 'sin(a) * r'], to: [0, 'h - 40', 0], r: 10 }] },
+      { kind: 'if', when: '!(w < 300) && d != 0', parts: [{ kind: 'box', mat: 'dark', size: [10, 10, 10], at: [0, '+(w > 100) * 5', 0], plan: false }] },
+    ] };
+    expect(normalizeRecipe(old)).toEqual(toScript(old));
+    const s = { w: 800, d: 600, h: 750 };
+    const { buildParts } = await import('../src/recipe.js');
+    expect((await buildRecipe(toScript(old), s)).parts).toEqual(buildParts(old, s));
   });
 });
 
 describe('inspection', () => {
-  it('finds parts out of bounds and floating, and draws rough views', () => {
-    const r: Recipe = { parts: [
-      { kind: 'box', mat: 'wood', size: ['w', 40, 'd'], at: [0, 'h - 20', 0] },
-      { kind: 'box', mat: 'wood', size: [60, 'h - 40', 60], at: [0, '(h - 40) / 2', 0] },
-      { kind: 'sphere', mat: 'gold', r: 50, at: [0, 'h + 400', 0] },
-      { kind: 'box', mat: 'wood', size: [100, 10, 100], at: ['w', 5, 0] },
-    ] };
-    const i = inspectRecipe(r, { w: 1000, d: 600, h: 750 });
+  it('finds parts out of bounds and floating, and draws rough views', async () => {
+    const r: Recipe = { script: `[
+      $box([$w, 40, $d], [0, $h - 20, 0], 'wood'),
+      $box([60, $h - 40, 60], [0, ($h - 40) / 2, 0], 'wood'),
+      $sphere(50, [0, $h + 400, 0], 'gold'),
+      $box([100, 10, 100], [$w, 5, 0], 'wood')
+    ]` };
+    const i = await inspectRecipe(r, { w: 1000, d: 600, h: 750 });
     expect(i.parts).toBe(4);
     expect(i.floating).toEqual(['#2 sphere (gold)']);
     expect(i.outside).toEqual(['#2 sphere (gold)', '#3 box (wood)']);
     expect(i.views.front.split('\n')[13]).toContain('#');
   });
-  it('the default looks have no floating or stray parts', () => {
+  it('the default looks have no floating or stray parts', async () => {
     for (const type of ['sofa3', 'bed18', 'dining', 'chair', 'tree', 'car', 'toilet', 'wardrobe']) {
-      const i = inspectRecipe(DEFAULT_LOOKS[`furniture:${type}`], FURNITURE_TYPES[type].size);
+      const i = await inspectRecipe(DEFAULT_LOOKS[`furniture:${type}`], FURNITURE_TYPES[type].size);
       expect(i.floating, type).toEqual([]);
     }
   });
