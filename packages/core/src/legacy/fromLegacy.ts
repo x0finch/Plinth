@@ -4,9 +4,10 @@
  */
 import { rect, union, pointInPolygon } from '../geometry.js';
 import { NAME_SEPARATOR, names, type Direction } from '../names.js';
+import { migrate } from '../migrate.js';
 import { upgradeLegacyStairs } from './stairs.js';
 import {
-  SCHEMA, SCHEMA_VERSION,
+  SCHEMA,
   type Element, type Furniture, type Level, type Opening, type OpeningKind, type Project, type Space,
   type SpaceKind, type Wall, type WallKind,
 } from '../schema.js';
@@ -197,9 +198,10 @@ export function fromLegacy(src: LegacyExport): Project {
     Object.entries({ beams, piers, walk, walkTo }).filter(([, v]) => v != null && !(Array.isArray(v) && !v.length)),
   );
 
-  return upgradeLegacyStairs({
+  // Written in the v6 shape this converter was made for, then migrated like any old file
+  return migrate(upgradeLegacyStairs({
     schema: SCHEMA,
-    version: SCHEMA_VERSION,
+    version: 6,
     id: `wushi-courtyard-${src.scheme}`,
     name: `乌石合院 · ${src.name}`,
     language: 'zh',
@@ -232,5 +234,5 @@ export function fromLegacy(src: LegacyExport): Project {
     },
     variants: [],
     ...(Object.keys(legacyExtras).length ? { extras: { legacy: legacyExtras } } : {}),
-  });
+  } as any));
 }

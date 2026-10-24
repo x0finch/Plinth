@@ -67,17 +67,19 @@ await page.getByText('看到图片了').waitFor({ timeout: 30000 });
 check(true, 'a photo attached in the chat reaches the model');
 await page.screenshot({ path: `${OUT}/looks-2-photo.png` });
 
-// Look options: one sofa gets dark grey fabric from the properties panel; its look, and the other sofas, stay the same
+// Look options: one sofa gets white linen from the properties panel; its look, and the other sofas, stay the same
 p = await project();
-const sofa = p.furniture.find(f => f.type === 'sofa3' && f.level === 'L1') ?? p.furniture.find(f => f.type === 'sofa3');
+const sofa = p.furniture.find(f => f.type === 'sofa' && f.level === 'L1') ?? p.furniture.find(f => f.type === 'sofa');
 await page.frameLocator('iframe[title="画布"]').locator(`[data-id="${sofa.id}"]`).first().dispatchEvent('click');
 await page.getByRole('tab', { name: '属性' }).click();
 await page.getByText('外观参数').waitFor({ timeout: 10000 });
 await page.getByRole('combobox', { name: '布面' }).click();
-await page.getByRole('option', { name: '深灰石' }).click();
+await page.getByRole('option', { name: '白色亚麻' }).click();
 await page.waitForTimeout(800);
+const others = pp => JSON.stringify(pp.furniture.filter(f => f.id !== sofa.id).map(f => f.lookParams ?? null));
+const before = others(p);
 p = await project();
-check(p.furniture.find(f => f.id === sofa.id).lookParams?.fabric === 'stoneDark' && p.furniture.filter(f => f.id !== sofa.id).every(f => !f.lookParams),
+check(p.furniture.find(f => f.id === sofa.id).lookParams?.fabric === 'linen' && others(p) === before,
   'a look option changes only that object');
 await page.screenshot({ path: `${OUT}/looks-3-params.png` });
 await page.getByRole('button', { name: '恢复默认' }).click();

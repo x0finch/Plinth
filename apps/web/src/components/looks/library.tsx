@@ -1,12 +1,12 @@
 /**
  * Look libraries, shared by the library list (/looks) and a library's page (/looks/$libraryId): its badge, the form that
- * creates one, and the panel that renames, shares and deletes it or removes its looks. Looks get into a library from a design
- * (its looks panel, or the agent); designs copy them from there.
+ * creates one, importing a library file, and the panel that renames, shares and deletes it or removes its looks. Looks get into
+ * a library from a design (its looks panel, or the agent) or a library file; designs copy them from there.
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { PlusIcon, Trash2Icon, UserPlusIcon } from 'lucide-react';
-import { useState } from 'react';
+import { PlusIcon, Trash2Icon, UploadIcon, UserPlusIcon } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +15,8 @@ import { Input } from '@/components/ui/input';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/components/ui/item';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { api } from '@/lib/api';
-import { m } from '@/lib/i18n';
+import { m, uiName } from '@/lib/i18n';
+import { importLibrary } from '@/lib/libraries';
 import { useMe } from '@/lib/query';
 import type { LibraryDetail, LibraryRole, LibrarySummary } from '@/shared/looks';
 
@@ -43,8 +44,29 @@ export function LibraryCreate() {
   );
 }
 
+/** Import a library file (*.looklib.json) as a new library of the user's, then open it */
+export function LibraryImport() {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const input = useRef<HTMLInputElement>(null);
+  const run = useMutation({
+    mutationFn: async (f: File) => importLibrary(JSON.parse(await f.text())),
+    onSuccess: r => { void qc.invalidateQueries({ queryKey: ['libraries'] }); void navigate({ to: '/looks/$libraryId', params: { libraryId: r.id } }); },
+    onError: e => toast.error(e instanceof SyntaxError ? m.libraries_import_not_json() : e.message),
+  });
+  return (
+    <>
+      <Input ref={input} type="file" accept=".json,application/json" className="hidden" aria-hidden tabIndex={-1}
+        onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) run.mutate(f); }} />
+      <Button variant="outline" disabled={run.isPending} onClick={() => input.current?.click()}><UploadIcon /> {m.libraries_import()}</Button>
+    </>
+  );
+}
+
 /** Rename, looks, members and sharing, delete or leave: what the viewer's role allows on a library of their own or shared with them */
-export function LibraryManage({ lib }: { lib: LibraryDetail }) {
+export function LibraryManage({ detail }: { detail: LibraryDetail }) {
+  const lib = { ...detail, id: detail.library.id, name: uiName(detail.library.name) };
+  const looks = Object.entries(detail.library.looks);
   const qc = useQueryClient();
   const navigate = useNavigate();
   const me = useMe();
@@ -61,17 +83,17 @@ export function LibraryManage({ lib }: { lib: LibraryDetail }) {
   return (
     <div className="space-y-5">
       {owner && <Input defaultValue={lib.name} aria-label={m.libraries_name()} onBlur={e => e.target.value.trim() && e.target.value !== lib.name && void call(`/libraries/${lib.id}`, { method: 'PATCH', json: { name: e.target.value.trim() } })} />}
-      {lib.looks.length > 0 && (
+      {looks.length > 0 && (
         <ItemGroup className="gap-1">
-          {lib.looks.map(k => (
-            <Item key={k.look_id} size="xs" variant="outline">
+          {looks.map(([id, k]) => (
+            <Item key={id} size="xs" variant="outline">
               <ItemContent>
-                <ItemTitle>{k.name}</ItemTitle>
+                <ItemTitle>{uiName(k.name)}</ItemTitle>
                 <ItemDescription>v{k.version}</ItemDescription>
               </ItemContent>
               {editor && (
                 <ItemActions>
-                  <Button size="icon-xs" variant="ghost" aria-label={m.libraries_remove_look({ name: k.name })} onClick={() => void call(`/libraries/${lib.id}/looks/${k.look_id}`, { method: 'DELETE' })}><Trash2Icon /></Button>
+                  <Button size="icon-xs" variant="ghost" aria-label={m.libraries_remove_look({ name: uiName(k.name) })} onClick={() => void call(`/libraries/${lib.id}/looks/${id}`, { method: 'DELETE' })}><Trash2Icon /></Button>
                 </ItemActions>
               )}
             </Item>

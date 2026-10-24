@@ -2,16 +2,16 @@
  * Look libraries for the agent: list them, read a look to copy it into the design (look_import), and save a look of the design
  * to a library. Run in the browser, which calls the API as the user; the server only uses the definitions.
  */
-import { defineRead, type CapabilityContext } from '@plinth/core';
+import { designLookOf, libraryLookOf, defineRead, type CapabilityContext } from '@plinth/core';
 import { z } from 'zod';
-import { m } from '@/lib/i18n';
-import type { LibraryDetail, LibrarySummary, LookTypeDef } from '@/shared/looks';
+import { m, uiName } from '@/lib/i18n';
+import type { LibraryDetail, LibraryLookInput, LibrarySummary } from '@/shared/looks';
 
 /** Implemented by the editor and injected into CapabilityContext.host.libraries */
 export interface LibrariesHost {
   list(): Promise<LibrarySummary[]>;
   get(id: string): Promise<LibraryDetail>;
-  save(library: string, look: { name: string; for: string[]; recipe: unknown; types?: Record<string, LookTypeDef> }, lookId?: string): Promise<{ look: string; version: number }>;
+  save(library: string, look: LibraryLookInput, lookId?: string): Promise<{ look: string; version: string }>;
 }
 
 const host = (ctx: CapabilityContext) => {
@@ -28,19 +28,19 @@ export const libraryList = defineRead({
     const libs = await host(ctx).list();
     return Promise.all(libs.map(async l => ({
       id: l.id, name: l.name, role: l.role,
-      looks: (await host(ctx).get(l.id)).looks.map(k => ({ look: k.look_id, name: k.name, for: k.for, version: k.version })),
+      looks: Object.entries((await host(ctx).get(l.id)).library.looks).map(([id, k]) => ({ look: id, name: uiName(k.name), for: k.for, version: k.version, params: Object.keys(k.params ?? {}) })),
     })));
   },
 });
 
 export const libraryLookGet = defineRead({
   name: 'library_look_get', title: 'Read a look in a library', kind: 'query', permission: 'read', runtime: 'browser',
-  description: 'Read a look in a library (its recipe and the furniture types it needs), to pass to look_import as is with source { library, look, version }.',
+  description: 'Read a look in a library (its recipe with the materials it uses, and the furniture type it brings), to pass to look_import as is: { name, for, recipe, types?, source }.',
   input: z.object({ library: z.string().describe('Library ID'), look: z.string().describe('Look ID in the library') }),
   run: async (i, ctx) => {
-    const k = (await host(ctx).get(i.library)).looks.find(x => x.look_id === i.look);
-    if (!k) throw new Error(m.agent_err_look_not_found({ look: i.look }));
-    return { name: k.name, for: k.for, recipe: k.recipe, types: k.types, source: { library: i.library, look: k.look_id, version: k.version } };
+    const lib = (await host(ctx).get(i.library)).library;
+    if (!lib.looks[i.look]) throw new Error(m.agent_err_look_not_found({ look: i.look }));
+    return designLookOf(lib, i.look, ctx.session.project.language);
   },
 });
 
@@ -53,8 +53,7 @@ export const librarySave = defineRead({
     const id = looks[i.look] ? i.look : Object.entries(looks).find(([, l]) => l.name === i.look)?.[0];
     if (!id) throw new Error(m.agent_err_look_not_found({ look: i.look }));
     const look = looks[id];
-    const types = Object.fromEntries(look.for.map(t => t.split(':')).filter(([k, type]) => k === 'furniture' && p.library.furniture[type]).map(([, type]) => [type, p.library.furniture[type]]));
-    const r = await host(ctx).save(i.library, { name: look.name, for: look.for, recipe: look.recipe, types }, look.source?.library === i.library ? look.source.look : undefined);
+    const r = await host(ctx).save(i.library, libraryLookOf(p, look), look.source?.library === i.library ? look.source.look : undefined);
     return { designLook: id, source: { library: i.library, look: r.look, version: r.version } };
   },
 });

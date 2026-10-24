@@ -7,9 +7,10 @@
 import { Edges, OrbitControls, PerformanceMonitor } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import {
-  elementTarget, findObject, furnitureTarget, getBuild, lookRecipe, openingFrames, openingTarget, projectBoxes, projectElements, rect, union, wallBoxes, wallDir,
-  type Element, type OpeningFrame, type Project, type Recipe, type RecipeMaterial, type Solid, type Space, type Wall,
+  DEFAULT_FINISH, elementTarget, findObject, furnitureTarget, getBuild, lookRecipe, materialOf, openingFrames, openingTarget, projectBoxes, projectElements, rect, union, wallBoxes, wallDir,
+  wallTarget, type Element, type Material, type OpeningFrame, type Project, type Recipe, type RecipeMaterial, type Solid, type Space, type Wall,
 } from '@plinth/core';
+import { materialStyle, type MaterialStyle } from '@/lib/materials';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { m } from '@/lib/i18n';
@@ -19,12 +20,11 @@ import { useThemeColors } from '@/lib/theme';
 import { FloorDrawing, PlanSheet } from './model3d/FloorDrawing';
 import { useFloorTexture } from './model3d/floor-textures';
 import { useBuildsVersion } from '@/lib/builds';
-import { LOOK_MATERIALS, LOOK_TOKENS, partsGeometry, useBuild } from './model3d/looks';
+import { lookMaterial, partsGeometry, useBuild } from './model3d/looks';
 
 /** Size an element's look is built at to read its materials and whether it adds parts (both independent of size) */
 const ELEMENT_SIZE = { w: 2000, d: 2000, h: 3000 };
 import { detectQuality, isTouchDevice, Renderer, type Quality } from './model3d/Renderer';
-import { GroundLabels, type GroundLabelSpec } from './ground-labels';
 import { modelStyle } from './model-style';
 import { planFrame, plinthRect } from './plan-geometry';
 import { useEditor, useEditorStore } from './store';
@@ -50,12 +50,11 @@ function skyTexture(sky: string, horizon: string) {
   return t;
 }
 
-/** All 3D model colors come from the theme */
+/** The 3D view's own colors (light, backdrop, selection) come from the theme; materials come from libraries */
 const useColors = () =>
   useThemeColors({
     backdrop: '--canvas-backdrop', sun: '--canvas-sun', skylight: '--canvas-skylight', wall: '--card', furn: '--muted', grate: '--muted-foreground',
     page: '--canvas-backdrop', sky: '--canvas-sky', edge: '--foreground', shadow: '--canvas-shadow', sel: '--chart-2', changed: '--chart-1',
-    glass: '--canvas-glass', frame: '--canvas-frame',
   }, useCanvasDocument());
 
 /** Selected objects are tinted with the selection color and outlined; just-changed objects get a tint that fades out */
@@ -177,8 +176,8 @@ type Outline = { sel?: string };
  * openings as holes, extruded through the wall's thickness. Drawn as separate boxes, the faces where pieces meet would flicker
  * through the wall face as dotted edges. Glass (a pane, a glass-block infill) is drawn on its own (see Glazing).
  */
-function WallMesh({ w, project, base, color, ...o }: Outline & { w: Wall; project: Project; base: number; color: string }) {
-  const ref = useFeedback<THREE.Mesh>(w.id, color, !!o.sel);
+function WallMesh({ w, project, base, finish, ...o }: Outline & { w: Wall; project: Project; base: number; finish: MaterialStyle }) {
+  const ref = useFeedback<THREE.Mesh>(w.id, finish.color, !!o.sel);
   const geo = useMemo(() => {
     const d = wallDir(w);
     // Each piece as a rectangle in elevation: along the wall from its start, and height
@@ -202,16 +201,18 @@ function WallMesh({ w, project, base, color, ...o }: Outline & { w: Wall; projec
   const y = base * M;
   return (
     <mesh ref={ref} geometry={geo} position={[w.start[0] * M, y, w.start[1] * M]} castShadow receiveShadow userData={{ id: w.id, restY: y }}>
-      <meshStandardMaterial color={color} roughness={0.9} />
+      <meshStandardMaterial color={finish.color} roughness={finish.roughness} metalness={finish.metalness} />
       {o.sel && <Edges threshold={20} color={o.sel} lineWidth={2} />}
     </mesh>
   );
 }
 
-function Slab({ s, y, thickness, color, ...o }: Outline & { s: Space; y: number; thickness: number; color: string }) {
+function Slab({ s, y, thickness, color, materials, ...o }: Outline & { s: Space; y: number; thickness: number; color: string; materials: Record<string, Material> }) {
+  // The floor's material, as on the plan: its pattern, else its colour (white with a style that draws plain floors)
+  const floor = modelStyle().floors === 'material' ? materialOf(s.floor, null, materials) : undefined;
+  const map = useFloorTexture(useCanvasDocument(), s.floor, floor);
+  if (floor && !map) color = materialStyle(floor).color;
   const ref = useFeedback<THREE.Mesh>(s.id, color, !!o.sel);
-  // The floor's material, as on the plan (white with a style that draws plain floors)
-  const map = useFloorTexture(useCanvasDocument(), modelStyle().floors === 'material' ? s.floor : null);
   const geo = useMemo(() => {
     const shapes = s.shape.map(p => {
       const sh = new THREE.Shape(p.outer.map(([x, z]) => new THREE.Vector2(x * M, -z * M)));
@@ -239,53 +240,14 @@ function Slab({ s, y, thickness, color, ...o }: Outline & { s: Space; y: number;
  * the opening. Part of its wall: picking it picks the wall.
  */
 function OpeningLook({ fr, recipe, params, base, ...o }: Outline & { fr: OpeningFrame; recipe: Recipe | null; params?: Record<string, unknown>; base: number }) {
-  const colors = useLookColors();
   const y = (base + fr.z) * M;
   const ref = useFeedback<THREE.Group>(fr.wall, null, !!o.sel);
   const parts = useLookGeometry(recipe, fr.width, fr.thickness, fr.height, params);
   if (!parts.length) return null;
   return (
     <group ref={ref} position={[fr.center[0] * M, y, fr.center[1] * M]} rotation={[0, -fr.angle, 0]} userData={{ restY: y }}>
-      <LookMeshes parts={parts} id={fr.wall} colors={colors} />
+      <LookMeshes parts={parts} id={fr.wall} recipe={recipe} />
     </group>
-  );
-}
-
-/** Height of a ground label's letters (mm), smaller when the name would be wider than it may be */
-const LABEL_TEXT = 360;
-
-/**
- * A name written on the ground (see ground-labels.ts), like lettering painted on the floor: it turns, scales and recedes with
- * the model. Picking it selects what it names.
- */
-function GroundLabel({ t, base, color }: { t: GroundLabelSpec; base: number; color: string }) {
-  const doc = useCanvasDocument();
-  const label = useMemo(() => {
-    // The page's sans-serif (it falls back to the system's CJK font for Chinese names)
-    const font = doc.defaultView!.getComputedStyle(doc.body).fontFamily || 'sans-serif';
-    const px = 96, c = doc.createElement('canvas'), ctx = c.getContext('2d')!;
-    ctx.font = `500 ${px}px ${font}`;
-    const w = Math.ceil(ctx.measureText(t.name).width) + px / 2;
-    c.width = w;
-    c.height = Math.ceil(px * 1.4);
-    ctx.font = `500 ${px}px ${font}`;
-    ctx.fillStyle = color;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(t.name, w / 2, c.height / 2);
-    const tex = new THREE.CanvasTexture(c);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = 8;
-    const k = Math.min(LABEL_TEXT, (t.width * 0.9 * px) / w) * M / px;
-    return { tex, w: w * k, h: c.height * k };
-  }, [doc, t.name, t.width, color]);
-  useEffect(() => () => label.tex.dispose(), [label]);
-  return (
-    // Just above the ground (or floor) it's written on
-    <mesh position={[t.at[0] * M, (base + 4) * M, t.at[1] * M + label.h / 2]} rotation={[-Math.PI / 2, 0, 0]} userData={{ id: t.pick, noEdges: true }} renderOrder={4}>
-      <planeGeometry args={[label.w, label.h]} />
-      <meshBasicMaterial map={label.tex} transparent depthWrite={false} toneMapped={false} />
-    </mesh>
   );
 }
 
@@ -321,9 +283,6 @@ function Furniture({ f, recipe, base, color, ...o }: Outline & { f: Project['fur
   );
 }
 
-/** The look materials' colors, read from the theme */
-const useLookColors = () => useThemeColors(LOOK_TOKENS, useCanvasDocument());
-
 /** A recipe's geometry at a size (one per material), disposed when it changes */
 function useLookGeometry(recipe: Recipe | null, w: number, d: number, h: number, params?: Record<string, unknown>) {
   const built = useBuild(recipe, { w, d, h }, params);
@@ -332,28 +291,52 @@ function useLookGeometry(recipe: Recipe | null, w: number, d: number, h: number,
   return parts;
 }
 
-/** A look's meshes, one per material; glass lets light through: see-through, no shadow */
-function LookMeshes({ parts, id, colors }: { parts: [RecipeMaterial, THREE.BufferGeometry][]; id: string; colors: Record<RecipeMaterial, string> }) {
+/** A look's meshes, one per material in its library's finish; glass lets light through: see-through, no shadow */
+function LookMeshes({ parts, id, recipe }: { parts: [RecipeMaterial, THREE.BufferGeometry][]; id: string; recipe: Recipe | null }) {
+  const design = useEditor(s => s.project.library.materials);
   return parts.map(([mat, g]) => {
-    const { roughness, metalness, opacity = 1 } = LOOK_MATERIALS[mat];
+    const { color, roughness, metalness, opacity } = lookMaterial(mat, recipe, design);
     return (
-      <mesh key={mat} geometry={g} castShadow={opacity === 1} receiveShadow userData={{ id, baseColor: new THREE.Color(colors[mat]), noEdges: opacity < 1 }}>
-        <meshStandardMaterial color={colors[mat]} roughness={roughness} metalness={metalness} transparent={opacity < 1} opacity={opacity} depthWrite={opacity === 1} />
+      <mesh key={mat} geometry={g} castShadow={opacity === 1} receiveShadow userData={{ id, baseColor: new THREE.Color(color), noEdges: opacity < 1 }}>
+        <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} transparent={opacity < 1} opacity={opacity} depthWrite={opacity === 1} />
       </mesh>
     );
   });
 }
 
+/**
+ * A railing drawn by its look (the railing look of the default library, the design's or its own), built for each piece of the
+ * railing between openings: as long as the piece, as thick and as high as the railing
+ */
+function RailingLook({ w, project, base, ...o }: Outline & { w: Wall; project: Project; base: number }) {
+  const recipe = lookRecipe(project, wallTarget(w), w.look);
+  const ref = useFeedback<THREE.Group>(w.id, null, !!o.sel);
+  const pieces = useMemo(() => wallBoxes(project, w).filter(b => b.kind === 'railing'), [w, project]);
+  return (
+    <group ref={ref} position={[0, base * M, 0]} userData={{ restY: base * M }}>
+      {pieces.map((b, i) => <RailingPiece key={i} b={b} w={w} recipe={recipe} />)}
+    </group>
+  );
+}
+
+function RailingPiece({ b, w, recipe }: { b: ReturnType<typeof wallBoxes>[number]; w: Wall; recipe: Recipe | null }) {
+  const parts = useLookGeometry(recipe, b.length, b.thickness, b.height, w.lookParams);
+  return (
+    <group position={[b.center[0] * M, b.z * M, b.center[1] * M]} rotation={[0, -b.angle, 0]}>
+      <LookMeshes parts={parts} id={w.id} recipe={recipe} />
+    </group>
+  );
+}
+
 /** A piece of furniture drawn by its look (see packages/core/src/looks); selected, it is outlined by its bounding box */
 function FurnitureModel({ f, recipe, base, ...o }: Outline & { f: Project['furniture'][number]; recipe: Recipe; base: number }) {
-  const colors = useLookColors();
   const y = (base + (f.elevation ?? 0)) * M;
   const ref = useFeedback<THREE.Group>(f.id, null, !!o.sel);
   const { w, d, h } = f.size;
   const parts = useLookGeometry(recipe, w, d, h, f.lookParams);
   return (
     <group ref={ref} position={[f.position[0] * M, y, f.position[1] * M]} rotation={[0, (-f.rotation * Math.PI) / 180, 0]} userData={{ restY: y }}>
-      <LookMeshes parts={parts} id={f.id} colors={colors} />
+      <LookMeshes parts={parts} id={f.id} recipe={recipe} />
       {o.sel && (
         <mesh geometry={unitBox} position={[0, (h / 2) * M, 0]} scale={[w * M, h * M, d * M]} raycast={() => null} userData={{ noEdges: true }}>
           <meshBasicMaterial visible={false} />
@@ -366,7 +349,6 @@ function FurnitureModel({ f, recipe, base, ...o }: Outline & { f: Project['furni
 
 /** An element's look beyond its own geometry (`base`): extra parts, built at its plan extent from the centre of that extent */
 function ElementExtras({ e, solids, recipe, base, ...o }: Outline & { e: Element; solids: Solid[]; recipe: Recipe; base: number }) {
-  const colors = useLookColors();
   const pts = solids.flatMap(s => s.outline);
   const x0 = Math.min(...pts.map(p => p[0])), x1 = Math.max(...pts.map(p => p[0])), z0 = Math.min(...pts.map(p => p[1])), z1 = Math.max(...pts.map(p => p[1]));
   const h = Math.max(...solids.map(s => s.z + s.height));
@@ -375,7 +357,7 @@ function ElementExtras({ e, solids, recipe, base, ...o }: Outline & { e: Element
   if (!parts.length) return null;
   return (
     <group ref={ref} position={[((x0 + x1) / 2) * M, base * M, ((z0 + z1) / 2) * M]} userData={{ restY: base * M }}>
-      <LookMeshes parts={parts} id={e.id} colors={colors} />
+      <LookMeshes parts={parts} id={e.id} recipe={recipe} />
     </group>
   );
 }
@@ -674,7 +656,6 @@ export function Model3D() {
   const project = useEditor(s => s.project);
   const view = useEditor(s => s.view);
   const select = useEditor(s => s.select);
-  const labels = useContext(GroundLabels);
   const projectId = useEditor(s => s.projectId);
   const c = useColors();
   const style = modelStyle();
@@ -694,13 +675,14 @@ export function Model3D() {
   const boxes = useMemo(() => projectBoxes(project), [project]);
   const solids = useMemo(() => projectElements(project).flatMap(g => g.solids), [project]);
   const openings = useMemo(() => openingFrames(project), [project]);
-  const lc = useLookColors();
   // An element's own geometry in the materials its look gives each kind of solid
   const solidColor = (s: Solid) => {
     const e = project.elements.find(x => x.id === s.id), recipe = e && lookRecipe(project, elementTarget(e), e.look);
     const own = recipe && getBuild(recipe, ELEMENT_SIZE, e?.lookParams)?.parts.find(p => p.kind === 'base'), mat = own?.kind === 'base' ? own.mats[s.kind] : undefined;
-    return mat ? lc[mat] : s.kind === 'water' ? c.furn : s.kind === 'grate' ? c.grate : c.wall;
+    return mat ? lookMaterial(mat, recipe, project.library.materials).color : s.kind === 'water' ? c.furn : s.kind === 'grate' ? c.grate : c.wall;
   };
+  // A wall's faces in its finish (white paint unless it has one; plain white with a style that draws white walls)
+  const finish = (w: Wall) => (style.walls === 'finish' ? materialStyle(materialOf(w.finish ?? DEFAULT_FINISH, null, project.library.materials)) : { ...materialStyle(undefined), color: c.wall, roughness: 0.9 });
   const ownerOf = (id: string) => findObject(project, id, 'opening')?.wall?.id;
   // A door or window is part of its wall in 3D, so selecting it marks the wall
   const sel = new Set(view.selection.map(id => ownerOf(id) ?? id));
@@ -808,11 +790,11 @@ export function Model3D() {
                   <group position={[0, -l.elevation * M, 0]}>
                     {project.spaces.filter(s => s.level === l.id && s.kind !== 'void' && !s.slabOpening).map(s => (
                       <Slab key={s.id} s={s} y={s.kind === 'outdoor' && l.elevation === 0 ? project.site.groundLevel + 20 : l.elevation} thickness={s.kind === 'outdoor' ? 20 : 120}
-                        color={c.wall} sel={sel.has(s.id) ? c.sel : undefined} />
+                        color={c.wall} materials={project.library.materials} sel={sel.has(s.id) ? c.sel : undefined} />
                     ))}
-                    {project.walls.filter(w => w.level === l.id).map(w => (
-                      <WallMesh key={w.id} w={w} project={project} base={elev.get(l.id) ?? 0} sel={sel.has(w.id) ? c.sel : undefined} color={c.wall} />
-                    ))}
+                    {project.walls.filter(w => w.level === l.id).map(w => w.kind === 'railing'
+                      ? <RailingLook key={w.id} w={w} project={project} base={elev.get(l.id) ?? 0} sel={sel.has(w.id) ? c.sel : undefined} />
+                      : <WallMesh key={w.id} w={w} project={project} base={elev.get(l.id) ?? 0} sel={sel.has(w.id) ? c.sel : undefined} finish={finish(w)} />)}
                     {openings.filter(fr => fr.level === l.id).map(fr => (
                       <OpeningLook key={fr.id} fr={fr} recipe={lookRecipe(project, openingTarget(fr.opening), fr.opening.look)} params={fr.opening.lookParams} base={elev.get(l.id) ?? 0} sel={sel.has(fr.wall) ? c.sel : undefined} />
                     ))}
@@ -842,7 +824,6 @@ export function Model3D() {
           <CameraRig box={box} levels={levels} current={current?.id ?? ''} growing={growing} drawings={drawings} growth={growth} projectId={projectId} />
           <SafariPinch />
           <Picker />
-          {labels.map(t => <GroundLabel key={t.pick} t={t} base={elev.get(t.level) ?? 0} color={c.edge} />)}
           <Reveal ownerOf={ownerOf} />
           <Renderer draw={draw} edges={style.edges} edgeColor={c.edge} growth={growth} />
           {/* A phone that wasn't recognized as low-end but can't keep up drops to the light setup, for good */}

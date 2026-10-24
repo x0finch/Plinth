@@ -2,22 +2,23 @@
  * Floor material textures for the 3D floors: each material's pattern tile (see floor-materials.tsx) rasterized once per canvas
  * document and repeated by world position (floor UVs are in metres), so a floor in 3D shows the same pattern as in the plan.
  */
+import type { Material } from '@plinth/core';
 import { createElement, useEffect, useState } from 'react';
 import * as THREE from 'three';
-import { FLOOR_PATTERNS } from '../floor-materials';
+import { materialPattern } from '../floor-materials';
 import { markup } from './FloorDrawing';
 
 const M = 0.001;
 /** Pixels per millimetre of a tile: about 4 mm per pixel, enough for seams and grout at viewing distance */
 const PX_PER_MM = 0.25;
-const cache = new WeakMap<Document, Map<string, Promise<THREE.Texture>>>();
+const cache = new WeakMap<Document, WeakMap<Material, Promise<THREE.Texture>>>();
 
-function load(doc: Document, material: string) {
+function load(doc: Document, material: Material) {
   let m = cache.get(doc);
-  if (!m) cache.set(doc, (m = new Map()));
+  if (!m) cache.set(doc, (m = new WeakMap()));
   let t = m.get(material);
   if (!t) {
-    const p = FLOOR_PATTERNS[material];
+    const p = materialPattern(material)!;
     const w = Math.max(64, Math.min(512, Math.round(p.w * PX_PER_MM))), h = Math.max(64, Math.min(512, Math.round(p.h * PX_PER_MM)));
     const svg = markup(createElement('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: `0 0 ${p.w} ${p.h}`, width: w, height: h }, p.tile), doc);
     t = (async () => {
@@ -40,14 +41,14 @@ function load(doc: Document, material: string) {
   return t;
 }
 
-/** The texture for a floor material, once ready; null for a material without a pattern */
-export function useFloorTexture(doc: Document, material: string | null) {
+/** The texture for a floor material (`id` keys it), once ready; null for a material without a pattern */
+export function useFloorTexture(doc: Document, id: string, material: Material | undefined) {
   const [tex, setTex] = useState<THREE.Texture | null>(null);
   useEffect(() => {
-    if (!material || !FLOOR_PATTERNS[material]) return setTex(null);
+    if (!material || !materialPattern(material)) return setTex(null);
     let live = true;
     void load(doc, material).then(t => live && setTex(t));
     return () => void (live = false);
-  }, [doc, material]);
+  }, [doc, id, material]);
   return tex;
 }

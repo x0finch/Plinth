@@ -104,6 +104,7 @@ const ROUTES = [
   ['GET', '/libraries', 'user'],
   ['POST', '/libraries', 'user', { name: 'Scratch' }],
   ['POST', '/libraries/versions', 'user', { refs: [] }],
+  ['POST', '/libraries/import', 'user', { file: {} }],
   ['GET', `/libraries/${lib}`, 'viewer'],
   ['PATCH', `/libraries/${lib}`, 'owner', { name: 'Permissions' }],
   ['POST', `/libraries/${lib}/looks`, 'editor', {}],

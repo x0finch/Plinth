@@ -1,5 +1,7 @@
 /** Query and verify capabilities: read-only views of the project. */
 import { z } from 'zod';
+import { DEFAULT_MATERIALS } from '../looks/builtin.js';
+import { nameIn } from '../material.js';
 import { defineRead } from '../capability.js';
 import { derived } from '../derived.js';
 import { projectIndex } from '../project-index.js';
@@ -22,7 +24,8 @@ export const projectSummary = defineRead({
       brief: p.brief,
       site: { boundary: p.site.boundary },
       furnitureTypes: Object.fromEntries(Object.entries(p.library.furniture).map(([k, v]) => [k, v.name])),
-      materials: Object.fromEntries(Object.entries(p.library.materials).map(([k, v]) => [k, v.name])),
+      // Materials for floors, wall finishes and looks: the default library's and the design's own
+      materials: Object.fromEntries(Object.entries({ ...DEFAULT_MATERIALS, ...p.library.materials }).map(([k, v]) => [k, nameIn(v.name, p.language)])),
       // The design's own looks (beyond the default set) and which target uses which
       looks: Object.fromEntries(Object.entries(p.library.looks ?? {}).map(([k, v]) => [k, { name: v.name, for: v.for }])),
       lookUse: p.library.use ?? {},

@@ -14,8 +14,9 @@ describe('project language', () => {
     const p = createProject({ id: 't', name: 'Test', floors: 2, language: 'en' });
     expect(p.language).toBe('en');
     expect(p.levels.map(l => l.name)).toEqual(['Level 1', 'Level 2', 'Roof']);
-    expect(p.library.furniture.bed18.name).toBe('Double bed 1.8');
-    expect(p.library.materials.oak.name).toBe('Light oak flooring');
+    expect(p.library.furniture.bed.name).toBe('Bed');
+    expect(p.library.furniture.bed.group).toBe('Bedroom');
+    expect(p.library.materials).toEqual({});
     expect(validate(p)).toEqual([]);
 
     const session = new Session(p);
@@ -36,7 +37,7 @@ describe('project language', () => {
     const p = createProject({ id: 't', name: '测试' });
     expect(p.language).toBe('zh');
     expect(p.levels.map(l => l.name)).toEqual(['一层', '屋顶']);
-    expect(p.library.furniture.bed18.name).toBe('双人床1.8');
+    expect(p.library.furniture.bed.name).toBe('床');
   });
 
   it('a v1 project migrates to language zh', () => {

@@ -1,5 +1,5 @@
 /** Properties of the selected object; with nothing selected, the level's rule check and the constraints. */
-import { DEFAULT_LIBRARY_ID, derived, elementTarget, findObject, furnitureTarget, looksFor, objectInfo, openingTarget, type ObjectInfo } from '@plinth/core';
+import { DEFAULT_FINISH, DEFAULT_LIBRARY_ID, derived, elementTarget, findObject, furnitureTarget, looksFor, materialOf, objectInfo, openingTarget, wallTarget, type ObjectInfo } from '@plinth/core';
 import { Link } from '@tanstack/react-router';
 import { CheckIcon, Trash2Icon, TriangleAlertIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { m } from '@/lib/i18n';
+import { MaterialSelect } from '@/components/looks/ParamControls';
+import { m, uiName } from '@/lib/i18n';
 import { fmtArea } from '@/lib/query';
 import { useEditor } from '../store';
 import { kindLabel, Row, useRun } from './common';
@@ -78,8 +79,8 @@ function ObjectProps({ info }: { info: ObjectInfo }) {
       {info.type === 'opening' && <OpeningProps info={info} />}
       {info.type === 'furniture' && <FurnitureProps info={info} />}
       {info.type === 'element' && <ElementProps info={info} />}
-      {(info.type === 'furniture' || info.type === 'opening' || info.type === 'element') && <LookPicker id={info.id} />}
-      {(info.type === 'furniture' || info.type === 'opening' || info.type === 'element') && <LookParams id={info.id} />}
+      {(info.type === 'furniture' || info.type === 'opening' || info.type === 'element' || (info.type === 'wall' && info.kind === 'railing')) && <LookPicker id={info.id} />}
+      {(info.type === 'furniture' || info.type === 'opening' || info.type === 'element' || (info.type === 'wall' && info.kind === 'railing')) && <LookParams id={info.id} />}
       {canEdit && (info.type === 'wall' || info.type === 'opening' || info.type === 'furniture') && (
         <p className="text-xs text-muted-foreground">{m.panels_drag_hint()}</p>
       )}
@@ -110,10 +111,9 @@ function LookPicker({ id }: { id: string }) {
   const project = useEditor(s => s.project);
   const canEdit = useEditor(s => s.canEdit());
   const run = useRun();
-  const projectId = useEditor(s => s.projectId);
   const e = findObject(project, id);
-  if (!e || (e.kind !== 'furniture' && e.kind !== 'opening' && e.kind !== 'element')) return null;
-  const target = e.kind === 'furniture' ? furnitureTarget(e.obj) : e.kind === 'opening' ? openingTarget(e.obj) : elementTarget(e.obj);
+  if (!e || (e.kind !== 'furniture' && e.kind !== 'opening' && e.kind !== 'element' && e.kind !== 'wall')) return null;
+  const target = e.kind === 'furniture' ? furnitureTarget(e.obj) : e.kind === 'opening' ? openingTarget(e.obj) : e.kind === 'element' ? elementTarget(e.obj) : wallTarget(e.obj);
   const options = looksFor(project, target);
   if (!options.length) return null;
   const looks = project.library.looks ?? {};
@@ -140,7 +140,7 @@ function LookPicker({ id }: { id: string }) {
         {!own && typeLook && (
           <Button variant="link" size="sm" className="h-auto px-0" onClick={() => run('look_use', { target, look: null })}>{m.panels_look_reset_all()}</Button>
         )}
-        <Button variant="link" size="sm" className="h-auto px-0" nativeButton={false} render={<Link to="/looks/$libraryId" params={{ libraryId: DEFAULT_LIBRARY_ID }} search={{ p: projectId }} />}>{m.panels_look_gallery()}</Button>
+        <Button variant="link" size="sm" className="h-auto px-0" nativeButton={false} render={<Link to="/looks/$libraryId" params={{ libraryId: DEFAULT_LIBRARY_ID }} />}>{m.panels_look_gallery()}</Button>
       </div>
     </div>
   );
@@ -167,12 +167,19 @@ function NameInput({ name, onRename }: { name: string; onRename: (name: string) 
 function SpaceProps({ info }: { info: Info<'space'> }) {
   const materials = useEditor(s => s.project.library.materials);
   const select = useEditor(s => s.select);
+  const canEdit = useEditor(s => s.canEdit());
+  const run = useRun();
   return (
     <div>
       <p className="text-lg font-medium">{fmtArea(info.netArea)}</p>
       <Row k={m.panels_row_kind()} v={kindLabel(info.kind)} />
       <Row k={m.panels_row_bay_depth()} v={`${(info.bounds.width / 1000).toFixed(2)} × ${(info.bounds.depth / 1000).toFixed(2)} m`} />
-      <Row k={m.panels_row_floor()} v={materials[info.floor]?.name ?? info.floor} />
+      {canEdit ? (
+        <div className="space-y-1 py-1">
+          <p className="text-sm text-muted-foreground">{m.panels_row_floor()}</p>
+          <MaterialSelect value={info.floor} design={materials} label={m.panels_row_floor()} onChange={floor => run('space_update', { space: info.id, floor })} />
+        </div>
+      ) : <Row k={m.panels_row_floor()} v={uiName(materialOf(info.floor, null, materials)?.name) || info.floor} />}
       <Separator className="my-2" />
       <p className="mb-1 text-xs text-muted-foreground">{m.panels_surroundings()}</p>
       <ItemGroup className="gap-0">
@@ -194,9 +201,19 @@ function SpaceProps({ info }: { info: Info<'space'> }) {
 }
 
 function WallProps({ info }: { info: Info<'wall'> }) {
+  const project = useEditor(s => s.project);
+  const canEdit = useEditor(s => s.canEdit());
+  const run = useRun();
+  const finish = project.walls.find(w => w.id === info.id)?.finish ?? DEFAULT_FINISH;
   return (
     <div>
       <Row k={m.panels_row_kind()} v={kindLabel(info.kind)} />
+      {info.kind !== 'railing' && (canEdit ? (
+        <div className="space-y-1 py-1">
+          <p className="text-sm text-muted-foreground">{m.panels_row_finish()}</p>
+          <MaterialSelect value={finish} design={project.library.materials} label={m.panels_row_finish()} onChange={f => run('wall_update', { wall: info.id, finish: f === DEFAULT_FINISH ? null : f })} />
+        </div>
+      ) : <Row k={m.panels_row_finish()} v={uiName(materialOf(finish, null, project.library.materials)?.name) || finish} />)}
       <Row k={m.panels_row_length()} v={`${(info.length / 1000).toFixed(2)} m`} />
       <Row k={m.panels_row_thickness()} v={`${info.thickness} mm`} />
       <Row k={m.panels_row_sides()} v={info.spaces.map(s => s.space).join(' / ') || '—'} />

@@ -9,10 +9,11 @@
  *   and is promoted to a proper field on its second use. Fields are added, removed or changed via `version` + a migration function (see migrate.ts).
  */
 
+import type { Material } from './material.js';
 import type { Recipe } from './script.js';
 
 export const SCHEMA = 'plinth/project' as const;
-export const SCHEMA_VERSION = 6 as const;
+export const SCHEMA_VERSION = 7 as const;
 
 /** Language of the names written into project data (levels, walls, openings, catalog); independent of the UI language */
 export type ProjectLanguage = 'zh' | 'en';
@@ -86,6 +87,12 @@ export interface Wall {
   end: Point;
   thickness: Mm;
   kind: WallKind;
+  /** What its faces are finished with: a material (the design's or the default library's); painted white when absent. Added in v7. */
+  finish?: string;
+  /** A railing's own look (library.looks), instead of the one for railings. Added in v7. */
+  look?: Id;
+  /** Values for a railing's look parameters. Added in v7. */
+  lookParams?: Record<string, string | number | boolean | null>;
   /** Wall height; defaults to the level's storey height */
   height?: Mm;
   openings: Opening[];
@@ -125,7 +132,7 @@ export interface Space {
   kind: SpaceKind;
   /** Region enclosed by axes (wall centrelines); may consist of several parts */
   shape: Polygon[];
-  /** Floor material category, see library.materials */
+  /** Floor material: one of library.materials or the default library's */
   floor: string;
   /** The slab is open here (stairwell, double-height space) */
   slabOpening?: boolean;
@@ -201,7 +208,11 @@ export interface Decision {
 
 export interface Library {
   furniture: Record<string, { name: string; group?: string; size: { w: Mm; d: Mm; h: Mm } }>;
-  materials: Record<string, { name: string; tileSize?: Mm }>;
+  /**
+   * Materials of this design's own, beyond the default library's (looks/builtin.ts): floors, wall finishes and looks find a
+   * material here first. Until v7, the floor material catalog.
+   */
+  materials: Record<string, Material>;
   elements: Record<string, { name: string; version: number; note?: string }>;
   /**
    * Looks this design uses beyond the default set (looks/), like fonts embedded in a document: everyone who opens the design
@@ -215,13 +226,13 @@ export interface Library {
 /** A look: a recipe and the targets it can draw */
 export interface Look {
   name: string;
-  /** Targets it fits: 'furniture:<type>', 'opening:<kind>' (or 'opening:glass-block'), 'element:<type>' */
+  /** Targets it fits: 'furniture:<type>', 'opening:<kind>' (or 'opening:glass-block'), 'element:<type>', 'wall:railing' */
   for: string[];
   recipe: Recipe;
   /** Bumped on every change */
   version: number;
-  /** Where it was copied from: a look in a library, at a version */
-  source?: { library: string; look: string; version: number };
+  /** Where it was copied from: a look in a library, at a version (semver; a number before v7) */
+  source?: { library: string; look: string; version: string };
 }
 
 export interface Variant {

@@ -1,10 +1,14 @@
-/** Look libraries as the API returns them (see migrations/0005_look_libraries.sql) */
-import type { Recipe } from '@plinth/core';
+/**
+ * Look libraries as the API returns them: every library, built-in or the user's own, as a library file (packages/core/src/
+ * library.ts) with who may do what to it (see migrations/0005_look_libraries.sql, 0006_library_files.sql)
+ */
+import type { LookLibrary, Recipe } from '@plinth/core';
 
 export type LibraryRole = 'owner' | 'editor' | 'viewer';
 
 export interface LibrarySummary {
   id: string;
+  /** In the UI language */
   name: string;
   role: LibraryRole;
   owner_name: string;
@@ -12,33 +16,20 @@ export interface LibrarySummary {
   updated_at: number;
   /** Shipped with the app; read-only for everyone */
   builtin?: boolean;
-  /** The default set: what objects without a look of their own are drawn with */
+  /** The default library: what objects without a look of their own are drawn with */
   default?: boolean;
-}
-
-/** A furniture type a look draws that the catalog doesn't have */
-export interface LookTypeDef {
-  name: string;
-  group?: string;
-  size: { w: number; d: number; h: number };
-}
-
-export interface LibraryLook {
-  look_id: string;
-  name: string;
-  for: string[];
-  recipe: Recipe;
-  types?: Record<string, LookTypeDef>;
-  version: number;
-  updated_at: number;
+  /** The library's first look, drawn on its card like a font's sample text */
+  cover?: { recipe: Recipe; size: { w: number; d: number; h: number } };
 }
 
 export interface LibraryDetail {
-  id: string;
-  name: string;
+  /** The library file */
+  library: LookLibrary;
   role: LibraryRole;
   builtin?: boolean;
   default?: boolean;
-  looks: LibraryLook[];
   members: { user_id: string; name: string; email: string; role: LibraryRole }[];
 }
+
+/** A look as a library stores it: the file's look without its version (the library sets it), with materials it brings */
+export type LibraryLookInput = Omit<LookLibrary['looks'][string], 'version'> & { materials?: LookLibrary['materials'] };

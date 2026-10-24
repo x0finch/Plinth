@@ -1,6 +1,7 @@
 /** Wall capabilities. */
 import { z } from 'zod';
 import { defineEdit } from '../capability.js';
+import { materialOf } from '../looks/builtin.js';
 import { dot, round, scale, wallNormal } from '../geometry.js';
 import { moveWall } from '../topology.js';
 import { TxError } from '../session.js';
@@ -60,8 +61,11 @@ export const wallMove = defineEdit({
 
 export const wallUpdate = defineEdit({
   name: 'wall_update', title: 'Edit wall',
-  description: 'Change a wall\'s thickness, kind, height or name.',
-  input: z.object({ wall: zRef('wall'), thickness: z.number().positive().optional(), kind: zWallKind.optional(), height: z.number().positive().nullable().optional(), name: z.string().optional() }),
+  description: 'Change a wall\'s thickness, kind, height, finish or name. The finish is a material of the design or the default library (paint, greybrick, redbrick, stonewall, woodcladding, concrete…); null goes back to white paint.',
+  input: z.object({
+    wall: zRef('wall'), thickness: z.number().positive().optional(), kind: zWallKind.optional(), height: z.number().positive().nullable().optional(),
+    finish: z.string().nullable().optional().describe('Material id of its faces, or null for white paint'), name: z.string().optional(),
+  }),
   label: (i, p) => text('log_wall_update', 'Edit {wall}', { wall: resolve(p, 'wall', i.wall).name }),
   apply: (p, i) => {
     const w = getWall(p, i.wall);
@@ -69,6 +73,11 @@ export const wallUpdate = defineEdit({
     if (i.kind) w.kind = i.kind;
     if (i.height === null) delete w.height;
     else if (i.height) w.height = i.height;
+    if (i.finish === null) delete w.finish;
+    else if (i.finish) {
+      if (!materialOf(i.finish, null, p.library.materials)) throw new TxError('invalid-input', text('err_unknown_material', 'No material {material}', { material: i.finish }));
+      w.finish = i.finish;
+    }
     if (i.name) {
       setWallName(p, w, i.name);
       w.extras = { ...w.extras, customName: true };

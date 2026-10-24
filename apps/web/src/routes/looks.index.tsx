@@ -2,17 +2,16 @@
  * Look libraries, like a font book: the default library (what objects without a look of their own are drawn with), the built-in
  * ones, and the user's own and shared libraries in one list. Each opens the same page (looks.$libraryId.tsx).
  */
-import { DEFAULT_LOOKS, FURNITURE_TYPES } from '@plinth/core';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ShapesIcon } from 'lucide-react';
-import { LibraryBadge, LibraryCreate } from '@/components/looks/library';
+import { LibraryBadge, LibraryCreate, LibraryImport } from '@/components/looks/library';
 import { LookStill } from '@/components/looks/LookStill';
 import { SiteFooter, SiteHeader } from '@/components/site/SiteHeader';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { m } from '@/lib/i18n';
-import { getLibrary, listLibraries, lookSize } from '@/lib/libraries';
+import { listLibraries } from '@/lib/libraries';
 import type { LibrarySummary } from '@/shared/looks';
 
 export const Route = createFileRoute('/looks/')({ component: Libraries });
@@ -27,7 +26,10 @@ function Libraries() {
           <h1 className="text-xl font-semibold">{m.nav_libraries()}</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{m.libraries_page_description()}</p>
         </div>
-        <LibraryCreate />
+        <div className="flex flex-wrap gap-2">
+          <LibraryCreate />
+          <LibraryImport />
+        </div>
         {libs.isLoading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map(i => <Skeleton key={i} className="h-60" />)}</div>
         ) : (
@@ -60,12 +62,8 @@ function LibraryCard({ lib }: { lib: LibrarySummary }) {
   );
 }
 
-/** A still of one of the library's pieces, like a font's sample text: the default sofa, or the library's first look */
+/** A still of the library's first look, like a font's sample text, drawn like every other look */
 function Preview({ lib }: { lib: LibrarySummary }) {
-  const detail = useQuery({ queryKey: ['library', lib.id], queryFn: () => getLibrary(lib.id), enabled: !lib.default && lib.looks > 0 });
-  if (lib.default) return <LookStill single recipe={DEFAULT_LOOKS['furniture:sofa3']} size={FURNITURE_TYPES.sofa3.size} alt="" />;
-  const first = detail.data?.looks[0];
-  if (first) return <LookStill single recipe={first.recipe} size={lookSize(first)} alt="" />;
-  if (lib.looks > 0) return <Skeleton className="aspect-[4/3] w-full" />;
+  if (lib.cover) return <LookStill single recipe={lib.cover.recipe} size={lib.cover.size} alt="" />;
   return <div className="flex aspect-[4/3] items-center justify-center rounded-md border"><ShapesIcon className="size-8 text-muted-foreground" /></div>;
 }

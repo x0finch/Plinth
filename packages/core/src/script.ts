@@ -15,31 +15,92 @@
 import jsonata from 'jsonata';
 import { z } from 'zod';
 import { hashRandom } from './expr.js';
+import { materialSchema, type Material, type Names } from './material.js';
 import { buildParts, inspectParts, recipePartSchema, planSymbol, RecipeError, RECIPE_LIMITS, type BuiltPart, type BuiltPlanItem, type PlanSymbol, type RecipeInspection, type RecipePart, type RecipeSize } from './recipe.js';
 
 /** A parameter value: any JSON scalar */
 export type ParamValue = string | number | boolean | null;
-/** A parameter declaration: its default, or the default with notes for people and the agent (documentation, not types) */
-export type ParamDecl = ParamValue | { default: ParamValue; label?: string; doc?: string; options?: ParamValue[]; min?: number; max?: number };
+export const PARAM_TYPES = ['string', 'number', 'integer', 'boolean', 'null'] as const;
+export type ParamType = (typeof PARAM_TYPES)[number];
+
+/**
+ * A parameter declaration, in JSON Schema keywords so the UI, the agent and anyone reading the file know the valid values
+ * without running the script. `type` and `default` are required; a type list with 'null' lets the value be left to the script
+ * (default null). `format: 'material'` marks a material id; `enum` closes the set of values (with `enumTitles`, our extension,
+ * naming each in the same order); `minimum`/`maximum` bound a number; `title` is shown to people, `description` is for the agent.
+ */
+export interface ParamDecl {
+  type: ParamType | ParamType[];
+  default: ParamValue;
+  format?: 'material';
+  enum?: ParamValue[];
+  enumTitles?: Names[];
+  minimum?: number;
+  maximum?: number;
+  title?: Names;
+  description?: string;
+}
 
 export interface Recipe {
-  /** Parameters and their defaults; null means "worked out by the script" (e.g. from the size) */
+  /** Parameters an object can set (declarations with defaults) */
   params?: Record<string, ParamDecl>;
   /** Seed for $rnd(k) */
   seed?: number;
   /** A JSONata expression returning parts */
   script: string;
+  /** Materials it uses beyond the default library's (its library's, or its own) */
+  materials?: Record<string, Material>;
 }
 
 const paramValue = z.union([z.string().max(200), z.number(), z.boolean(), z.null()]);
 const paramName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/);
+const names = z.object({ zh: z.string().max(200).optional(), en: z.string().max(200).optional() });
+export const paramDeclSchema: z.ZodType<ParamDecl> = z.object({
+  type: z.union([z.enum(PARAM_TYPES), z.array(z.enum(PARAM_TYPES)).min(1).max(5)]),
+  default: paramValue,
+  format: z.literal('material').optional(),
+  enum: z.array(paramValue).min(1).max(50).optional(),
+  enumTitles: z.array(names).max(50).optional(),
+  minimum: z.number().optional(),
+  maximum: z.number().optional(),
+  title: names.optional(),
+  description: z.string().max(500).optional(),
+}).superRefine((d, ctx) => {
+  const problem = checkDecl(d);
+  if (problem) ctx.addIssue({ code: 'custom', message: problem });
+});
+
+/** The types a declaration allows */
+export const paramTypes = (d: Pick<ParamDecl, 'type'>): ParamType[] => (Array.isArray(d.type) ? d.type : [d.type]);
+
+const typeOf = (v: ParamValue): ParamType => (v === null ? 'null' : typeof v === 'number' ? (Number.isInteger(v) ? 'integer' : 'number') : (typeof v as ParamType));
+const fits = (types: ParamType[], v: ParamValue) => types.includes(typeOf(v)) || (typeOf(v) === 'integer' && types.includes('number'));
+
+/** Why a declaration doesn't hold together (its default, enum and titles), or null */
+function checkDecl(d: ParamDecl): string | null {
+  const types = paramTypes(d);
+  if (d.format === 'material' && !types.includes('string')) return 'a material parameter has type string';
+  if (d.enumTitles && d.enumTitles.length !== d.enum?.length) return 'enumTitles names each enum value, in the same order';
+  if (d.default === null && !types.includes('null')) return 'default null needs "null" among the types';
+  return checkParamValue(d, d.default, 'default');
+}
+
+/** Why a value doesn't fit a parameter's declaration (a readable sentence), or null when it does */
+export function checkParamValue(d: ParamDecl, v: ParamValue, name = 'the value'): string | null {
+  const types = paramTypes(d);
+  if (v === null) return types.includes('null') ? null : `${name} can't be left empty`;
+  if (!fits(types, v)) return `${name} must be ${types.filter(t => t !== 'null').join(' or ')}`;
+  if (d.enum && !d.enum.includes(v)) return `${name} must be one of ${d.enum.map(String).join(', ')}`;
+  if (typeof v === 'number' && d.minimum !== undefined && v < d.minimum) return `${name} must be at least ${d.minimum}`;
+  if (typeof v === 'number' && d.maximum !== undefined && v > d.maximum) return `${name} must be at most ${d.maximum}`;
+  return null;
+}
+
 export const recipeSchema: z.ZodType<Recipe> = z.object({
-  params: z.record(paramName, z.union([
-    paramValue,
-    z.object({ default: paramValue, label: z.string().max(80).optional(), doc: z.string().max(500).optional(), options: z.array(paramValue).max(50).optional(), min: z.number().optional(), max: z.number().optional() }),
-  ])).optional(),
+  params: z.record(paramName, paramDeclSchema).optional(),
   seed: z.number().int().optional(),
   script: z.string().min(1).max(30000),
+  materials: z.record(z.string().regex(/^[A-Za-z][A-Za-z0-9_-]*$/).max(64), materialSchema).optional(),
 });
 
 export const SCRIPT_LIMITS = { stack: 300, timeout: 500, sequence: 20000, parts: RECIPE_LIMITS.parts };
@@ -49,7 +110,7 @@ const outputSchema = z.object({ parts: z.array(recipePartSchema).max(SCRIPT_LIMI
 
 /** A recipe's parameter defaults */
 export function paramDefaults(r: Pick<Recipe, 'params'>): Record<string, ParamValue> {
-  return Object.fromEntries(Object.entries(r.params ?? {}).map(([k, d]) => [k, d !== null && typeof d === 'object' ? d.default : d]));
+  return Object.fromEntries(Object.entries(r.params ?? {}).map(([k, d]) => [k, d.default]));
 }
 
 type V3 = [number, number, number];

@@ -1,5 +1,8 @@
 /** Server API (Hono). Pages are served by the static assets layer; only /api/* comes here. */
-import { checkRecipe, createProject as newProjectData, normalizeRecipe, FURNITURE_TYPES, migrate, validate, type Project, type Recipe, type ValidationIssue } from '@plinth/core';
+import {
+  buildRecipe, checkRecipe, createProject as newProjectData, DEFAULT_LIBRARY, FURNITURE_TYPES, libraryLookSchema, lookRecipeOf, materialOf, materialSchema, migrate, namesOf, normalizeParams,
+  normalizeRecipe, parseLibrary, typicalSize, validate, type LookLibrary, type Material, type Project, type ValidationIssue,
+} from '@plinth/core';
 import { env } from 'cloudflare:workers';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -9,13 +12,13 @@ import { auth, googleEnabled } from './auth';
 import { mailEnabled } from './mail';
 import { handleChat } from './chat';
 import { decryptSecret, encryptSecret, keyHint } from './crypto';
-import { getLocale, m } from '@/lib/i18n';
+import { getLocale, m, uiName } from '@/lib/i18n';
 import { PROVIDERS, localizedProviders } from './providers';
 import { builtinDetail, builtinSummaries, builtinVersions, isBuiltinLibrary } from './builtin-libraries';
 import * as repo from './repo';
 import { COMMENT_STATUSES } from '@/shared/comments';
 import { can, SHARE_ROLES, type Role } from '@/shared/roles';
-import type { LibraryRole } from '@/shared/looks';
+import type { LibraryDetail, LibraryLookInput, LibraryRole } from '@/shared/looks';
 
 type User = { id: string; name: string; email: string; isAnonymous?: boolean | null; image?: string | null };
 type Vars = { user: User | null };
@@ -87,6 +90,9 @@ function checkContent(json: unknown): Project {
   }
 }
 
+/** Stored project content as the current schema has it: what was saved before a schema change is migrated as it is read */
+const stored = (raw: string): Project => migrate(JSON.parse(raw));
+
 const parseJson = (raw: string): unknown => {
   try {
     return JSON.parse(raw);
@@ -153,7 +159,7 @@ project.get('/', minRole('viewer'), async c => {
     models: models.map(x => ({ id: x.id, label: x.label, provider: x.provider, model: x.model })),
     projectModelId: models.some(x => x.id === p.model_config_id) ? p.model_config_id : null,
     defaultModelId: models.length ? await repo.defaultModelId(p.owner_id, models) : null,
-    content: JSON.parse(v.content),
+    content: stored(v.content),
   });
 });
 
@@ -174,7 +180,7 @@ project.put('/', minRole('editor'), async c => {
   const version = await repo.saveVersion(id, user.id, b.base, JSON.stringify(content), b.summary, { name: content.name, checkpoint: b.checkpoint });
   if (!version) {
     const head = await repo.getVersion(id);
-    return c.json({ error: m.server_err_save_conflict(), conflict: true, version: head?.version, content: head && JSON.parse(head.content) }, 409);
+    return c.json({ error: m.server_err_save_conflict(), conflict: true, version: head?.version, content: head && stored(head.content) }, 409);
   }
   return c.json({ version });
 });
@@ -209,7 +215,7 @@ project.get('/versions/:v', minRole('viewer'), async c => {
   const id = c.var.projectId;
   const v = await repo.getVersion(id, Number(c.req.param('v')));
   if (!v) throw new HTTPException(404, { message: m.server_err_version_not_found() });
-  return c.json({ ...v, content: JSON.parse(v.content) });
+  return c.json({ ...v, content: stored(v.content) });
 });
 
 // ---------- Members, share links, invites ----------
@@ -443,13 +449,44 @@ project.put('/chat-thread', minRole('editor'), async c => {
 
 // ---------- Look libraries ----------
 
-const zTarget = z.string().regex(/^(furniture|opening|element):[A-Za-z0-9_-]+$/);
-const zLibraryLook = z.object({
-  name: z.string().min(1).max(80),
-  for: z.array(zTarget).min(1).max(20),
-  recipe: z.unknown(),
-  types: z.record(z.string(), z.object({ name: z.string().min(1), group: z.string().optional(), size: z.object({ w: z.number().positive(), d: z.number().positive(), h: z.number().positive() }) })).optional(),
-});
+/** A look as the client sends it: the library file's look without a version, with the materials it brings; a plain name is accepted */
+const zLibraryLook = z.object({ name: z.union([z.string().min(1).max(80), z.record(z.string(), z.string())]), materials: z.record(z.string(), materialSchema).optional() }).loose();
+
+function parseLook(input: z.output<typeof zLibraryLook>): LibraryLookInput {
+  const { materials, ...rest } = input;
+  const named = { ...rest, name: typeof rest.name === 'string' ? namesOf(rest.name) : rest.name, version: '1.0.0' };
+  if ('recipe' in named) Object.assign(named, normalizeRecipe(named.recipe), { recipe: undefined });
+  else if ('params' in named) named.params = normalizeParams(named.params, materials);
+  const parsed = libraryLookSchema.safeParse(JSON.parse(JSON.stringify(named)));
+  if (!parsed.success) throw new HTTPException(400, { message: parsed.error.issues.slice(0, 5).map(i => `${i.path.join('.')}: ${i.message}`).join('; ') });
+  const { version: _v, ...look } = parsed.data;
+  return { ...look, ...(materials ? { materials } : {}) };
+}
+
+/**
+ * A library look must build for each target it is for, at that target's size, using only materials it can reach (its own, its
+ * library's, the default library's)
+ */
+async function checkLibraryLook(l: LibraryLookInput, libraryMaterials: Record<string, Material> = {}) {
+  const recipe = { ...lookRecipeOf({ ...l, version: '1.0.0' }), materials: { ...libraryMaterials, ...l.materials } };
+  for (const t of l.for) {
+    const [kind, type] = t.split(':');
+    if (kind === 'furniture' && !l.newType && !FURNITURE_TYPES[type]) throw new HTTPException(400, { message: m.server_err_library_type({ type }) });
+    const size = l.newType?.size ?? typicalSize(t);
+    const problems = await checkRecipe(recipe, size);
+    if (problems.length) throw new HTTPException(400, { message: problems.join('; ') });
+    const built = await buildRecipe(recipe, size);
+    const missing = [...new Set(built.parts.flatMap(p => (p.kind === 'base' ? Object.values(p.mats) : [p.mat])))].filter(id => !materialOf(id, recipe));
+    if (missing.length) throw new HTTPException(400, { message: `unknown material ${missing.join(', ')}` });
+  }
+}
+
+/** Save a look to a library, adding the materials it brings to the library's */
+async function saveLook(libraryId: string, lookId: string, l: LibraryLookInput, userId: string) {
+  const { materials, ...look } = l;
+  if (materials) await repo.updateLibraryMeta(libraryId, meta => ({ ...meta, materials: { ...meta.materials, ...materials } }));
+  return repo.putLibraryLook(libraryId, lookId, look, userId);
+}
 
 /** The library and the caller's role in it, if at least `min` (404 for non-members, 403 for too low a role); built-in libraries are read-only */
 async function libraryAccess(c: C, min: LibraryRole) {
@@ -460,18 +497,6 @@ async function libraryAccess(c: C, min: LibraryRole) {
   return { id, role, user: u };
 }
 
-/** A library look's recipe (a part list from before scripts is converted) must build for each target it is for, at that target's size */
-async function checkLibraryLook(l: z.output<typeof zLibraryLook>) {
-  l.recipe = normalizeRecipe(l.recipe);
-  for (const t of l.for) {
-    const [kind, type] = t.split(':');
-    const size = kind === 'furniture' ? l.types?.[type]?.size ?? FURNITURE_TYPES[type]?.size : undefined;
-    if (kind === 'furniture' && !size) throw new HTTPException(400, { message: m.server_err_library_type({ type }) });
-    const problems = await checkRecipe(l.recipe, size ?? (kind === 'opening' ? { w: 1200, d: 240, h: 1500 } : { w: 2000, d: 2000, h: 3000 }));
-    if (problems.length) throw new HTTPException(400, { message: problems.join('; ') });
-  }
-}
-
 // Built-in libraries first (the default set leads), then the user's own and shared ones
 api.get('/libraries', async c => c.json([...builtinSummaries(), ...(await repo.listLibraries(requireUser(c).id))]));
 
@@ -479,6 +504,24 @@ api.post('/libraries', async c => {
   const u = requireUser(c);
   const b = await body(c, z.object({ name: z.string().min(1).max(80) }));
   return c.json({ id: await repo.createLibrary(u.id, b.name) });
+});
+
+/** Import a library file as a new library of the caller's, keeping its looks' ids */
+api.post('/libraries/import', async c => {
+  const u = requireUser(c);
+  const b = await body(c, z.object({ file: z.unknown() }));
+  let file: LookLibrary;
+  try {
+    file = parseLibrary(b.file, DEFAULT_LIBRARY);
+  } catch (e) {
+    throw new HTTPException(400, { message: m.server_err_library_file({ problem: e instanceof Error ? e.message : String(e) }) });
+  }
+  const looks = Object.entries(file.looks).map(([k, look]) => [k, { ...look, version: undefined }] as const);
+  for (const [, look] of looks) await checkLibraryLook(look as LibraryLookInput, file.materials);
+  const { description, version, author, license, groups, materials } = file;
+  const id = await repo.createLibrary(u.id, uiName(file.name), JSON.parse(JSON.stringify({ description, version, author, license, groups, materials })));
+  for (const [k, { version: _v, ...look }] of looks) await repo.putLibraryLook(id, k, look, u.id);
+  return c.json({ id });
 });
 
 api.post('/libraries/versions', async c => {
@@ -493,7 +536,7 @@ api.get('/libraries/:lib', async c => {
   if (builtin) return c.json(builtin);
   const lib = await repo.getLibrary(id);
   if (!lib) throw new HTTPException(404, { message: m.server_err_library_not_found() });
-  return c.json({ ...lib, role });
+  return c.json({ ...lib, role } satisfies LibraryDetail);
 });
 
 api.patch('/libraries/:lib', async c => {
@@ -512,20 +555,20 @@ api.delete('/libraries/:lib', async c => {
 /** Add a look (new id) */
 api.post('/libraries/:lib/looks', async c => {
   const { id, user } = await libraryAccess(c, 'editor');
-  const b = await body(c, zLibraryLook);
-  await checkLibraryLook(b);
+  const look = parseLook(await body(c, zLibraryLook));
+  await checkLibraryLook(look, (await repo.getLibrary(id))?.library.materials);
   const lookId = repo.newId('lk');
-  const version = await repo.putLibraryLook(id, lookId, b.name, { for: b.for, recipe: b.recipe as Recipe, ...(b.types ? { types: b.types } : {}) }, user.id);
-  return c.json({ look: lookId, version });
+  const version = await saveLook(id, lookId, look, user.id);
+  return c.json({ look: lookId, version: `${version}.0.0` });
 });
 
 /** Save a new version of a look */
 api.put('/libraries/:lib/looks/:look', async c => {
   const { id, user } = await libraryAccess(c, 'editor');
-  const b = await body(c, zLibraryLook);
-  await checkLibraryLook(b);
-  const version = await repo.putLibraryLook(id, c.req.param('look'), b.name, { for: b.for, recipe: b.recipe as Recipe, ...(b.types ? { types: b.types } : {}) }, user.id);
-  return c.json({ look: c.req.param('look'), version });
+  const look = parseLook(await body(c, zLibraryLook));
+  await checkLibraryLook(look, (await repo.getLibrary(id))?.library.materials);
+  const version = await saveLook(id, c.req.param('look'), look, user.id);
+  return c.json({ look: c.req.param('look'), version: `${version}.0.0` });
 });
 
 api.delete('/libraries/:lib/looks/:look', async c => {

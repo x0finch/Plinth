@@ -1,5 +1,6 @@
 import { area } from './geometry.js';
 import { text } from './i18n.js';
+import { materialOf } from './looks/builtin.js';
 import type { Project } from './schema.js';
 
 export interface ValidationIssue {
@@ -28,6 +29,7 @@ export function validate(p: Project): ValidationIssue[] {
     const len = Math.hypot(w.end[0] - w.start[0], w.end[1] - w.start[1]);
     if (len <= 0) issues.push({ path: at, message: text('validate_zero_length', 'Wall length is 0') });
     if (w.thickness <= 0) issues.push({ path: at, message: text('validate_thickness', 'Wall thickness must be greater than 0') });
+    if (w.finish && !materialOf(w.finish, null, p.library.materials)) issues.push({ path: at, message: text('validate_unknown_material', 'Material {material} is not registered', { material: w.finish }) });
     w.openings.forEach((o, j) => {
       claim(o.id, `${at}.openings[${j}]`);
       if (o.at - o.width / 2 < -1 || o.at + o.width / 2 > len + 1)
@@ -38,7 +40,7 @@ export function validate(p: Project): ValidationIssue[] {
     const at = `spaces[${i}] (${s.name})`;
     claim(s.id, at);
     if (!levels.has(s.level)) issues.push({ path: at, message: text('validate_missing_level', 'Level {level} does not exist', { level: s.level }) });
-    if (!(s.floor in lib.materials)) issues.push({ path: at, message: text('validate_unknown_material', 'Material {material} is not registered', { material: s.floor }) });
+    if (!materialOf(s.floor, null, lib.materials)) issues.push({ path: at, message: text('validate_unknown_material', 'Material {material} is not registered', { material: s.floor }) });
     if (area(s.shape) <= 0) issues.push({ path: at, message: text('validate_zero_area', 'Shape area is 0') });
   });
   p.elements.forEach((e, i) => {

@@ -6,24 +6,26 @@
 import { z } from 'zod';
 import { defineEdit, defineRead } from '../capability.js';
 import { text } from '../i18n.js';
+import { DEFAULT_MATERIALS, materialOf } from '../looks/builtin.js';
 import { DEFAULT_LOOKS, type LookTarget } from '../looks/index.js';
-import { elementTarget, furnitureTarget, lookOf, lookRecipe, openingTarget, targetSize } from '../looks/resolve.js';
+import { elementTarget, furnitureTarget, lookOf, lookRecipe, openingTarget, targetSize, wallTarget } from '../looks/resolve.js';
 import { normalizeRecipe } from '../recipe-convert.js';
-import { buildRecipe, checkRecipe, paramDefaults, type Recipe } from '../script.js';
+import { buildRecipe, checkParamValue, checkRecipe, paramDefaults, type Recipe } from '../script.js';
 import { resolve, type Kind } from '../refs.js';
 import { OPENING_KINDS, type Look, type Project } from '../schema.js';
 import { TxError } from '../session.js';
 
-const RECIPE_HELP = 'A recipe: { params?, seed?, script } with a JSONata script (see the recipe format in look_add)';
+const RECIPE_HELP = 'A recipe: { params?, seed?, script, materials? } with a JSONata script (see the recipe format in look_add)';
 
-export const zTarget = z.string().regex(/^(furniture|opening|element):[A-Za-z0-9_-]+$/)
-  .describe("What a look draws: 'furniture:<type>' (a furniture type), 'opening:<door|sliding-door|gate|window|opening|glass-block>' or 'element:<stair|pond|drain>'");
+export const zTarget = z.string().regex(/^(furniture|opening|element|wall):[A-Za-z0-9_-]+$/)
+  .describe("What a look draws: 'furniture:<type>' (a furniture type), 'opening:<door|sliding-door|gate|window|opening|glass-block>', 'element:<stair|pond|drain>' or 'wall:railing'");
 
 function checkTarget(p: Project, target: string) {
   const [kind, type] = target.split(':');
   const ok = kind === 'furniture' ? type in p.library.furniture
     : kind === 'opening' ? [...OPENING_KINDS, 'glass-block'].includes(type as never)
-      : type in p.library.elements;
+      : kind === 'wall' ? type === 'railing'
+        : type in p.library.elements;
   if (!ok) throw new TxError('invalid-input', text('err_look_target', 'Unknown target {target}', { target }));
 }
 
@@ -35,10 +37,21 @@ async function checkedRecipe(p: Project, input: unknown, targets: string[], type
   const recipe = normalizeRecipe(input);
   for (const t of targets) {
     const [kind, type] = t.split(':');
-    const problems = await checkRecipe(recipe, kind === 'furniture' && types[type] ? types[type].size : targetSize(p, t));
+    const size = kind === 'furniture' && types[type] ? types[type].size : targetSize(p, t);
+    const problems = await checkRecipe(recipe, size);
+    if (!problems.length) problems.push(...unknownMaterials(p, recipe as Recipe, await buildRecipe(recipe as Recipe, size)));
     if (problems.length) throw new TxError('invalid-input', text('err_recipe', 'The recipe has problems: {problems}', { problems: problems.join('; ') }));
   }
   return recipe as Recipe;
+}
+
+/** Materials a recipe uses (in what it built, or as a material parameter's default or choice) that it can't reach */
+function unknownMaterials(p: Project, r: Recipe, built: { parts: { kind: string; mat?: string; mats?: Record<string, string> }[] }): string[] {
+  const used = new Set<string>();
+  for (const part of built.parts) for (const m of part.mat ? [part.mat] : Object.values(part.mats ?? {})) used.add(m);
+  for (const d of Object.values(r.params ?? {})) if (d.format === 'material') for (const v of [d.default, ...(d.enum ?? [])]) if (typeof v === 'string') used.add(v);
+  const missing = [...used].filter(m => !materialOf(m, r, p.library.materials));
+  return missing.length ? [`unknown material ${missing.join(', ')}: use a default material, or define it in the recipe's materials`] : [];
 }
 
 function getLook(p: Project, id: string): Look {
@@ -55,19 +68,20 @@ function nextLookId(p: Project) {
   return `look-${n}`;
 }
 
-/** An object that has a look (furniture, opening or element) and its target */
+/** An object that has a look (furniture, opening, element or railing) and its target */
 function lookHolder(p: Project, ref: string) {
-  for (const kind of ['furniture', 'opening', 'element'] as Kind[]) {
+  for (const kind of ['furniture', 'opening', 'element', 'wall'] as Kind[]) {
     try {
       const e = resolve(p, kind, ref);
       if (e.kind === 'furniture') return { obj: e.obj, name: e.name, target: furnitureTarget(e.obj) };
       if (e.kind === 'opening') return { obj: e.obj, name: e.name, target: openingTarget(e.obj) };
       if (e.kind === 'element') return { obj: e.obj, name: e.name, target: elementTarget(e.obj) };
+      if (e.kind === 'wall' && e.obj.kind === 'railing') return { obj: e.obj, name: e.name, target: wallTarget(e.obj) };
     } catch (err) {
       if (err instanceof TxError && err.code === 'ambiguous-ref') throw err;
     }
   }
-  throw new TxError('not-found', text('err_look_object', 'Cannot find a piece of furniture, door, window or element “{ref}”', { ref }));
+  throw new TxError('not-found', text('err_look_object', 'Cannot find a piece of furniture, door, window, element or railing “{ref}”', { ref }));
 }
 
 export const lookAdd = defineEdit({
@@ -75,14 +89,15 @@ export const lookAdd = defineEdit({
   description: [
     'Add a look to the design: a recipe that draws furniture, doors and windows, or elements, like a font draws characters.',
     'Everyone who opens the design sees it. With use, every object of those targets switches to it; otherwise set it per object with look_set.',
-    'Recipe format: { params?: {name: default}, seed?, script } where script is a JSONata expression (jsonata.org) returning a list of parts (nested lists are flattened), or { parts, plan } to draw its own plan symbol.',
+    'Recipe format: { params?: {name: declaration}, seed?, script, materials? } where script is a JSONata expression (jsonata.org) returning a list of parts (nested lists are flattened), or { parts, plan } to draw its own plan symbol.',
     'Millimetres, angles in degrees. The script sees the object\'s size as $w, $d, $h and each parameter as $name (its default, or the value an object sets).',
-    'A parameter default may be a value or { default, label (in the project language), doc, options?, min?, max? }; null means the script works it out (e.g. from the size). Declare a parameter for whatever a person may want to change without a new look: materials of the main surfaces, decoration on/off, a few shape choices.',
+    'Each parameter is declared with JSON Schema keywords: { type ("string" | "number" | "integer" | "boolean", or a list with "null" to let the script work it out), default (required; null only with "null" among the types), format? ("material" for a material id), enum? (the allowed values), enumTitles? ([{zh?, en?}] naming each enum value), minimum?, maximum?, title? ({zh?, en?}, shown to people; at least the project language), description? (English) }.',
+    'Declare a parameter for whatever a person may want to change without a new look: materials of the main surfaces (format material with an enum of fitting materials), decoration on/off, a few shape choices (enum).',
     'Local frame: origin at the centre of the footprint on the floor (an opening: the centre of its sill; x along the wall, z across it), x across w, z across d with +z the front, y up.',
     'JSONata basics: ( $a := 1; $b := $a * 2; [ ... ] ) for local variables; [0..$n - 1].( $i := $; ... ) to repeat; cond ? a : b; = != < <= > >= and or $not(); + - * / %;',
     '$min([a, b]) $max([...]) $abs $floor $ceil $sqrt $power $round (half up) and our $sin $cos $tan $atan2 (degrees) $hypot $clamp(x, lo, hi) $lerp(a, b, t) $rnd(k) (pseudo-random 0..1, fixed per seed) $pi; $f := function($x) { ... } for helpers of your own.',
     'Always use $w, $d, $h and $variables: inside [list].( ... ) a bare name refers to the current item.',
-    'Parts (mat is one of: fabric cushion linen bedding canvas canvas2 wood woodDark birch white lacquer gold red cabinet countertop ceramic ceramicShade appliance plaster stone stoneDark terracotta soil iron dark glass book1-4 flower tube bark leaf leaf2 carBody carGlass tyre metal headlight taillight frame glassBlock wall water grate):',
+    `Parts; mat is a material: one of the default library's (${Object.keys(DEFAULT_MATERIALS).join(' ')}) or one the recipe defines in materials: {id: glTF 2.0 material {name: {zh?, en?}, pbrMetallicRoughness: {baseColorFactor: [r, g, b, a] linear 0..1, metallicFactor, roughnessFactor}, alphaMode?: OPAQUE | BLEND}}:`,
     '$box([w, h, d], [x, y, z] centre, mat, r? edge radius, [rx, ry, rz]?); $block([w, h, d], x, y0 bottom, z, mat, r?); $cylinder(r, h, [x, y, z] centre, mat, {r2? top radius, axis? x|y|z, seg?, scale?}?);',
     '$sphere(r, at, mat, scale?); $lathe([[r, y]...] from the axis out and back, [x, y, z] base, mat, {scale?, seg?}?); $rod(from, to, r, mat); $ring(R, r, at, mat, axis? y|z); $tube([[x, y, z]...], r, mat);',
     '$panel([x, z], [x, z], y, h, t, mat); $extrude(plane side (profile x,y across z) | plan (profile x,z upwards), [[x, y] | {"arc": [cx, cy, r, a0, a1, clockwise]} | {"curve": [cx, cy, x, y]}], depth, mat, bevel?, at?);',
@@ -141,7 +156,7 @@ export const lookRemove = defineEdit({
     const { [id]: _gone, ...rest } = p.library.looks!;
     p.library.looks = rest;
     p.library.use = Object.fromEntries(Object.entries(p.library.use ?? {}).filter(([, v]) => v !== id));
-    for (const o of [...p.furniture, ...p.elements, ...p.walls.flatMap(w => w.openings)]) if (o.look === id) delete o.look;
+    for (const o of [...p.furniture, ...p.elements, ...p.walls, ...p.walls.flatMap(w => w.openings)]) if (o.look === id) delete o.look;
     return { removed: id };
   },
 });
@@ -211,15 +226,15 @@ export const furnitureTypeAdd = defineEdit({
 
 const zParamValue = z.union([z.string().max(200), z.number(), z.boolean(), z.null()]);
 
-/** Describe a recipe's parameters for the agent: name → default (and label, doc, options, range when given) */
-const describeParams = (r: Recipe | null) => Object.fromEntries(Object.entries(r?.params ?? {}).map(([k, d]) => [k, d !== null && typeof d === 'object' ? d : { default: d }]));
+/** A recipe's parameter declarations (JSON Schema keywords), for the agent */
+const describeParams = (r: Recipe | null) => r?.params ?? {};
 
 export const paramsSet = defineEdit({
   name: 'params_set', title: 'Set look parameters',
   description: [
     'Customise one piece of furniture, door or window, or element without changing its look: set values for the parameters its look declares',
     '(materials of its main surfaces, decoration on/off, shape choices…; look_get with its target lists them with their defaults). null puts a parameter back to the look\'s default; reset clears all.',
-    'Values are checked by building the object with them. To change many objects, call it for each one that should change.',
+    'Values are checked against the declarations (type, enum, range; a material must exist), then by building the object with them. To change many objects, call it for each one that should change.',
   ].join(' '),
   input: z.object({
     object: z.string().describe('ID or name of a piece of furniture, door or window, or element'),
@@ -236,6 +251,12 @@ export const paramsSet = defineEdit({
       throw new TxError('invalid-input', text('err_params_unknown', 'Its look has no parameter {names}; it has: {known}', {
         names: unknown.join(', '), known: Object.keys(declared).join(', ') || text('none', 'none'),
       }));
+    }
+    for (const [k, v] of Object.entries(i.params)) {
+      if (v === null) continue;
+      const d = recipe!.params![k];
+      const problem = checkParamValue(d, v, k) ?? (d.format === 'material' && typeof v === 'string' && !materialOf(v, recipe, p.library.materials) ? `${k}: no material ${v}` : null);
+      if (problem) throw new TxError('invalid-input', text('err_params_value', 'Can’t set it: {problem}', { problem }));
     }
     const merged = Object.fromEntries(Object.entries({ ...(i.reset ? {} : obj.lookParams ?? {}), ...i.params }).filter(([, v]) => v !== null));
     const size = 'size' in obj ? obj.size : targetSize(p, target);
@@ -284,7 +305,7 @@ export const lookImport = defineEdit({
     name: z.string().min(1), for: z.array(zTarget).min(1), recipe: z.unknown().describe(RECIPE_HELP),
     types: z.record(z.string(), z.object({ name: z.string(), group: z.string().optional(), size: z.object({ w: z.number().positive(), d: z.number().positive(), h: z.number().positive() }) })).optional()
       .describe('Furniture types the look draws that the design may not have yet'),
-    source: z.object({ library: z.string(), look: z.string(), version: z.number().int().positive() }),
+    source: z.object({ library: z.string(), look: z.string(), version: z.union([z.string(), z.number().int().positive().transform(n => `${n}.0.0`)]) }),
     use: z.boolean().default(false).describe('Use it for every object of these targets'),
     replace: z.string().optional().describe('ID of a look of the design that this becomes (e.g. after saving it to a library)'),
   }),

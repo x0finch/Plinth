@@ -1,75 +1,18 @@
 /**
  * 3D geometry from recipes (see packages/core/src/recipe.ts): each built part becomes a three.js geometry in metres, and the
- * parts are merged into one geometry per material (one draw call each). Materials get a theme color (--furn-*, --canvas-*,
- * see light.css) and a finish here; recipes only name them.
+ * parts are merged into one geometry per material (one draw call each). Recipes only name materials; what a material looks
+ * like comes from its library (lookMaterial).
  */
-import { getBuild, type Built, type BuiltPart, type Recipe, type RecipeMaterial, type RecipeSize } from '@plinth/core';
+import { getBuild, materialOf, type Built, type BuiltPart, type Material, type Recipe, type RecipeMaterial, type RecipeSize } from '@plinth/core';
+import { materialStyle } from '@/lib/materials';
 import { useRef } from 'react';
 import { useBuildsVersion } from '@/lib/builds';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-interface MaterialDef {
-  /** Theme variable */
-  color: string;
-  roughness: number;
-  metalness: number;
-  /** Below 1 for see-through glass, which also casts no shadow */
-  opacity?: number;
-}
-
-export const LOOK_MATERIALS: Record<RecipeMaterial, MaterialDef> = {
-  fabric: { color: '--furn-fabric', roughness: 0.95, metalness: 0 },
-  cushion: { color: '--furn-cushion', roughness: 0.95, metalness: 0 },
-  linen: { color: '--furn-linen', roughness: 0.9, metalness: 0 },
-  bedding: { color: '--furn-bedding', roughness: 0.95, metalness: 0 },
-  canvas: { color: '--furn-canvas', roughness: 0.9, metalness: 0 },
-  canvas2: { color: '--furn-canvas-2', roughness: 0.9, metalness: 0 },
-  wood: { color: '--furn-wood', roughness: 0.7, metalness: 0 },
-  woodDark: { color: '--furn-wood-dark', roughness: 0.6, metalness: 0 },
-  birch: { color: '--furn-birch', roughness: 0.65, metalness: 0 },
-  white: { color: '--furn-white', roughness: 0.5, metalness: 0 },
-  lacquer: { color: '--furn-lacquer', roughness: 0.4, metalness: 0 },
-  gold: { color: '--furn-gold', roughness: 0.35, metalness: 0.7 },
-  red: { color: '--furn-red', roughness: 0.5, metalness: 0 },
-  cabinet: { color: '--furn-cabinet', roughness: 0.6, metalness: 0 },
-  countertop: { color: '--furn-countertop', roughness: 0.4, metalness: 0 },
-  ceramic: { color: '--furn-ceramic', roughness: 0.2, metalness: 0 },
-  ceramicShade: { color: '--furn-ceramic-shade', roughness: 0.25, metalness: 0 },
-  appliance: { color: '--furn-appliance', roughness: 0.35, metalness: 0.1 },
-  plaster: { color: '--furn-plaster', roughness: 0.9, metalness: 0 },
-  stone: { color: '--furn-stone', roughness: 0.9, metalness: 0 },
-  stoneDark: { color: '--furn-stone-dark', roughness: 0.6, metalness: 0 },
-  terracotta: { color: '--furn-terracotta', roughness: 0.9, metalness: 0 },
-  soil: { color: '--furn-soil', roughness: 1, metalness: 0 },
-  iron: { color: '--furn-iron', roughness: 0.5, metalness: 0.5 },
-  dark: { color: '--furn-dark', roughness: 0.3, metalness: 0.1 },
-  glass: { color: '--canvas-glass', roughness: 0.05, metalness: 0, opacity: 0.2 },
-  book1: { color: '--furn-book-1', roughness: 0.8, metalness: 0 },
-  book2: { color: '--furn-book-2', roughness: 0.8, metalness: 0 },
-  book3: { color: '--furn-book-3', roughness: 0.8, metalness: 0 },
-  book4: { color: '--furn-book-4', roughness: 0.8, metalness: 0 },
-  flower: { color: '--furn-flower', roughness: 0.8, metalness: 0 },
-  tube: { color: '--furn-tube', roughness: 0.15, metalness: 0.3 },
-  bark: { color: '--furn-bark', roughness: 0.95, metalness: 0 },
-  leaf: { color: '--furn-leaf', roughness: 0.85, metalness: 0 },
-  leaf2: { color: '--furn-leaf-2', roughness: 0.85, metalness: 0 },
-  carBody: { color: '--furn-car', roughness: 0.35, metalness: 0.1 },
-  carGlass: { color: '--furn-car-glass', roughness: 0.15, metalness: 0.2 },
-  tyre: { color: '--furn-tyre', roughness: 0.9, metalness: 0 },
-  metal: { color: '--furn-metal', roughness: 0.35, metalness: 0.25 },
-  headlight: { color: '--furn-headlight', roughness: 0.2, metalness: 0 },
-  taillight: { color: '--furn-taillight', roughness: 0.3, metalness: 0 },
-  frame: { color: '--canvas-frame', roughness: 0.6, metalness: 0 },
-  glassBlock: { color: '--card', roughness: 0.9, metalness: 0, opacity: 0.8 },
-  wall: { color: '--card', roughness: 0.9, metalness: 0 },
-  water: { color: '--muted', roughness: 0.9, metalness: 0 },
-  grate: { color: '--muted-foreground', roughness: 0.9, metalness: 0 },
-};
-
-/** Theme variables of every material, for useThemeColors */
-export const LOOK_TOKENS = Object.fromEntries(Object.entries(LOOK_MATERIALS).map(([k, v]) => [k, v.color])) as Record<RecipeMaterial, string>;
+/** How a material a recipe names is drawn: the recipe's own (its library's), the design's, or the default library's */
+export const lookMaterial = (id: RecipeMaterial, recipe?: Recipe | null, design?: Record<string, Material>) => materialStyle(materialOf(id, recipe, design));
 
 const M = 0.001;
 const DEG = Math.PI / 180;

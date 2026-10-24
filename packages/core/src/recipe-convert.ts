@@ -5,7 +5,8 @@
  */
 import { parseExpr, type ExprNode } from './expr.js';
 import type { Expr, PartRecipe, ProfileItem, RecipePart } from './recipe.js';
-import { SCRIPT_HELPERS, type Recipe } from './script.js';
+import { DEFAULT_MATERIALS } from './looks/builtin.js';
+import { SCRIPT_HELPERS, type ParamDecl, type ParamType, type ParamValue, type Recipe } from './script.js';
 
 /** JSONata operators by precedence (higher binds tighter), as in expr.ts */
 const PREC: Record<string, number> = { '?': 0, '||': 1, '&&': 2, '==': 3, '!=': 3, '<': 4, '<=': 4, '>': 4, '>=': 4, '+': 5, '-': 5, '*': 6, '/': 6, '%': 6 };
@@ -106,14 +107,51 @@ export function toScript(r: PartRecipe): Recipe {
   return { ...(r.seed !== undefined ? { seed: r.seed } : {}), script: lets ? `(\n${lets}  ${body.replace(/\n/g, '\n  ').trimEnd()}\n)` : body };
 }
 
-/** A recipe as given (a script, or a part list from before scripts) as a script; anything else is returned as is, to fail the check */
+/**
+ * Parameter declarations from before v7 (a bare default, or { default, label, doc, options, min, max }) as JSON Schema
+ * declarations: the type from the default and the choices, `format: material` for a material default, `title` from the label
+ * (in the language it is written in). Declarations that already have a type are kept.
+ */
+export function normalizeParams(params: unknown, materials: Record<string, unknown> = {}): Record<string, ParamDecl> | undefined {
+  if (!params || typeof params !== 'object') return undefined;
+  return Object.fromEntries(Object.entries(params as Record<string, unknown>).map(([k, d]) => {
+    if (d && typeof d === 'object' && 'type' in d) return [k, d as ParamDecl];
+    const old = (d !== null && typeof d === 'object' ? d : { default: d }) as { default?: ParamValue; label?: string; doc?: string; options?: ParamValue[]; min?: number; max?: number };
+    const v = old.default ?? null;
+    const seen = new Set<ParamType>([v, ...(old.options ?? [])].filter(x => x !== null).map(x => (typeof x === 'number' ? 'number' : typeof x as ParamType)));
+    if (!seen.size) seen.add('number');
+    const types: ParamType[] = [...seen, ...(v === null ? ['null' as const] : [])];
+    const isMaterial = typeof v === 'string' && (v in materials || v in DEFAULT_MATERIALS);
+    const decl: ParamDecl = {
+      type: types.length === 1 ? types[0] : types,
+      default: v,
+      ...(isMaterial ? { format: 'material' as const } : {}),
+      ...(old.options?.length ? { enum: old.options.includes(v) || v === null ? old.options : [v, ...old.options] } : {}),
+      ...(typeof old.min === 'number' ? { minimum: old.min } : {}),
+      ...(typeof old.max === 'number' ? { maximum: old.max } : {}),
+      ...(old.label ? { title: /[\u4e00-\u9fff]/.test(old.label) ? { zh: old.label } : { en: old.label } } : {}),
+      ...(old.doc ? { description: old.doc } : {}),
+    };
+    return [k, decl];
+  }));
+}
+
+/**
+ * A recipe as given (a script, or a part list from before scripts) as a script with JSON Schema parameter declarations;
+ * anything else is returned as is, to fail the check
+ */
 export function normalizeRecipe(input: unknown): unknown {
-  if (input && typeof input === 'object' && 'parts' in input && !('script' in input)) {
+  let r = input;
+  if (r && typeof r === 'object' && 'parts' in r && !('script' in r)) {
     try {
-      return toScript(input as PartRecipe);
+      r = toScript(r as PartRecipe);
     } catch {
       return input;
     }
   }
-  return input;
+  if (r && typeof r === 'object' && 'params' in r) {
+    const o = r as Recipe;
+    return { ...o, params: normalizeParams(o.params, o.materials) };
+  }
+  return r;
 }

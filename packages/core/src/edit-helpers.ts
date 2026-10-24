@@ -4,6 +4,7 @@ import { add, cross, dot, MIN_WALL_LENGTH, PARALLEL_EPS, rect, round, scale, sub
 import { autoWallName, nextId, uniqueName, wallSpaceSpan } from './topology.js';
 import { TxError } from './session.js';
 import { text } from './i18n.js';
+import { materialOf } from './looks/builtin.js';
 import { NAME_SEPARATOR, names } from './names.js';
 import type { Id, Opening, Point, Polygon, Project, Space, Wall } from './schema.js';
 
@@ -93,9 +94,11 @@ export function wallsAround(p: Project, level: Id, poly: Polygon, thickness: num
   return out;
 }
 
-/** Register a floor material that isn't in the library yet (named after its key) */
+/** Register a floor material that neither the design nor the default library has (plain grey, named after its key) */
 export function ensureMaterial(p: Project, floor: string) {
-  if (!(floor in p.library.materials)) p.library.materials[floor] = { name: floor };
+  if (!materialOf(floor, null, p.library.materials)) {
+    p.library.materials[floor] = { name: { [p.language]: floor }, pbrMetallicRoughness: { baseColorFactor: [0.8, 0.8, 0.8, 1], metallicFactor: 0, roughnessFactor: 0.9 } };
+  }
 }
 
 /** Rename a wall, made unique on its level; openings named after the wall (“wall·Door”) follow */
