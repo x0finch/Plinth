@@ -92,7 +92,7 @@ function GroupIndex({ entries }: { entries: { href: string; name: string; count:
   return (
     <>
       {entries.length >= 3 && (
-        <nav aria-label={m.libraries_groups()} className="sticky top-0 z-10 -mx-4 flex gap-2 overflow-x-auto bg-background px-4 py-2 md:hidden">
+        <nav aria-label={m.libraries_groups()} className="sticky top-0 z-10 -mx-4 flex gap-2 overflow-x-auto bg-background px-4 py-2 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
           {entries.map(e => (
             <Button key={e.href} size="sm" variant="outline" className="shrink-0" nativeButton={false} render={<a href={e.href} />}>
               {e.name} <span className="text-muted-foreground">{e.count}</span>
