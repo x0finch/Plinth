@@ -4,13 +4,13 @@ import { ArrowRightIcon, CheckIcon, LoaderIcon } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import sampleJson from '../../../../samples/wushi-10/project.json';
-import { PlanPreview } from '@/components/site/PlanPreview';
-import { SiteFooter, SiteHeader } from '@/components/site/SiteHeader';
+import { PlanPreview } from '@/features/site/PlanPreview';
+import { SiteFooter, SiteHeader } from '@/features/site/SiteHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription } from '@/components/ui/card';
 import { m } from '@/lib/i18n';
 import { useMe } from '@/lib/query';
-import { startTrial } from '@/lib/trial';
+import { startTrial } from '@/features/site/trial';
 
 export const Route = createFileRoute('/')({ component: Landing });
 

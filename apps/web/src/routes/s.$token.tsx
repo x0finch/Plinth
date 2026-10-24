@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { LoaderIcon } from 'lucide-react';
 import { useState } from 'react';
-import { Logo } from '@/components/site/SiteHeader';
+import { Logo } from '@/features/site/SiteHeader';
 import { Button } from '@/components/ui/button';
 import { api, roleLabel } from '@/lib/api';
 import type { Role } from '@/shared/roles';

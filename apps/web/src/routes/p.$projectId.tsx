@@ -3,8 +3,8 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Editor } from '@/editor/Editor';
-import type { InitialProject } from '@/editor/store';
+import { Editor } from '@/features/editor/Editor';
+import type { InitialProject } from '@/features/editor/store';
 import { api, ApiError } from '@/lib/api';
 import { m } from '@/lib/i18n';
 

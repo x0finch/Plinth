@@ -5,9 +5,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ShapesIcon } from 'lucide-react';
-import { LibraryBadge, LibraryCreate, LibraryImport } from '@/components/looks/library';
-import { LookStill } from '@/components/looks/LookStill';
-import { SiteFooter, SiteHeader } from '@/components/site/SiteHeader';
+import { LibraryBadge, LibraryCreate, LibraryImport } from '@/features/looks/library';
+import { LookStill } from '@/features/looks/LookStill';
+import { SiteFooter, SiteHeader } from '@/features/site/SiteHeader';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { m } from '@/lib/i18n';

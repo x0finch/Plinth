@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { LoaderIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
-import { Logo } from '@/components/site/SiteHeader';
+import { Logo } from '@/features/site/SiteHeader';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';

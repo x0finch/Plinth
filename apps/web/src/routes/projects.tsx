@@ -3,7 +3,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { EllipsisIcon, HouseIcon, LoaderIcon, PlusIcon, UserIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { SiteFooter, SiteHeader } from '@/components/site/SiteHeader';
+import { SiteFooter, SiteHeader } from '@/features/site/SiteHeader';
 import {
   AlertDialog,
   AlertDialogAction,

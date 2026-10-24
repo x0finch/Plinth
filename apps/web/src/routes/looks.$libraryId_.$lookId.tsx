@@ -8,9 +8,9 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeftIcon } from 'lucide-react';
 import { useState } from 'react';
-import { sizeText, LookImage } from '@/components/looks/LookCard';
-import { ParamControls, paramText, paramTitle } from '@/components/looks/ParamControls';
-import { SiteFooter, SiteHeader } from '@/components/site/SiteHeader';
+import { sizeText, LookImage } from '@/features/looks/LookCard';
+import { ParamControls, paramText, paramTitle } from '@/features/looks/ParamControls';
+import { SiteFooter, SiteHeader } from '@/features/site/SiteHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty';
@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getLocale, m, uiName } from '@/lib/i18n';
 import { getLibrary } from '@/lib/libraries';
 import { cn } from '@/lib/utils';
-import { paramVariants, sizeVariants, type VariantRole } from '@/lib/variants';
+import { paramVariants, sizeVariants, type VariantRole } from '@/features/looks/variants';
 
 export const Route = createFileRoute('/looks/$libraryId_/$lookId')({ component: LookPage });
 

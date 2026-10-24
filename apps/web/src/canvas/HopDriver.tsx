@@ -1,6 +1,6 @@
 /** Wire editor selection and changes to the canvas feedback: hop once on select, fading tint on change */
 import { useEffect, useState } from 'react';
-import { useEditor } from '@/editor/store';
+import { useEditor } from '@/features/editor/store';
 import { useCanvasDocument } from './CanvasFrame';
 import { hops } from './hop';
 

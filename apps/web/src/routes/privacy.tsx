@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { ProsePage } from '@/components/site/Prose';
+import { ProsePage } from '@/features/site/Prose';
 import { m } from '@/lib/i18n';
 
 export const Route = createFileRoute('/privacy')({

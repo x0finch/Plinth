@@ -5,9 +5,9 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const root = new URL('../src', import.meta.url).pathname;
-const dirs = ['routes', 'editor', 'canvas', 'lib', 'components', 'server', 'agent', 'worker.ts'].map(d => join(root, d));
+const dirs = ['routes', 'features', 'graphics', 'canvas', 'lib', 'components', 'server', 'worker.ts'].map(d => join(root, d));
 // agent/prompt.ts is read only by the LLM (English; it may quote Chinese examples)
-const skip = ['components/ui', 'paraglide', 'agent/prompt.ts'];
+const skip = ['components/ui', 'paraglide', 'features/editor/agent/prompt.ts'];
 const cjk = /[　-〿一-鿿＀-￯]/;
 
 const files = [];

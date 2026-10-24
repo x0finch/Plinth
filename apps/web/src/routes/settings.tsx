@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { DownloadIcon, KeyRoundIcon, LoaderIcon, PlusIcon, Trash2Icon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { SiteFooter, SiteHeader } from '@/components/site/SiteHeader';
+import { SiteFooter, SiteHeader } from '@/features/site/SiteHeader';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,7 +29,7 @@ import { getLocale, locales, m, setLocale, type Locale } from '@/lib/i18n';
 import { authClient } from '@/lib/auth-client';
 import { AUTONOMIES, autonomyHint, autonomyLabel, getAutonomy, setAutonomy } from '@/lib/prefs';
 import { queryClient, useMe } from '@/lib/query';
-import type { Autonomy } from '@/agent/policy';
+import type { Autonomy } from '@/features/editor/agent/policy';
 
 export const Route = createFileRoute('/settings')({ component: Settings });
 
