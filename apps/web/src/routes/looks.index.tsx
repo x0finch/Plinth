@@ -47,8 +47,8 @@ function LibraryCard({ lib }: { lib: LibrarySummary }) {
   return (
     <Card className="gap-0 overflow-hidden py-0">
       <Link to="/looks/$libraryId" params={{ libraryId: lib.id }} className="block" aria-label={m.libraries_open({ name: lib.name })}>
-        <div className="bg-card p-3"><Preview lib={lib} /></div>
-        <CardHeader className="border-t px-3 py-2">
+        <Preview lib={lib} />
+        <CardHeader className="rounded-t-none border-t px-3 py-2">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="truncate text-sm">{lib.name}</CardTitle>
             <LibraryBadge lib={lib} />
@@ -64,6 +64,6 @@ function LibraryCard({ lib }: { lib: LibrarySummary }) {
 
 /** A still of the library's first look, like a font's sample text, drawn like every other look */
 function Preview({ lib }: { lib: LibrarySummary }) {
-  if (lib.cover) return <LookStill single recipe={lib.cover.recipe} size={lib.cover.size} alt="" />;
-  return <div className="flex aspect-[4/3] items-center justify-center rounded-md border"><ShapesIcon className="size-8 text-muted-foreground" /></div>;
+  if (lib.cover) return <LookStill single bleed recipe={lib.cover.recipe} size={lib.cover.size} alt="" />;
+  return <div className="flex aspect-[4/3] items-center justify-center bg-card"><ShapesIcon className="size-8 text-muted-foreground" /></div>;
 }
