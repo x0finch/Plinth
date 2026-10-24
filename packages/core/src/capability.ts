@@ -36,6 +36,8 @@ export interface EditCapability<I extends z.ZodType = z.ZodType, R = unknown> ex
   mode: 'edit';
   /** One-line summary written to the operation log */
   label: (input: z.output<I>, p: Project) => string;
+  /** Asynchronous work before the transaction (e.g. checking a recipe); may return the input to apply instead, or throw a TxError */
+  prepare?: (input: z.output<I>, ctx: CapabilityContext) => Promise<z.output<I> | void>;
   apply: (draft: Project, input: z.output<I>, ctx: CapabilityContext) => R;
 }
 
@@ -128,7 +130,8 @@ export class Registry {
     }
     try {
       if (c.mode !== 'edit') return { ok: true, result: await c.run(parsed.data, ctx) };
-      const tx = ctx.session.transact(c.label(parsed.data, ctx.session.project), ctx.actor, d => c.apply(d, parsed.data, ctx));
+      const input = (c.prepare && (await c.prepare(parsed.data, ctx))) || parsed.data;
+      const tx = ctx.session.transact(c.label(input, ctx.session.project), ctx.actor, d => c.apply(d, input, ctx));
       if (!tx.ok) return { ok: false, error: { code: tx.error!.code, message: tx.error!.message, details: tx.error!.issues } };
       return {
         ok: true,

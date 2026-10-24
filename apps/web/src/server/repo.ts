@@ -1,4 +1,5 @@
 /** Data access: plain D1 prepared statements for minimal overhead. */
+import { normalizeRecipe } from '@plinth/core';
 import { env } from 'cloudflare:workers';
 import { m } from '@/lib/i18n';
 import type { CommentRow, CommentStatus } from '@/shared/comments';
@@ -423,7 +424,12 @@ export async function getLibrary(libraryId: string) {
     db().prepare(`select m.user_id, u.name, u.email, m.role from look_library_member m join "user" u on u.id = m.user_id where m.library_id = ? order by m.created_at`).bind(libraryId)
       .all<{ user_id: string; name: string; email: string; role: LibraryRole }>(),
   ]);
-  return { ...lib, looks: looks.results.map(({ data, ...r }) => ({ ...r, ...JSON.parse(data) })) as LibraryLook[], members: members.results };
+  // Looks saved before recipes were scripts are converted as they are read
+  const look = ({ data, ...r }: { data: string; look_id: string; name: string; version: number; updated_at: number }) => {
+    const d = JSON.parse(data);
+    return { ...r, ...d, recipe: normalizeRecipe(d.recipe) };
+  };
+  return { ...lib, looks: looks.results.map(look) as LibraryLook[], members: members.results };
 }
 
 export const renameLibrary = (libraryId: string, name: string) =>

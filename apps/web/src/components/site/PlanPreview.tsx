@@ -3,10 +3,12 @@ import type { Project } from '@plinth/core';
 import { useMemo } from 'react';
 import { levelShapes } from '@/editor/plan-geometry';
 import { m } from '@/lib/i18n';
+import { useBuildsVersion } from '@/lib/builds';
 
 export function PlanPreview({ project, level, className }: { project: Project; level?: string; className?: string }) {
   const lv = level ?? project.levels.find(l => !l.roof)?.id ?? 'L1';
-  const s = useMemo(() => levelShapes(project, lv), [project, lv]);
+  const builds = useBuildsVersion();
+  const s = useMemo(() => levelShapes(project, lv), [project, lv, builds]);
   const [x0, y0, x1, y1] = s.bounds;
   const pad = 600;
   const font = Math.max(220, (x1 - x0) / 40);

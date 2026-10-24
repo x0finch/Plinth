@@ -2,7 +2,7 @@
  * The default model set: a recipe for every catalog furniture type, every kind of opening and every element type. It lives in
  * code and is never written to a project; designs that don't choose other looks follow it as it improves.
  */
-import type { Recipe } from '../recipe.js';
+import type { Recipe } from '../script.js';
 import { BATH } from './bath.js';
 import { BEDROOM } from './bedroom.js';
 import { ELEMENTS, OPENINGS } from './building.js';

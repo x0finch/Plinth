@@ -7,7 +7,7 @@
 import { Edges, OrbitControls, PerformanceMonitor } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import {
-  elementTarget, findObject, furnitureTarget, lookRecipe, openingFrames, openingTarget, projectBoxes, projectElements, rect, union, wallBoxes, wallDir,
+  elementTarget, findObject, furnitureTarget, getBuild, lookRecipe, openingFrames, openingTarget, projectBoxes, projectElements, rect, union, wallBoxes, wallDir,
   type Element, type OpeningFrame, type Project, type Recipe, type RecipeMaterial, type Solid, type Space, type Wall,
 } from '@plinth/core';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
@@ -18,7 +18,11 @@ import { hops, REVEAL } from '@/canvas/hop';
 import { useThemeColors } from '@/lib/theme';
 import { FloorDrawing, PlanSheet } from './model3d/FloorDrawing';
 import { useFloorTexture } from './model3d/floor-textures';
-import { LOOK_MATERIALS, LOOK_TOKENS, partsGeometry, safeBuild } from './model3d/looks';
+import { useBuildsVersion } from '@/lib/builds';
+import { LOOK_MATERIALS, LOOK_TOKENS, partsGeometry, useBuild } from './model3d/looks';
+
+/** Size an element's look is built at to read its materials and whether it adds parts (both independent of size) */
+const ELEMENT_SIZE = { w: 2000, d: 2000, h: 3000 };
 import { detectQuality, isTouchDevice, Renderer, type Quality } from './model3d/Renderer';
 import { GroundLabels, type GroundLabelSpec } from './ground-labels';
 import { modelStyle } from './model-style';
@@ -322,7 +326,8 @@ const useLookColors = () => useThemeColors(LOOK_TOKENS, useCanvasDocument());
 
 /** A recipe's geometry at a size (one per material), disposed when it changes */
 function useLookGeometry(recipe: Recipe | null, w: number, d: number, h: number) {
-  const parts = useMemo(() => (recipe ? partsGeometry(safeBuild(recipe, { w, d, h })) : []), [recipe, w, d, h]);
+  const built = useBuild(recipe, { w, d, h });
+  const parts = useMemo(() => (built ? partsGeometry(built.parts) : []), [built]);
   useEffect(() => () => parts.forEach(([, g]) => g.dispose()), [parts]);
   return parts;
 }
@@ -680,6 +685,8 @@ export function Model3D() {
   const q: Quality = quality ?? 'high';
   const draw = useRef<(() => void) | null>(null);
 
+  // Redraw element materials and extras when their builds finish
+  useBuildsVersion();
   const current = project.levels.find(l => l.id === view.level);
   // The whole house by default; the cutaway shows the current level and below, to look into it
   const shown = project.levels.filter(l => !view.layers.cutaway || !current || l.elevation <= current.elevation);
@@ -691,7 +698,7 @@ export function Model3D() {
   // An element's own geometry in the materials its look gives each kind of solid
   const solidColor = (s: Solid) => {
     const e = project.elements.find(x => x.id === s.id), recipe = e && lookRecipe(project, elementTarget(e), e.look);
-    const own = recipe?.parts.find(p => p.kind === 'base'), mat = own?.kind === 'base' ? own.mats[s.kind] : undefined;
+    const own = recipe && getBuild(recipe, ELEMENT_SIZE)?.parts.find(p => p.kind === 'base'), mat = own?.kind === 'base' ? own.mats[s.kind] : undefined;
     return mat ? lc[mat] : s.kind === 'water' ? c.furn : s.kind === 'grate' ? c.grate : c.wall;
   };
   const ownerOf = (id: string) => findObject(project, id, 'opening')?.wall?.id;
@@ -814,7 +821,7 @@ export function Model3D() {
                     ))}
                     {project.elements.filter(e => e.level === l.id).map(e => {
                       const recipe = lookRecipe(project, elementTarget(e), e.look), own = solids.filter(s => s.id === e.id);
-                      return recipe && own.length && recipe.parts.some(p => p.kind !== 'base')
+                      return recipe && own.length && getBuild(recipe, ELEMENT_SIZE)?.parts.some(p => p.kind !== 'base')
                         ? <ElementExtras key={e.id} e={e} solids={own} recipe={recipe} base={elev.get(l.id) ?? 0} sel={sel.has(e.id) ? c.sel : undefined} />
                         : null;
                     })}

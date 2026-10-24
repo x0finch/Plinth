@@ -8,12 +8,13 @@ import { defineEdit, defineRead } from '../capability.js';
 import { text } from '../i18n.js';
 import { DEFAULT_LOOKS, type LookTarget } from '../looks/index.js';
 import { elementTarget, furnitureTarget, lookOf, openingTarget, targetSize } from '../looks/resolve.js';
-import { checkRecipe, type Recipe } from '../recipe.js';
+import { normalizeRecipe } from '../recipe-convert.js';
+import { checkRecipe, type Recipe } from '../script.js';
 import { resolve, type Kind } from '../refs.js';
 import { OPENING_KINDS, type Look, type Project } from '../schema.js';
 import { TxError } from '../session.js';
 
-const RECIPE_HELP = 'A recipe (see the recipe format in look_add)';
+const RECIPE_HELP = 'A recipe: { params?, seed?, script } with a JSONata script (see the recipe format in look_add)';
 
 export const zTarget = z.string().regex(/^(furniture|opening|element):[A-Za-z0-9_-]+$/)
   .describe("What a look draws: 'furniture:<type>' (a furniture type), 'opening:<door|sliding-door|gate|window|opening|glass-block>' or 'element:<stair|pond|drain>'");
@@ -26,10 +27,15 @@ function checkTarget(p: Project, target: string) {
   if (!ok) throw new TxError('invalid-input', text('err_look_target', 'Unknown target {target}', { target }));
 }
 
-/** The recipe if it builds for every target it is meant for; otherwise an error the caller can act on */
-function checkedRecipe(p: Project, recipe: unknown, targets: string[]): Recipe {
+/**
+ * The recipe (a script; a part list from before scripts is converted) if it builds at the size of every target it is meant for;
+ * otherwise an error the caller can act on. Run in a capability's prepare step, since building is asynchronous.
+ */
+async function checkedRecipe(p: Project, input: unknown, targets: string[], types: Record<string, { size: { w: number; d: number; h: number } }> = {}): Promise<Recipe> {
+  const recipe = normalizeRecipe(input);
   for (const t of targets) {
-    const problems = checkRecipe(recipe, targetSize(p, t));
+    const [kind, type] = t.split(':');
+    const problems = await checkRecipe(recipe, kind === 'furniture' && types[type] ? types[type].size : targetSize(p, t));
     if (problems.length) throw new TxError('invalid-input', text('err_recipe', 'The recipe has problems: {problems}', { problems: problems.join('; ') }));
   }
   return recipe as Recipe;
@@ -69,16 +75,19 @@ export const lookAdd = defineEdit({
   description: [
     'Add a look to the design: a recipe that draws furniture, doors and windows, or elements, like a font draws characters.',
     'Everyone who opens the design sees it. With use, every object of those targets switches to it; otherwise set it per object with look_set.',
-    'Recipe format (JSON, millimetres, angles in degrees): { seed?, let?: {name: expr}, parts: Part[], plan?: [...] }.',
-    'Numbers may be expressions of w, d, h (the object\'s width, depth, height) and names from let/repeat:',
-    '+ - * / %, comparisons, && || !, a ? b : c, min max abs sqrt floor ceil round sin cos tan atan2 hypot clamp lerp rnd(k) (pseudo-random 0..1, fixed per seed).',
+    'Recipe format: { params?: {name: default}, seed?, script } where script is a JSONata expression (jsonata.org) returning a list of parts (nested lists are flattened), or { parts, plan } to draw its own plan symbol.',
+    'Millimetres, angles in degrees. The script sees the object\'s size as $w, $d, $h and each parameter as $name (its default, or the value an object sets).',
+    'A parameter default may be a value or { default, label (in the project language), doc, options?, min?, max? }; null means the script works it out (e.g. from the size). Declare a parameter for whatever a person may want to change without a new look: materials of the main surfaces, decoration on/off, a few shape choices.',
     'Local frame: origin at the centre of the footprint on the floor (an opening: the centre of its sill; x along the wall, z across it), x across w, z across d with +z the front, y up.',
-    'Every part has mat (fabric cushion linen bedding canvas canvas2 wood woodDark lacquer gold red cabinet countertop ceramic ceramicShade appliance plaster stone stoneDark terracotta soil iron dark glass book1-4 flower tube bark leaf leaf2 carBody carGlass tyre metal headlight taillight frame glassBlock wall water grate) and optional plan:false (left out of the plan symbol). Kinds:',
-    'box {size:[w,h,d], at:[x,y,z] centre, r? edge radius, rot?:[rx,ry,rz]}; cylinder {r, r2? top radius, h, at centre, axis? x|y|z, scale?};',
-    'sphere {r, at, scale?}; lathe {profile:[[r,y]...] from the axis out and back, at base, scale?}; rod {from, to, r}; ring {R, r, at, axis? y|z};',
-    'tube {points:[[x,y,z]...], r}; panel {from:[x,z], to:[x,z], y, h, t}; extrude {plane: side (profile in x,y extruded across z) | plan (profile in x,z extruded up), profile: [[x,y] | {arc:[cx,cy,r,a0,a1,clockwise]} | {curve:[cx,cy,x,y]}], depth, bevel?, at?};',
-    'repeat {count, as? (default i), let?, parts}; if {when, parts, else?}; base {mats:{structure,water,grate}} (an element\'s own geometry).',
-    'The plan symbol is the parts seen from above unless plan gives rings/lines/circles. Keep parts inside the w × d footprint and under h.',
+    'JSONata basics: ( $a := 1; $b := $a * 2; [ ... ] ) for local variables; [0..$n - 1].( $i := $; ... ) to repeat; cond ? a : b; = != < <= > >= and or $not(); + - * / %;',
+    '$min([a, b]) $max([...]) $abs $floor $ceil $sqrt $power $round (half up) and our $sin $cos $tan $atan2 (degrees) $hypot $clamp(x, lo, hi) $lerp(a, b, t) $rnd(k) (pseudo-random 0..1, fixed per seed) $pi; $f := function($x) { ... } for helpers of your own.',
+    'Always use $w, $d, $h and $variables: inside [list].( ... ) a bare name refers to the current item.',
+    'Parts (mat is one of: fabric cushion linen bedding canvas canvas2 wood woodDark birch white lacquer gold red cabinet countertop ceramic ceramicShade appliance plaster stone stoneDark terracotta soil iron dark glass book1-4 flower tube bark leaf leaf2 carBody carGlass tyre metal headlight taillight frame glassBlock wall water grate):',
+    '$box([w, h, d], [x, y, z] centre, mat, r? edge radius, [rx, ry, rz]?); $block([w, h, d], x, y0 bottom, z, mat, r?); $cylinder(r, h, [x, y, z] centre, mat, {r2? top radius, axis? x|y|z, seg?, scale?}?);',
+    '$sphere(r, at, mat, scale?); $lathe([[r, y]...] from the axis out and back, [x, y, z] base, mat, {scale?, seg?}?); $rod(from, to, r, mat); $ring(R, r, at, mat, axis? y|z); $tube([[x, y, z]...], r, mat);',
+    '$panel([x, z], [x, z], y, h, t, mat); $extrude(plane side (profile x,y across z) | plan (profile x,z upwards), [[x, y] | {"arc": [cx, cy, r, a0, a1, clockwise]} | {"curve": [cx, cy, x, y]}], depth, mat, bevel?, at?);',
+    '$fourLegs(w, d, inset, h, r, mat, square?); $noplan(part or list) leaves parts out of the plan symbol; $base({structure, water, grate}) is an element\'s own geometry.',
+    'The plan symbol is the parts seen from above. Keep parts inside the w × d footprint and under h. A part list ({ let, parts } from before scripts) is still accepted and converted.',
   ].join(' '),
   input: z.object({
     name: z.string().min(1).describe('Name of the look, in the language the project data uses'),
@@ -87,9 +96,13 @@ export const lookAdd = defineEdit({
     use: z.boolean().default(false).describe('Use it for every object of these targets'),
   }),
   label: i => text('log_look_add', 'Add look “{name}”', { name: i.name }),
+  prepare: async (i, ctx) => {
+    i.for.forEach(t => checkTarget(ctx.session.project, t));
+    return { ...i, recipe: await checkedRecipe(ctx.session.project, i.recipe, i.for) };
+  },
   apply: (p, i) => {
     i.for.forEach(t => checkTarget(p, t));
-    const recipe = checkedRecipe(p, i.recipe, i.for);
+    const recipe = i.recipe as Recipe;
     const id = nextLookId(p);
     p.library.looks = { ...(p.library.looks ?? {}), [id]: { name: i.name, for: [...new Set(i.for)], recipe, version: 1 } };
     if (i.use) p.library.use = { ...(p.library.use ?? {}), ...Object.fromEntries(i.for.map(t => [t, id])) };
@@ -102,11 +115,16 @@ export const lookUpdate = defineEdit({
   description: 'Change a look of the design: its name, the targets it fits or its recipe (format in look_add). Every object drawn with it changes.',
   input: z.object({ look: z.string().describe('Look ID or name'), name: z.string().min(1).optional(), for: z.array(zTarget).min(1).optional(), recipe: z.unknown().optional().describe(RECIPE_HELP) }),
   label: (i, p) => text('log_look_update', 'Change look “{name}”', { name: p.library.looks?.[lookId(p, i.look)]?.name ?? i.look }),
+  prepare: async (i, ctx) => {
+    const p = ctx.session.project, look = getLook(p, i.look), targets = i.for ?? look.for;
+    targets.forEach(t => checkTarget(p, t));
+    if (i.recipe !== undefined || i.for) return { ...i, recipe: await checkedRecipe(p, i.recipe ?? look.recipe, targets) };
+  },
   apply: (p, i) => {
     const look = getLook(p, i.look), id = lookId(p, i.look);
     const targets = i.for ?? look.for;
     targets.forEach(t => checkTarget(p, t));
-    const recipe = i.recipe !== undefined ? checkedRecipe(p, i.recipe, targets) : i.for ? checkedRecipe(p, look.recipe, targets) : look.recipe;
+    const recipe = (i.recipe as Recipe | undefined) ?? look.recipe;
     p.library.looks![id] = { ...look, name: i.name ?? look.name, for: [...new Set(targets)], recipe, version: look.version + 1 };
     return { id, version: look.version + 1 };
   },
@@ -177,11 +195,14 @@ export const furnitureTypeAdd = defineEdit({
     recipe: z.unknown().optional().describe(RECIPE_HELP),
   }),
   label: i => text('log_furniture_type_add', 'Add furniture type “{name}”', { name: i.name }),
+  prepare: async (i, ctx) => {
+    if (i.recipe !== undefined) return { ...i, recipe: await checkedRecipe(ctx.session.project, i.recipe, [`furniture:${i.type}`], { [i.type]: i }) };
+  },
   apply: (p, i) => {
     if (p.library.furniture[i.type]) throw new TxError('invalid-input', text('err_furniture_type_exists', 'Furniture type {type} already exists', { type: i.type }));
     p.library.furniture[i.type] = { name: i.name, ...(i.group ? { group: i.group } : {}), size: { ...i.size } };
     if (i.recipe === undefined) return { type: i.type };
-    const target = `furniture:${i.type}`, recipe = checkedRecipe(p, i.recipe, [target]), id = nextLookId(p);
+    const target = `furniture:${i.type}`, recipe = i.recipe as Recipe, id = nextLookId(p);
     p.library.looks = { ...(p.library.looks ?? {}), [id]: { name: i.name, for: [target], recipe, version: 1 } };
     p.library.use = { ...(p.library.use ?? {}), [target]: id };
     return { type: i.type, look: id };
@@ -221,10 +242,15 @@ export const lookImport = defineEdit({
   label: (i, p) => i.replace || Object.values(p.library.looks ?? {}).some(l => l.source?.library === i.source.library && l.source.look === i.source.look)
     ? text('log_look_import_update', 'Update look “{name}” from its library', { name: i.name })
     : text('log_look_import', 'Add look “{name}” from a library', { name: i.name }),
+  prepare: async (i, ctx) => {
+    const p = ctx.session.project;
+    i.for.forEach(t => t.startsWith('furniture:') && i.types?.[t.slice(10)] ? null : checkTarget(p, t));
+    return { ...i, recipe: await checkedRecipe(p, i.recipe, i.for, i.types ?? {}) };
+  },
   apply: (p, i) => {
     for (const [type, def] of Object.entries(i.types ?? {})) p.library.furniture[type] ??= { name: def.name, ...(def.group ? { group: def.group } : {}), size: { ...def.size } };
     i.for.forEach(t => checkTarget(p, t));
-    const recipe = checkedRecipe(p, i.recipe, i.for);
+    const recipe = i.recipe as Recipe;
     const looks = p.library.looks ?? {};
     // Copied before: bring that copy up to date instead of adding a second one
     if (i.replace) getLook(p, i.replace);

@@ -12,6 +12,7 @@ import { useRun } from './panels/common';
 import { useEditor } from './store';
 import { m } from '@/lib/i18n';
 import { standaloneSvg } from '@/lib/theme';
+import { useBuildsVersion } from '@/lib/builds';
 
 const pts = (p: Point[]) => p.map(([x, y]) => `${x},${y}`).join(' ');
 
@@ -41,7 +42,9 @@ export function Plan2D({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | nu
   const compare = useEditor(s => s.compare);
   const lastChange = useEditor(s => s.lastChange);
   const drag = useDrag();
-  const shapes = useMemo(() => levelShapes(drag.preview ?? project, view.level), [drag.preview, project, view.level]);
+  // Furniture symbols come from builds that finish later (packages/core/src/looks/cache.ts)
+  const builds = useBuildsVersion();
+  const shapes = useMemo(() => levelShapes(drag.preview ?? project, view.level), [drag.preview, project, view.level, builds]);
   // Before: draw only the original positions of walls that changed
   const before = useMemo(() => {
     if (!compare || !lastChange) return null;

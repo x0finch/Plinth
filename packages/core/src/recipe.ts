@@ -50,7 +50,8 @@ export type RecipePart =
 /** A plan symbol drawn by hand instead of from the parts: filled rings and lines, in the local frame (x, z) */
 export type RecipePlanItem = { ring: V2[]; fill?: boolean } | { line: V2[] } | { circle: { at: V2; r: Expr }; fill?: boolean };
 
-export interface Recipe {
+/** A recipe as a list of parts with expressions (the format before scripts); also what a script's output is checked as */
+export interface PartRecipe {
   /** Seed for rnd(k), so random variation is the same every time */
   seed?: number;
   /** Named values, evaluated in order; later ones can use earlier ones */
@@ -88,7 +89,7 @@ const planItem = z.union([
   z.object({ line: z.array(v2).min(2).max(128) }),
   z.object({ circle: z.object({ at: v2, r: expr }), fill: z.boolean().optional() }),
 ]);
-export const recipeSchema: z.ZodType<Recipe> = z.object({
+export const partRecipeSchema: z.ZodType<PartRecipe> = z.object({
   seed: z.number().int().optional(),
   let: z.record(name, expr).optional(),
   parts: z.array(recipePartSchema).max(300),
@@ -122,7 +123,7 @@ export const RECIPE_LIMITS = { parts: 3000, repeat: 400, depth: 6 };
 export type RecipeSize = { w: number; d: number; h: number } & Record<string, number>;
 
 /** Evaluate a recipe at a size: every part with numbers, repeats and conditions expanded */
-export function buildRecipe(recipe: Recipe, size: RecipeSize): BuiltPart[] {
+export function buildParts(recipe: PartRecipe, size: RecipeSize): BuiltPart[] {
   const seed = recipe.seed ?? 1;
   const scope: Scope = { ...size };
   const where = (path: string, f: () => void) => {
@@ -215,13 +216,13 @@ const round = (v: number) => Math.round(v * 100) / 100;
  * Check a recipe as the agent or a user wrote it: its shape, and that it builds at the given size and at half and twice that
  * size. Returns readable problems (empty when it's fine).
  */
-export function checkRecipe(input: unknown, size: RecipeSize): string[] {
-  const parsed = recipeSchema.safeParse(input);
+export function checkParts(input: unknown, size: RecipeSize): string[] {
+  const parsed = partRecipeSchema.safeParse(input);
   if (!parsed.success) return parsed.error.issues.slice(0, 10).map(i => `${i.path.join('.') || 'recipe'}: ${i.message}`);
   const problems: string[] = [];
   for (const k of [1, 0.5, 2]) {
     try {
-      buildRecipe(parsed.data, { ...size, w: size.w * k, d: size.d * k, h: size.h * k });
+      buildParts(parsed.data, { ...size, w: size.w * k, d: size.d * k, h: size.h * k });
     } catch (e) {
       problems.push(`at ${k === 1 ? 'its size' : `${k}× its size`}: ${e instanceof Error ? e.message : String(e)}`);
       break;
@@ -330,20 +331,17 @@ function footprint(p: BuiltPart): { ring: Point[]; top: number; fill: boolean } 
   }
 }
 
-/** The plan symbol of built parts: their outlines from above, lowest first, so higher parts cover lower ones */
-export function planSymbol(recipe: Recipe, parts: BuiltPart[], size: RecipeSize): PlanSymbol {
-  if (recipe.plan) {
-    const seed = recipe.seed ?? 1, scope: Scope = { ...size };
-    for (const [k, e] of Object.entries(recipe.let ?? {})) scope[k] = evalExpr(e, scope, seed);
-    const n2 = (v: V2): Point => [evalExpr(v[0], scope, seed), evalExpr(v[1], scope, seed)];
+/** A plan symbol drawn by hand, with numbers (what a script returns as `plan`) */
+export type BuiltPlanItem = { ring: [number, number][]; fill?: boolean } | { line: [number, number][] } | { circle: { at: [number, number]; r: number }; fill?: boolean };
+
+/** The plan symbol: `plan` if given, else the built parts' outlines from above, lowest first, so higher parts cover lower ones */
+export function planSymbol(parts: BuiltPart[], plan?: BuiltPlanItem[]): PlanSymbol {
+  if (plan) {
     const out: PlanSymbol = { items: [], lines: [] };
-    for (const it of recipe.plan) {
-      if ('line' in it) out.lines.push(it.line.map(n2));
-      else if ('ring' in it) out.items.push({ ring: it.ring.map(n2), fill: it.fill !== false });
-      else {
-        const [x, z] = n2(it.circle.at), r = evalExpr(it.circle.r, scope, seed);
-        out.items.push({ ring: circle(x, z, r, r), fill: it.fill !== false });
-      }
+    for (const it of plan) {
+      if ('line' in it) out.lines.push(it.line);
+      else if ('ring' in it) out.items.push({ ring: it.ring, fill: it.fill !== false });
+      else out.items.push({ ring: circle(it.circle.at[0], it.circle.at[1], it.circle.r, it.circle.r), fill: it.fill !== false });
     }
     return out;
   }
@@ -418,9 +416,9 @@ export interface RecipeInspection {
   views: { top: string; front: string; side: string };
 }
 
-/** What a recipe builds at a size, for checking it without seeing it: extent, parts out of bounds or floating, rough views */
-export function inspectRecipe(recipe: Recipe, size: RecipeSize): RecipeInspection {
-  const parts = buildRecipe(recipe, size).filter(p => p.kind !== 'base');
+/** What built parts look like at a size, for checking them without seeing them: extent, parts out of bounds or floating, rough views */
+export function inspectParts(built: BuiltPart[], size: RecipeSize): RecipeInspection {
+  const parts = built.filter(p => p.kind !== 'base');
   const boxes = parts.map((p, i) => ({ i, p, b: partBounds(p)! })).filter(x => x.b);
   const describe = ({ i, p }: { i: number; p: BuiltPart }) => `#${i} ${p.kind}${'mat' in p ? ` (${p.mat})` : ''}`;
   const tol = 20, touch = 10;

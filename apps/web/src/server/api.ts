@@ -1,5 +1,5 @@
 /** Server API (Hono). Pages are served by the static assets layer; only /api/* comes here. */
-import { checkRecipe, createProject as newProjectData, FURNITURE_TYPES, migrate, validate, type Project, type Recipe, type ValidationIssue } from '@plinth/core';
+import { checkRecipe, createProject as newProjectData, normalizeRecipe, FURNITURE_TYPES, migrate, validate, type Project, type Recipe, type ValidationIssue } from '@plinth/core';
 import { env } from 'cloudflare:workers';
 import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -460,13 +460,14 @@ async function libraryAccess(c: C, min: LibraryRole) {
   return { id, role, user: u };
 }
 
-/** A library look's recipe must build for each target it is for, at that target's size */
-function checkLibraryLook(l: z.output<typeof zLibraryLook>) {
+/** A library look's recipe (a part list from before scripts is converted) must build for each target it is for, at that target's size */
+async function checkLibraryLook(l: z.output<typeof zLibraryLook>) {
+  l.recipe = normalizeRecipe(l.recipe);
   for (const t of l.for) {
     const [kind, type] = t.split(':');
     const size = kind === 'furniture' ? l.types?.[type]?.size ?? FURNITURE_TYPES[type]?.size : undefined;
     if (kind === 'furniture' && !size) throw new HTTPException(400, { message: m.server_err_library_type({ type }) });
-    const problems = checkRecipe(l.recipe, size ?? (kind === 'opening' ? { w: 1200, d: 240, h: 1500 } : { w: 2000, d: 2000, h: 3000 }));
+    const problems = await checkRecipe(l.recipe, size ?? (kind === 'opening' ? { w: 1200, d: 240, h: 1500 } : { w: 2000, d: 2000, h: 3000 }));
     if (problems.length) throw new HTTPException(400, { message: problems.join('; ') });
   }
 }
@@ -512,7 +513,7 @@ api.delete('/libraries/:lib', async c => {
 api.post('/libraries/:lib/looks', async c => {
   const { id, user } = await libraryAccess(c, 'editor');
   const b = await body(c, zLibraryLook);
-  checkLibraryLook(b);
+  await checkLibraryLook(b);
   const lookId = repo.newId('lk');
   const version = await repo.putLibraryLook(id, lookId, b.name, { for: b.for, recipe: b.recipe as Recipe, ...(b.types ? { types: b.types } : {}) }, user.id);
   return c.json({ look: lookId, version });
@@ -522,7 +523,7 @@ api.post('/libraries/:lib/looks', async c => {
 api.put('/libraries/:lib/looks/:look', async c => {
   const { id, user } = await libraryAccess(c, 'editor');
   const b = await body(c, zLibraryLook);
-  checkLibraryLook(b);
+  await checkLibraryLook(b);
   const version = await repo.putLibraryLook(id, c.req.param('look'), b.name, { for: b.for, recipe: b.recipe as Recipe, ...(b.types ? { types: b.types } : {}) }, user.id);
   return c.json({ look: c.req.param('look'), version });
 });

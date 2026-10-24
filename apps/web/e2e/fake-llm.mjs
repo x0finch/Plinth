@@ -18,12 +18,19 @@ function next(body) {
   const lastUser = msgs.map(m => m.role).lastIndexOf('user');
   const toolsSoFar = msgs.slice(lastUser).filter(m => m.role === 'tool').length;
   // Looks: read the current one, preview a new recipe, add it
-  const ROUND = { let: { r: 'min(w, d) / 2' }, parts: [
-    { kind: 'cylinder', mat: 'wood', r: 'r', h: 40, at: [0, 'h - 20', 0], seg: 40 },
-    { kind: 'cylinder', mat: 'woodDark', r: 'r * 0.45', h: 30, at: [0, 'h + 15', 0] },
-    { kind: 'cylinder', mat: 'woodDark', r: 50, h: 'h - 40', at: [0, '(h - 40) / 2', 0] },
-    { kind: 'cylinder', mat: 'woodDark', r: 'r * 0.5', h: 20, at: [0, 10, 0] },
-  ] };
+  // A JSONata recipe with a parameter (the 方凳 below still sends a part list from before scripts, which is converted)
+  const ROUND = {
+    params: { top: 'wood' },
+    script: `(
+      $r := $min([$w, $d]) / 2;
+      [
+        $cylinder($r, 40, [0, $h - 20, 0], $top, {"seg": 40}),
+        $cylinder($r * 0.45, 30, [0, $h + 15, 0], 'woodDark'),
+        $cylinder(50, $h - 40, [0, ($h - 40) / 2, 0], 'woodDark'),
+        $cylinder($r * 0.5, 20, [0, 10, 0], 'woodDark')
+      ]
+    )`,
+  };
   if (/圆餐桌/.test(text) && toolsSoFar === 0) return { tool: { name: 'look_get', args: { target: 'furniture:dining' } } };
   if (/圆餐桌/.test(text) && toolsSoFar === 1) return { tool: { name: 'look_preview', args: { recipe: ROUND, target: 'furniture:dining' } } };
   if (/圆餐桌/.test(text) && toolsSoFar === 2) {
